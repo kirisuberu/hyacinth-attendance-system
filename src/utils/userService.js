@@ -141,3 +141,67 @@ export const deleteUser = async (userId) => {
     throw error;
   }
 };
+
+// Check if email is approved by admin
+export const isEmailApproved = async (email) => {
+  try {
+    if (!email) {
+      console.log('No email provided');
+      return false;
+    }
+
+    console.log('Checking if email is approved:', email);
+
+    const approvedEmailsRef = collection(db, 'approvedEmails');
+    const q = query(approvedEmailsRef, where('email', '==', email.toLowerCase()));
+    const querySnapshot = await getDocs(q);
+
+    const isApproved = !querySnapshot.empty;
+    console.log('Email approval status:', isApproved);
+    return isApproved;
+  } catch (error) {
+    console.error('Error checking email approval status:', error);
+    return false;
+  }
+};
+
+// Add email to approved list (admin only)
+export const addApprovedEmail = async (email) => {
+  try {
+    const approvedEmailsRef = collection(db, 'approvedEmails');
+    const emailDoc = doc(approvedEmailsRef, email.toLowerCase());
+    await setDoc(emailDoc, {
+      email: email.toLowerCase(),
+      addedAt: new Date().toISOString()
+    });
+    console.log('Email added to approved list:', email);
+  } catch (error) {
+    console.error('Error adding approved email:', error);
+    throw error;
+  }
+};
+
+// Remove email from approved list (admin only)
+export const removeApprovedEmail = async (email) => {
+  try {
+    const approvedEmailsRef = collection(db, 'approvedEmails');
+    const emailDoc = doc(approvedEmailsRef, email.toLowerCase());
+    await deleteDoc(emailDoc);
+    console.log('Email removed from approved list:', email);
+  } catch (error) {
+    console.error('Error removing approved email:', error);
+    throw error;
+  }
+};
+
+// Get all approved emails (admin only)
+export const getApprovedEmails = async () => {
+  try {
+    const approvedEmailsRef = collection(db, 'approvedEmails');
+    const querySnapshot = await getDocs(approvedEmailsRef);
+    return querySnapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error('Error getting approved emails:', error);
+    throw error;
+  }
+};

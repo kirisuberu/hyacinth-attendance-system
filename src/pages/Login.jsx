@@ -3,7 +3,7 @@ import { auth, db, googleProvider } from '../firebase';
 import { signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { checkUserAdminStatus, UserType, WeeklySchedule, createOrUpdateUser } from '../utils/userService';
+import { checkUserAdminStatus, UserType, WeeklySchedule, createOrUpdateUser, isEmailApproved } from '../utils/userService';
 import { doc, getDoc } from 'firebase/firestore';
 
 const LoginContainer = styled.div`
@@ -86,6 +86,15 @@ function Login() {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       
       if (!userDoc.exists()) {
+        // Check if email is approved before creating new user
+        const isApproved = await isEmailApproved(user.email);
+        if (!isApproved) {
+          setError('Your email is not approved. Please contact an administrator.');
+          await auth.signOut();
+          setLoading(false);
+          return;
+        }
+
         // Create new user document
         console.log('Creating new user document');
         await createOrUpdateUser(user.uid, {

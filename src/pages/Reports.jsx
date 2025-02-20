@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { db } from '../firebase';
 import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { format } from 'date-fns';
 
 const ReportsContainer = styled.div`
   padding: 2rem;
@@ -86,11 +87,19 @@ function Reports() {
         );
         const snapshot = await getDocs(attendanceQuery);
         
-        const records = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const records = snapshot.docs.map(doc => {
+          const data = doc.data();
+          const timestamp = data.timestamp?.toDate();
+          return {
+            id: doc.id,
+            ...data,
+            type: data.type === 'Time In' ? 'IN' : data.type === 'Time Out' ? 'OUT' : data.type, // Normalize type to IN/OUT
+            timestamp,
+            formattedTime: timestamp ? format(timestamp, 'hh:mm a') : 'N/A'
+          };
+        });
 
+        console.log('All records:', records); // Debug log
         setReportData(records);
       } catch (error) {
         console.error('Error fetching report data:', error);
@@ -131,19 +140,19 @@ function Reports() {
             <tr>
               <th>Date</th>
               <th>Name</th>
-              <th>Time In</th>
-              <th>Time Out</th>
-              <th>Total Hours</th>
+              <th>Email</th>
+              <th>Type</th>
+              <th>Time</th>
             </tr>
           </thead>
           <tbody>
             {reportData.map(record => (
               <tr key={record.id}>
-                <td>{new Date(record.timestamp).toLocaleDateString()}</td>
-                <td>{record.userName}</td>
-                <td>{record.timeIn}</td>
-                <td>{record.timeOut}</td>
-                <td>{record.totalHours}</td>
+                <td>{record.timestamp ? format(record.timestamp, 'MM/dd/yyyy') : 'N/A'}</td>
+                <td>{record.name || 'N/A'}</td>
+                <td>{record.email || 'N/A'}</td>
+                <td style={{ fontWeight: '500' }}>{record.type}</td>
+                <td>{record.formattedTime}</td>
               </tr>
             ))}
             {reportData.length === 0 && (

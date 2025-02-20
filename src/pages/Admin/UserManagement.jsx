@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import styled from 'styled-components';
-import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule } from '../../utils/userService';
+import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails } from '../../utils/userService';
 import { auth } from '../../firebase';
 
 const Container = styled.div`
@@ -129,9 +129,13 @@ function UserManagement() {
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [approvedEmails, setApprovedEmails] = useState([]);
+  const [newApprovedEmail, setNewApprovedEmail] = useState('');
+  const [showApprovedEmailsModal, setShowApprovedEmailsModal] = useState(false);
 
   useEffect(() => {
     loadUsers();
+    loadApprovedEmails();
   }, []);
 
   const loadUsers = async () => {
@@ -142,6 +146,15 @@ function UserManagement() {
     } catch (error) {
       console.error('Error loading users:', error);
       setLoading(false);
+    }
+  };
+
+  const loadApprovedEmails = async () => {
+    try {
+      const emails = await getApprovedEmails();
+      setApprovedEmails(emails);
+    } catch (error) {
+      console.error('Error loading approved emails:', error);
     }
   };
 
@@ -159,6 +172,9 @@ function UserManagement() {
         createdAt: new Date().toISOString()
       });
 
+      // Automatically add the email to approved emails list
+      await addApprovedEmail(newUser.email);
+
       // Reset form and close modal
       setNewUser({
         name: '',
@@ -167,8 +183,8 @@ function UserManagement() {
       });
       setShowCreateModal(false);
       
-      // Reload users list
-      await loadUsers();
+      // Reload users list and approved emails
+      await Promise.all([loadUsers(), loadApprovedEmails()]);
     } catch (error) {
       console.error('Error creating user:', error);
       setCreateError(error.message);
@@ -210,6 +226,25 @@ function UserManagement() {
       await loadUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
+    }
+  };
+
+  const handleAddApprovedEmail = async () => {
+    try {
+      await addApprovedEmail(newApprovedEmail);
+      setNewApprovedEmail('');
+      await loadApprovedEmails();
+    } catch (error) {
+      console.error('Error adding approved email:', error);
+    }
+  };
+
+  const handleRemoveApprovedEmail = async (email) => {
+    try {
+      await removeApprovedEmail(email);
+      await loadApprovedEmails();
+    } catch (error) {
+      console.error('Error removing approved email:', error);
     }
   };
 
@@ -284,6 +319,72 @@ function UserManagement() {
     );
   };
 
+  const ApprovedEmailsModal = memo(() => {
+    const [emailInput, setEmailInput] = useState(newApprovedEmail);
+    
+    const handleAddEmail = async () => {
+      await handleAddApprovedEmail();
+      setEmailInput('');
+    };
+
+    return (
+      <Modal>
+        <ModalContent>
+          <h2>Manage Approved Emails</h2>
+          <div style={{ marginTop: '1rem' }}>
+            <FormGroup>
+              <Label>Add New Email</Label>
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <Input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => {
+                    setEmailInput(e.target.value);
+                    setNewApprovedEmail(e.target.value);
+                  }}
+                  placeholder="Enter email address"
+                />
+                <Button onClick={handleAddEmail}>Add</Button>
+              </div>
+            </FormGroup>
+            <div style={{ marginTop: '1rem', maxHeight: '300px', overflowY: 'auto' }}>
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Email</Th>
+                    <Th>Added At</Th>
+                    <Th>Actions</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {approvedEmails.map(({ email, addedAt }) => (
+                    <tr key={email}>
+                      <Td>{email}</Td>
+                      <Td>{new Date(addedAt).toLocaleString()}</Td>
+                      <Td>
+                        <Button
+                          onClick={() => handleRemoveApprovedEmail(email)}
+                          style={{ backgroundColor: '#DC2626' }}
+                        >
+                          Remove
+                        </Button>
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <Button onClick={() => setShowApprovedEmailsModal(false)} style={{ backgroundColor: '#6B7280' }}>
+              Close
+            </Button>
+          </div>
+        </ModalContent>
+      </Modal>
+    );
+  });
+
   if (loading) {
     return <Container>Loading...</Container>;
   }
@@ -292,7 +393,20 @@ function UserManagement() {
     <Container>
       <Title>
         User Management
-        <Button style={{ fontSize: '1rem' }} onClick={() => setShowCreateModal(true)}>Add New User</Button>
+        <div>
+          <Button
+            style={{ fontSize: '1rem', marginRight: '1rem' }}
+            onClick={() => setShowApprovedEmailsModal(true)}
+          >
+            Manage Approved Emails
+          </Button>
+          <Button
+            style={{ fontSize: '1rem' }}
+            onClick={() => setShowCreateModal(true)}
+          >
+            Add New User
+          </Button>
+        </div>
       </Title>
 
       <Table>
@@ -423,6 +537,10 @@ function UserManagement() {
             </div>
           </ModalContent>
         </Modal>
+      )}
+
+      {showApprovedEmailsModal && (
+        <ApprovedEmailsModal />
       )}
     </Container>
   );

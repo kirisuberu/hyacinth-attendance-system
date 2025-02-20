@@ -7,6 +7,13 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userType == 'admin';
+    }
+    
     // Users collection rules
     match /users/{userId} {
       // Allow read for authenticated users
@@ -23,6 +30,15 @@ service cloud.firestore {
       
       // Allow write if authenticated
       allow write: if isAuthenticated();
+    }
+    
+    // Approved emails collection rules
+    match /approvedEmails/{email} {
+      // Allow read for authenticated users
+      allow read: if isAuthenticated();
+      
+      // Allow write only for admin users
+      allow write: if isAdmin();
     }
   }
 }

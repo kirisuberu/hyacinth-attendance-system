@@ -1,18 +1,33 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { auth, db } from '../firebase'
-import { collection, addDoc, query, where, getDocs, Timestamp } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import TopBar from '../components/TopBar'
 
 function TimeInOut() {
   const [loading, setLoading] = useState(true)
   const [todayRecord, setTodayRecord] = useState(null)
+  const [userName, setUserName] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
     checkTodayAttendance()
+    fetchUserName()
   }, [])
+
+  const fetchUserName = async () => {
+    if (!auth.currentUser) return
+
+    try {
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid))
+      if (userDoc.exists()) {
+        setUserName(userDoc.data().name)
+      }
+    } catch (error) {
+      console.error('Error fetching user name:', error)
+    }
+  }
 
   const checkTodayAttendance = async () => {
     if (!auth.currentUser) {
@@ -47,6 +62,7 @@ function TimeInOut() {
       await addDoc(collection(db, 'attendance'), {
         userId: auth.currentUser.uid,
         email: auth.currentUser.email,
+        name: userName,
         type,
         timestamp,
         date: new Date(timestamp.seconds * 1000).setHours(0, 0, 0, 0)
@@ -66,6 +82,11 @@ function TimeInOut() {
     }
   }
 
+  const formatTime = (timestamp) => {
+    if (!timestamp) return ''
+    return new Date(timestamp.seconds * 1000).toLocaleTimeString()
+  }
+
   if (loading) {
     return <div className="loading">Loading...</div>
   }
@@ -77,7 +98,7 @@ function TimeInOut() {
         <div className="time-container">
           <div className="time-box">
             <h1>Time In/Out</h1>
-            <p className="user-email">Welcome, {auth.currentUser?.email}</p>
+            <p className="user-email">Welcome, {userName || auth.currentUser?.email}</p>
             
             <div className="button-group">
               <button 
@@ -99,7 +120,7 @@ function TimeInOut() {
             {todayRecord && (
               <div className="status-box">
                 <p>Status: {todayRecord.type === 'in' ? 'Timed In' : 'Timed Out'}</p>
-                <p>Time: {new Date(todayRecord.timestamp.seconds * 1000).toLocaleTimeString()}</p>
+                <p>Time: {formatTime(todayRecord.timestamp)}</p>
               </div>
             )}
 
