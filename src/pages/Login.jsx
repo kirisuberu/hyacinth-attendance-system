@@ -3,7 +3,7 @@ import { auth, db, googleProvider } from '../firebase';
 import { signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { checkUserAdminStatus, UserType, WeeklySchedule, createOrUpdateUser, isEmailApproved } from '../utils/userService';
+import { checkUserAccess, UserType, WeeklySchedule, createOrUpdateUser, isEmailApproved } from '../utils/userService';
 import { doc, getDoc } from 'firebase/firestore';
 
 const LoginContainer = styled.div`
@@ -106,15 +106,15 @@ function Login() {
         });
       }
 
-      // Check if user is admin by looking up their email
-      const isAdmin = await checkUserAdminStatus(user);
+      // Check if user has admin or accountant access
+      const { hasAccess, role } = await checkUserAccess(user);
       
-      if (isAdmin) {
-        console.log('User is admin, redirecting to admin dashboard');
+      if (hasAccess) {
+        console.log(`User is ${role}, redirecting to admin dashboard`);
         navigate('/admin/dashboard');
       } else {
-        console.log('User is not admin, redirecting to time-in-out');
-        navigate('/time-in-out');
+        console.log('User is a regular member, redirecting to member dashboard');
+        navigate('/member/dashboard');
       }
     } catch (error) {
       console.error('Login error:', error);

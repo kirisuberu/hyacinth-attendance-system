@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, Outlet, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { auth } from '../firebase';
-import { checkUserAdminStatus } from '../utils/userService';
+import { checkUserAccess, UserType } from '../utils/userService';
 import { recordAttendance } from '../utils/attendanceService';
 import { useEffect, useState } from 'react';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
@@ -51,6 +51,24 @@ const Logo = styled.div`
   font-weight: bold;
   margin-bottom: 2rem;
   padding: 0 1rem;
+`;
+
+const LogoutButton = styled.button`
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem -1rem;
+  background: none;
+  border: none;
+  color: #ef4444;
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  
+  &:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
 `;
 
 const UserInfo = styled.div`
@@ -116,7 +134,7 @@ const AttendanceButton = styled.button`
 `;
 
 function AdminLayout() {
-  const [isAdmin, setIsAdmin] = useState(null);
+  const [userAccess, setUserAccess] = useState({ hasAccess: null, role: null });
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -124,31 +142,31 @@ function AdminLayout() {
   const [pendingAttendanceType, setPendingAttendanceType] = useState(null);
 
   useEffect(() => {
-    const checkAdminStatus = async (user) => {
+    const checkAccess = async (user) => {
       try {
         if (!user) {
-          console.log('No user found in checkAdminStatus');
-          setIsAdmin(false);
+          console.log('No user found in checkAccess');
+          setUserAccess({ hasAccess: false, role: null });
           setLoading(false);
           return;
         }
 
-        console.log('Checking admin status for user:', {
+        console.log('Checking access for user:', {
           email: user.email,
           uid: user.uid,
           emailVerified: user.emailVerified
         });
 
-        const isUserAdmin = await checkUserAdminStatus(user);
-        console.log('Admin status check result:', isUserAdmin);
-        setIsAdmin(isUserAdmin);
+        const access = await checkUserAccess(user);
+        console.log('Access check result:', access);
+        setUserAccess(access);
       } catch (error) {
-        console.error('Error checking admin status:', error);
+        console.error('Error checking access:', error);
         console.error('Error details:', {
           code: error.code,
           message: error.message
         });
-        setIsAdmin(false);
+        setUserAccess({ hasAccess: false, role: null });
       }
       setLoading(false);
     };
@@ -160,11 +178,11 @@ function AdminLayout() {
           uid: user.uid
         });
         setCurrentUser(user);
-        checkAdminStatus(user);
+        checkAccess(user);
       } else {
         console.log('Auth state changed - No user logged in');
         setCurrentUser(null);
-        setIsAdmin(false);
+        setUserAccess({ hasAccess: false, role: null });
         setLoading(false);
       }
     });
@@ -209,6 +227,16 @@ function AdminLayout() {
     setPendingAttendanceType(null);
   };
 
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      // The onAuthStateChanged listener will handle the redirect
+    } catch (error) {
+      console.error('Error signing out:', error);
+      alert('Failed to sign out. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ 
@@ -224,19 +252,25 @@ function AdminLayout() {
     );
   }
 
-  if (!isAdmin) {
-    console.log('User is not admin, redirecting to home');
+  if (!userAccess.hasAccess) {
+    console.log('User does not have access, redirecting to home');
     return <Navigate to="/" replace />;
   }
 
   return (
     <LayoutContainer>
       <Sidebar>
-        <Logo>Hyacinth Admin</Logo>
+        <Logo>Hyacinth {userAccess.role === UserType.ADMIN ? 'Admin' : 'Accountant'}</Logo>
         <nav>
-          <NavLink to="/admin/users">User Management</NavLink>
+          {userAccess.role === UserType.ADMIN && (
+            <NavLink to="/admin/users">User Management</NavLink>
+          )}
           <NavLink to="/admin/dashboard">Dashboard</NavLink>
           <NavLink to="/admin/reports">Reports</NavLink>
+          <NavLink to="/admin/my-schedule">My Schedule</NavLink>
+          <LogoutButton onClick={handleLogout}>
+            Sign Out
+          </LogoutButton>
         </nav>
         {currentUser && (
           <>

@@ -194,8 +194,16 @@ function UserManagement() {
   const handleUserTypeChange = async (userId, newType) => {
     try {
       const user = users.find(u => u.id === userId);
+      if (!user) {
+        console.error('User not found:', userId);
+        return;
+      }
+      
+      // Destructure the user object to exclude the id field
+      const { id, ...userData } = user;
+      
       await createOrUpdateUser(userId, {
-        ...user,
+        ...userData,
         userType: newType
       });
       await loadUsers();

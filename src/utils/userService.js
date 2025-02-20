@@ -19,35 +19,35 @@ export const WeeklySchedule = {
   saturday: { timeIn: '', timeOut: '' }
 };
 
-// Check if user is admin by looking up their email in Firestore
-export const checkUserAdminStatus = async (user) => {
+// Check if user has admin or accountant access
+export const checkUserAccess = async (user) => {
   try {
     if (!user?.email) {
       console.log('No user email provided');
-      return false;
+      return { hasAccess: false, role: null };
     }
 
-    console.log('Checking admin status for email:', user.email);
+    console.log('Checking access for email:', user.email);
 
     // Query users collection by email
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('email', '==', user.email));
     const querySnapshot = await getDocs(q);
 
-    // Check if any user document has this email and is admin
+    // Check if any user document has this email and is admin or accountant
     for (const doc of querySnapshot.docs) {
       const userData = doc.data();
-      if (userData.userType === UserType.ADMIN) {
-        console.log('Found admin user:', userData);
-        return true;
+      if (userData.userType === UserType.ADMIN || userData.userType === UserType.ACCOUNTANT) {
+        console.log('Found user with access:', userData);
+        return { hasAccess: true, role: userData.userType };
       }
     }
 
-    console.log('User is not admin');
-    return false;
+    console.log('User does not have admin/accountant access');
+    return { hasAccess: false, role: null };
   } catch (error) {
-    console.error('Error checking admin status:', error);
-    return false;
+    console.error('Error checking user access:', error);
+    return { hasAccess: false, role: null };
   }
 };
 
