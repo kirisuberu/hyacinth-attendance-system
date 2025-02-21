@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { auth, db } from '../firebase'
-import { collection, addDoc, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
+import { recordAttendance } from '../utils/attendanceService'
 import TopBar from '../components/TopBar'
 import AttendanceConfirmationModal from '../components/AttendanceConfirmationModal'
 import styled from 'styled-components'
@@ -103,7 +104,13 @@ const StatusBox = styled.div`
 
 const StatusText = styled.p`
   margin: 0.5rem 0;
-  color: #4b5563;
+  color: ${props => {
+    if (props.status?.toLowerCase().includes('late')) return '#dc2626';
+    if (props.status?.toLowerCase().includes('early')) return '#2563eb';
+    if (props.status?.toLowerCase().includes('on time')) return '#059669';
+    return '#4b5563';
+  }};
+  font-weight: ${props => props.bold ? '600' : 'normal'};
 `
 
 const LogoutButton = styled.button`
@@ -172,31 +179,46 @@ function TimeInOut() {
     }
 
     try {
+      // Get today's date at midnight in the local timezone
       const today = new Date()
       today.setHours(0, 0, 0, 0)
-      const todayTimestamp = today.getTime()
-      console.log('Checking attendance for date:', today, 'timestamp:', todayTimestamp)
 
+      // Query attendance records for today
       const q = query(
         collection(db, 'attendance'),
         where('userId', '==', auth.currentUser.uid),
-        where('date', '==', todayTimestamp)  // Changed to exact match with timestamp
+        where('timestamp', '>=', Timestamp.fromDate(today))
       )
 
       const querySnapshot = await getDocs(q)
       console.log('Found records:', querySnapshot.size)
       
-      // Get the latest record for today
       if (!querySnapshot.empty) {
+        // Get all records and sort by timestamp
         const records = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }))
+        
         // Sort by timestamp in descending order to get the latest
-        records.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds)
+        records.sort((a, b) => {
+          const timestampA = a.timestamp?.seconds || 0
+          const timestampB = b.timestamp?.seconds || 0
+          return timestampB - timestampA
+        })
+
         const latestRecord = records[0]
         console.log('Latest record for today:', latestRecord)
-        setTodayRecord(latestRecord)
+        
+        // Format the record with status information
+        setTodayRecord({
+          ...latestRecord,
+          formattedStatus: latestRecord.status 
+            ? `${latestRecord.status}${latestRecord.timeDiffHours || latestRecord.timeDiffMinutes 
+              ? ` (${latestRecord.timeDiffHours ? `${latestRecord.timeDiffHours}h ` : ''}${latestRecord.timeDiffMinutes}m)` 
+              : ''}`
+            : ''
+        })
       } else {
         console.log('No records found for today')
         setTodayRecord(null)
@@ -210,28 +232,37 @@ function TimeInOut() {
 
   const handleTimeRecord = async (type) => {
     try {
-      const timestamp = Timestamp.now()
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      console.log('Recording time with:', {
-        type: type.toUpperCase(),
-        timestamp: timestamp,
-        date: today.getTime()
-      })
+      const result = await recordAttendance(
+        auth.currentUser.uid,
+        auth.currentUser.email,
+        userName,
+        type.toUpperCase()
+      );
 
-      await addDoc(collection(db, 'attendance'), {
-        userId: auth.currentUser.uid,
-        email: auth.currentUser.email,
-        name: userName,
-        type: type.toUpperCase(),
-        timestamp,
-        date: today.getTime()  // Store as milliseconds timestamp instead
-      })
-      setShowModal(false)
-      checkTodayAttendance()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to record attendance');
+      }
+
+      setShowModal(false);
+      checkTodayAttendance();
+
+      // Show status message
+      const statusMessage = `${type.toUpperCase()} recorded - ${result.status}`;
+      if (result.timeDiff) {
+        const hours = Math.abs(result.timeDiff.hours);
+        const minutes = Math.abs(result.timeDiff.minutes);
+        const timeDesc = [];
+        if (hours > 0) timeDesc.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+        if (minutes > 0) timeDesc.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+        if (timeDesc.length > 0) {
+          statusMessage += ` (${timeDesc.join(' and ')}${result.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`;
+        }
+      }
+      alert(statusMessage);
+
     } catch (error) {
-      console.error('Error recording time:', error)
+      console.error('Error recording time:', error);
+      alert(error.message || 'Failed to record attendance. Please try again.');
     }
   }
 
@@ -288,8 +319,13 @@ function TimeInOut() {
 
             {todayRecord && (
               <StatusBox>
-                <StatusText>Status: {todayRecord.type === 'IN' ? 'Timed In' : 'Timed Out'}</StatusText>
+                <StatusText bold>Status: {todayRecord.type === 'IN' ? 'Timed In' : 'Timed Out'}</StatusText>
                 <StatusText>Time: {formatTime(todayRecord.timestamp)}</StatusText>
+                {todayRecord.formattedStatus && (
+                  <StatusText status={todayRecord.formattedStatus}>
+                    Attendance: {todayRecord.formattedStatus}
+                  </StatusText>
+                )}
               </StatusBox>
             )}
 

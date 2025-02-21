@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import styled from 'styled-components';
-import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails } from '../../utils/userService';
+import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes } from '../../utils/userService';
 import { auth } from '../../firebase';
 
 const Container = styled.div`
@@ -120,6 +120,7 @@ function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createError, setCreateError] = useState('');
   const [newUser, setNewUser] = useState({
@@ -215,14 +216,45 @@ function UserManagement() {
   const handleScheduleUpdate = async (userId, schedule) => {
     try {
       const user = users.find(u => u.id === userId);
+      if (!user) {
+        console.error('User not found:', userId);
+        return;
+      }
+
       await createOrUpdateUser(userId, {
-        ...user,
-        schedule
+        name: user.name,
+        email: user.email,
+        userType: user.userType,
+        schedule: schedule,
+        createdAt: user.createdAt
       });
+      
       setShowScheduleModal(false);
       await loadUsers();
     } catch (error) {
       console.error('Error updating schedule:', error);
+    }
+  };
+
+  const handleEditUser = async (userId, userData) => {
+    try {
+      const user = users.find(u => u.id === userId);
+      if (!user) {
+        console.error('User not found:', userId);
+        return;
+      }
+
+      await createOrUpdateUser(userId, {
+        ...userData,
+        userType: user.userType,
+        schedule: user.schedule,
+        createdAt: user.createdAt
+      });
+      
+      setShowEditModal(false);
+      await loadUsers();
+    } catch (error) {
+      console.error('Error updating user:', error);
     }
   };
 
@@ -258,15 +290,87 @@ function UserManagement() {
 
   const ScheduleModal = () => {
     const [schedule, setSchedule] = useState(selectedUser?.schedule || {});
+    const [selectedShift, setSelectedShift] = useState(null);
+    const [showShiftForm, setShowShiftForm] = useState(false);
+    const [shiftFormData, setShiftFormData] = useState({
+      startDay: 'monday',
+      startTime: '',
+      endDay: 'monday',
+      endTime: ''
+    });
 
-    const handleTimeChange = (day, type, value) => {
-      setSchedule(prev => ({
-        ...prev,
-        [day]: {
-          ...prev[day],
-          [type]: value
+    const daysOfWeek = [
+      'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+    ];
+
+    const formatDayName = (day) => {
+      if (!day || typeof day !== 'string') return '';
+      return day.charAt(0).toUpperCase() + day.slice(1);
+    };
+
+    const handleAddShift = () => {
+      setSelectedShift(null);
+      setShiftFormData({
+        startDay: 'monday',
+        startTime: '',
+        endDay: 'monday',
+        endTime: ''
+      });
+      setShowShiftForm(true);
+    };
+
+    const handleEditShift = (shiftId) => {
+      const shift = schedule[shiftId];
+      if (!shift) return;
+
+      setSelectedShift(shiftId);
+      setShiftFormData({
+        startDay: shift.startDay || 'monday',
+        startTime: shift.startTime || '',
+        endDay: shift.endDay || 'monday',
+        endTime: shift.endTime || ''
+      });
+      setShowShiftForm(true);
+    };
+
+    const handleDeleteShift = (shiftId) => {
+      if (!shiftId) return;
+      const newSchedule = { ...schedule };
+      delete newSchedule[shiftId];
+      setSchedule(newSchedule);
+    };
+
+    const handleSaveShift = () => {
+      if (!shiftFormData.startTime || !shiftFormData.endTime) {
+        alert('Please fill in both start and end times');
+        return;
+      }
+
+      try {
+        if (!validateShiftTimes(
+          shiftFormData.startDay || 'monday',
+          shiftFormData.startTime,
+          shiftFormData.endDay || 'monday',
+          shiftFormData.endTime
+        )) {
+          alert('Invalid shift times. Please check your input.');
+          return;
         }
-      }));
+
+        const shiftId = selectedShift || `shift_${Date.now()}`;
+        setSchedule(prev => ({
+          ...prev,
+          [shiftId]: {
+            startDay: shiftFormData.startDay || 'monday',
+            startTime: shiftFormData.startTime,
+            endDay: shiftFormData.endDay || 'monday',
+            endTime: shiftFormData.endTime
+          }
+        }));
+        setShowShiftForm(false);
+      } catch (error) {
+        alert(error.message);
+      }
     };
 
     const handleSave = async () => {
@@ -276,46 +380,172 @@ function UserManagement() {
         await loadUsers();
       } catch (error) {
         console.error('Error updating schedule:', error);
+        alert('Error saving schedule. Please try again.');
       }
     };
-
-    const formatDayName = (day) => {
-      return day.charAt(0).toUpperCase() + day.slice(1);
-    };
-
-    const daysOrder = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
     return (
       <Modal>
         <ModalContent>
-          <h2>Edit Schedule - {selectedUser.name}</h2>
-          <div style={{ marginTop: '1rem', maxHeight: '75vh', overflowY: 'auto' }}>
-            {daysOrder.map(day => (
-              <div key={day} style={{ marginBottom: '1rem' }}>
-                <Label style={{ fontWeight: 'bold' }}>{formatDayName(day)}</Label>
-                <div style={{ display: 'flex', gap: '1rem' }}>
+          <h2>Edit Schedule - {selectedUser?.name || 'User'}</h2>
+          
+          <div style={{ marginBottom: '1rem' }}>
+            <Button onClick={handleAddShift}>Add Shift</Button>
+          </div>
+
+          {showShiftForm && (
+            <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+              <h3>{selectedShift ? 'Edit Shift' : 'Add New Shift'}</h3>
+              <FormGroup>
+                <Label>Start Day</Label>
+                <Select
+                  value={shiftFormData.startDay || 'monday'}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
+                >
+                  {daysOfWeek.map(day => (
+                    <option key={day} value={day}>{formatDayName(day)}</option>
+                  ))}
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label>Start Time</Label>
+                <TimeInput
+                  value={shiftFormData.startTime || ''}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label>End Day</Label>
+                <Select
+                  value={shiftFormData.endDay || 'monday'}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, endDay: e.target.value }))}
+                >
+                  {daysOfWeek.map(day => (
+                    <option key={day} value={day}>{formatDayName(day)}</option>
+                  ))}
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label>End Time</Label>
+                <TimeInput
+                  value={shiftFormData.endTime || ''}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                />
+              </FormGroup>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <Button onClick={() => setShowShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveShift}>
+                  Save Shift
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: '1rem', maxHeight: '50vh', overflowY: 'auto' }}>
+            {Object.entries(schedule || {}).map(([shiftId, shift]) => {
+              if (!shift) return null;
+              return (
+                <div key={shiftId} style={{ 
+                  marginBottom: '1rem', 
+                  padding: '1rem',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
                   <div>
-                    <Label>Time In</Label>
-                    <TimeInput
-                      type="time"
-                      value={schedule[day]?.timeIn || ''}
-                      onChange={(e) => handleTimeChange(day, 'timeIn', e.target.value)}
-                    />
+                    <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
+                    <div style={{ fontSize: '0.9em', color: '#666' }}>
+                      to
+                    </div>
+                    <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
                   </div>
-                  <div>
-                    <Label>Time Out</Label>
-                    <TimeInput
-                      type="time"
-                      value={schedule[day]?.timeOut || ''}
-                      onChange={(e) => handleTimeChange(day, 'timeOut', e.target.value)}
-                    />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <Button onClick={() => handleEditShift(shiftId)}>
+                      Edit
+                    </Button>
+                    <Button 
+                      onClick={() => handleDeleteShift(shiftId)}
+                      style={{ backgroundColor: '#DC2626' }}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
             <Button onClick={() => setShowScheduleModal(false)} style={{ backgroundColor: '#6B7280' }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave}>
+              Save Changes
+            </Button>
+          </div>
+        </ModalContent>
+      </Modal>
+    );
+  };
+
+  const EditUserModal = () => {
+    const [editData, setEditData] = useState({
+      name: selectedUser?.name || '',
+      email: selectedUser?.email || ''
+    });
+    const [error, setError] = useState('');
+
+    const handleSave = async () => {
+      try {
+        if (!editData.name.trim() || !editData.email.trim()) {
+          setError('Name and email are required');
+          return;
+        }
+
+        if (!editData.email.includes('@')) {
+          setError('Please enter a valid email address');
+          return;
+        }
+
+        await handleEditUser(selectedUser.id, editData);
+        setShowEditModal(false);
+      } catch (error) {
+        console.error('Error updating user:', error);
+        setError(error.message);
+      }
+    };
+
+    return (
+      <Modal>
+        <ModalContent>
+          <h2>Edit User Details</h2>
+          <div style={{ marginTop: '1rem' }}>
+            <FormGroup>
+              <Label>Name</Label>
+              <Input
+                type="text"
+                value={editData.name}
+                onChange={(e) => setEditData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Enter name"
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={editData.email}
+                onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="Enter email"
+              />
+            </FormGroup>
+            {error && <ErrorMessage>{error}</ErrorMessage>}
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            <Button onClick={() => setShowEditModal(false)} style={{ backgroundColor: '#6B7280' }}>
               Cancel
             </Button>
             <Button onClick={handleSave}>
@@ -444,10 +674,22 @@ function UserManagement() {
                 </Select>
               </Td>
               <Td>
-                <Button onClick={() => {
-                  setSelectedUser(user);
-                  setShowScheduleModal(true);
-                }}>
+                <Button
+                  onClick={() => {
+                    setSelectedUser(user);
+                    setShowEditModal(true);
+                  }}
+                  style={{ backgroundColor: '#4B5563' }}
+                >
+                  Edit User
+                </Button>
+                <Button
+                  onClick={() => {
+                    setSelectedUser(user);
+                    setShowScheduleModal(true);
+                  }}
+                  style={{ backgroundColor: '#4B5563' }}
+                >
                   Edit Schedule
                 </Button>
                 <Button 
@@ -545,6 +787,10 @@ function UserManagement() {
             </div>
           </ModalContent>
         </Modal>
+      )}
+
+      {showEditModal && selectedUser && (
+        <EditUserModal />
       )}
 
       {showApprovedEmailsModal && (

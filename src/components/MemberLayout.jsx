@@ -3,7 +3,8 @@ import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { collection, addDoc, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { recordAttendance } from '../utils/attendanceService';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 
 const LayoutContainer = styled.div`
@@ -226,12 +227,11 @@ function MemberLayout() {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayTimestamp = today.getTime();
 
       const q = query(
         collection(db, 'attendance'),
         where('userId', '==', auth.currentUser.uid),
-        where('date', '==', todayTimestamp)
+        where('date', '==', today.getTime())
       );
 
       const querySnapshot = await getDocs(q);
@@ -241,8 +241,29 @@ function MemberLayout() {
           id: doc.id,
           ...doc.data()
         }));
+        // Sort by timestamp in descending order
         records.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
-        setTodayRecord(records[0]);
+        const latestRecord = records[0];
+        
+        // Format the status with time difference
+        let statusText = latestRecord.status || 'No Status';
+        if (latestRecord.timeDiffHours || latestRecord.timeDiffMinutes) {
+          const parts = [];
+          if (latestRecord.timeDiffHours) {
+            parts.push(`${Math.abs(latestRecord.timeDiffHours)}h`);
+          }
+          if (latestRecord.timeDiffMinutes) {
+            parts.push(`${Math.abs(latestRecord.timeDiffMinutes)}m`);
+          }
+          if (parts.length > 0) {
+            statusText += ` (${parts.join(' ')})`;
+          }
+        }
+        
+        setTodayRecord({
+          ...latestRecord,
+          formattedStatus: statusText
+        });
       } else {
         setTodayRecord(null);
       }
@@ -253,22 +274,37 @@ function MemberLayout() {
 
   const handleTimeRecord = async (type) => {
     try {
-      const timestamp = Timestamp.now();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      await addDoc(collection(db, 'attendance'), {
-        userId: auth.currentUser.uid,
-        email: auth.currentUser.email,
-        name: userName,
-        type: type.toUpperCase(),
-        timestamp,
-        date: today.getTime()
-      });
+      const result = await recordAttendance(
+        auth.currentUser.uid,
+        auth.currentUser.email,
+        userName,
+        type.toUpperCase()
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to record attendance');
+      }
+
       setShowModal(false);
       checkTodayAttendance();
+
+      // Show status message
+      const statusMessage = `${type.toUpperCase()} recorded - ${result.status}`;
+      if (result.timeDiff) {
+        const hours = Math.abs(result.timeDiff.hours);
+        const minutes = Math.abs(result.timeDiff.minutes);
+        const timeDesc = [];
+        if (hours > 0) timeDesc.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+        if (minutes > 0) timeDesc.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+        if (timeDesc.length > 0) {
+          alert(`${statusMessage} (${timeDesc.join(' and ')}${result.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`);
+        } else {
+          alert(statusMessage);
+        }
+      }
     } catch (error) {
       console.error('Error recording time:', error);
+      alert(error.message || 'Failed to record attendance. Please try again.');
     }
   };
 
@@ -287,7 +323,12 @@ function MemberLayout() {
 
   const formatTime = (timestamp) => {
     if (!timestamp) return '';
-    return new Date(timestamp.seconds * 1000).toLocaleTimeString();
+    const date = new Date(timestamp.seconds * 1000);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
   };
 
   const toggleSidebar = () => {
@@ -331,9 +372,30 @@ function MemberLayout() {
         </TimeInButton>
         
         {todayRecord && (
-          <StatusText>
-            Status: {todayRecord.type === 'IN' ? 'Timed In' : 'Timed Out'} at {formatTime(todayRecord.timestamp)}
-          </StatusText>
+          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+            <p><strong>Today's Record:</strong></p>
+            <p>Type: {todayRecord.type}</p>
+            <p>Time: {formatTime(todayRecord.timestamp)}</p>
+            {todayRecord.scheduleTime && (
+              <p>Schedule: {new Date(`1970-01-01T${todayRecord.scheduleTime}`).toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              })}</p>
+            )}
+            <p>Status: <span style={{
+              padding: '0.25rem 0.75rem',
+              borderRadius: '9999px',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              background: todayRecord.status?.toLowerCase().includes('late') ? '#FEE2E2' :
+                         todayRecord.status?.toLowerCase().includes('early') ? '#DBEAFE' :
+                         todayRecord.status?.toLowerCase().includes('overtime') ? '#FEF3C7' : '#DCFCE7',
+              color: todayRecord.status?.toLowerCase().includes('late') ? '#991B1B' :
+                     todayRecord.status?.toLowerCase().includes('early') ? '#1E40AF' :
+                     todayRecord.status?.toLowerCase().includes('overtime') ? '#92400E' : '#166534'
+            }}>{todayRecord.formattedStatus}</span></p>
+          </div>
         )}
         
         <TimeOutButton 

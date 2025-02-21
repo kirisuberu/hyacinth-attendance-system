@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { auth } from '../../firebase';
-import { getUserById } from '../../utils/userService';
+import { auth } from '../firebase';
+import { getUserById } from '../utils/userService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { db } from '../firebase';
 
 const Container = styled.div`
   padding: 2rem;
@@ -74,34 +74,49 @@ function MySchedule() {
           return;
         }
 
-        // First try to get user by UID
+        // Get user document by UID first
         let userData = await getUserById(user.uid);
         
-        // If not found, try to get user by email
         if (!userData) {
+          // If no document found by UID, log this for debugging
+          console.warn('No user document found with UID:', user.uid);
+          
+          // Query by email as fallback
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where('email', '==', user.email));
           const querySnapshot = await getDocs(q);
           
-          if (!querySnapshot.empty) {
-            userData = {
-              id: querySnapshot.docs[0].id,
-              ...querySnapshot.docs[0].data()
-            };
+          if (querySnapshot.empty) {
+            setError('No user profile found. Please contact an administrator.');
+            setLoading(false);
+            return;
           }
+          
+          if (querySnapshot.size > 1) {
+            console.error('Multiple user documents found with email:', user.email);
+            setError('Multiple user profiles found. Please contact an administrator.');
+            setLoading(false);
+            return;
+          }
+          
+          userData = {
+            id: querySnapshot.docs[0].id,
+            ...querySnapshot.docs[0].data()
+          };
         }
 
-        if (!userData || !userData.schedule) {
-          setError('Schedule not found');
+        if (!userData.schedule) {
+          setError('No schedule found in your user profile');
           setLoading(false);
           return;
         }
 
+        console.log('Retrieved user schedule:', userData.schedule);
         setSchedule(userData.schedule);
+        setLoading(false);
       } catch (err) {
         console.error('Error fetching schedule:', err);
-        setError('Failed to load schedule');
-      } finally {
+        setError('Failed to load schedule: ' + err.message);
         setLoading(false);
       }
     };
@@ -110,36 +125,47 @@ function MySchedule() {
   }, []);
 
   if (loading) {
-    return <div>Loading schedule...</div>;
+    return <Container>Loading...</Container>;
   }
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return <Container>{error}</Container>;
   }
 
-  if (!schedule) {
-    return <div>No schedule found</div>;
-  }
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
 
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  const currentDay = new Date().toLocaleString('en-US', { weekday: 'long' });
+  const formatDayName = (day) => {
+    return day.charAt(0).toUpperCase() + day.slice(1);
+  };
+
+  const formatTime = (time) => {
+    if (!time) return 'Not set';
+    
+    // Parse the 24-hour time
+    const [hours, minutes] = time.split(':');
+    const hour = parseInt(hours, 10);
+    
+    // Convert to 12-hour format
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    
+    return `${hour12}:${minutes} ${period}`;
+  };
 
   return (
     <Container>
       <Title>My Schedule</Title>
       <ScheduleGrid>
-        {days.map((day) => {
-          const isCurrentDay = day === currentDay;
-          return (
-            <DayCard key={day} isCurrentDay={isCurrentDay}>
-              <DayTitle isCurrentDay={isCurrentDay}>{day}</DayTitle>
-              <TimeInfo>
-                <span>Time In: {schedule[day]?.timeIn || 'Not set'}</span>
-                <span>Time Out: {schedule[day]?.timeOut || 'Not set'}</span>
-              </TimeInfo>
-            </DayCard>
-          );
-        })}
+        {days.map((day, index) => (
+          <DayCard key={day} isCurrentDay={index === today}>
+            <DayTitle isCurrentDay={index === today}>{formatDayName(day)}</DayTitle>
+            <TimeInfo>
+              <span>Time In: {formatTime(schedule[day]?.timeIn)}</span>
+              <span>Time Out: {formatTime(schedule[day]?.timeOut)}</span>
+            </TimeInfo>
+          </DayCard>
+        ))}
       </ScheduleGrid>
     </Container>
   );

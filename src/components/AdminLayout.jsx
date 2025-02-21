@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, Outlet, Link } from 'react-router-dom';
+import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { auth } from '../firebase';
 import { checkUserAccess, UserType } from '../utils/userService';
@@ -268,6 +268,7 @@ function AdminLayout() {
           <NavLink to="/admin/dashboard">Dashboard</NavLink>
           <NavLink to="/admin/reports">Reports</NavLink>
           <NavLink to="/admin/my-schedule">My Schedule</NavLink>
+          <NavLink to="/admin/realtime-attendance">Real-Time Attendance</NavLink>
           <LogoutButton onClick={handleLogout}>
             Sign Out
           </LogoutButton>

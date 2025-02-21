@@ -9,14 +9,37 @@ export const UserType = {
 };
 
 // Schedule type definition
-export const WeeklySchedule = {
-  sunday: { timeIn: '', timeOut: '' },
-  monday: { timeIn: '', timeOut: '' },
-  tuesday: { timeIn: '', timeOut: '' },
-  wednesday: { timeIn: '', timeOut: '' },
-  thursday: { timeIn: '', timeOut: '' },
-  friday: { timeIn: '', timeOut: '' },
-  saturday: { timeIn: '', timeOut: '' }
+export const WeeklySchedule = {};
+
+// Helper function to validate shift times
+export const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const startDayIndex = days.indexOf(startDay.toLowerCase());
+  const endDayIndex = days.indexOf(endDay.toLowerCase());
+  
+  if (startDayIndex === -1 || endDayIndex === -1) {
+    throw new Error('Invalid day provided');
+  }
+
+  // Convert times to minutes for comparison
+  const [startHour, startMinute] = startTime.split(':').map(Number);
+  const [endHour, endMinute] = endTime.split(':').map(Number);
+  const startTotalMinutes = startHour * 60 + startMinute;
+  const endTotalMinutes = endHour * 60 + endMinute;
+
+  // Calculate the total duration considering day change
+  let duration;
+  if (startDayIndex === endDayIndex) {
+    duration = endTotalMinutes - startTotalMinutes;
+    if (duration < 0) {
+      duration += 24 * 60; // Add 24 hours if end time is on next day
+    }
+  } else {
+    const daysDiff = (endDayIndex - startDayIndex + 7) % 7;
+    duration = (daysDiff * 24 * 60) + (endTotalMinutes - startTotalMinutes);
+  }
+
+  return duration > 0;
 };
 
 // Check if user has admin or accountant access
@@ -63,11 +86,19 @@ export const createOrUpdateUser = async (userId, userData) => {
     const actualUserId = userId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const userRef = doc(db, 'users', actualUserId);
 
+    // Validate each shift in the schedule
+    const schedule = userData.schedule || {};
+    Object.entries(schedule).forEach(([shiftId, shift]) => {
+      if (!validateShiftTimes(shift.startDay, shift.startTime, shift.endDay, shift.endTime)) {
+        throw new Error(`Invalid shift times for shift ${shiftId}`);
+      }
+    });
+
     await setDoc(userRef, {
       name: userData.name,
       email: userData.email,
       userType: userData.userType,
-      schedule: userData.schedule || WeeklySchedule,
+      schedule: schedule,
       createdAt: userData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });

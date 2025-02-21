@@ -11,9 +11,11 @@ import MemberLayout from './components/MemberLayout';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/Admin/UserManagement';
 import Reports from './pages/Reports';
-import MySchedule from './pages/Admin/MySchedule';
+import MySchedule from './pages/MySchedule';
 import MemberDashboard from './pages/Member/MemberDashboard';
 import MemberReports from './pages/Member/MemberReports';
+import RealTimeAttendance from './pages/Admin/RealTimeAttendance';
+import AbsenteeService from './components/AbsenteeService';
 import './App.css'
 
 function PrivateRoute({ children, requiredRole = null, allowMember = false }) {
@@ -74,6 +76,7 @@ function PrivateRoute({ children, requiredRole = null, allowMember = false }) {
 function App() {
   return (
     <Router>
+      <AbsenteeService />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route
@@ -98,6 +101,7 @@ function App() {
             } 
           />
           <Route path="reports" element={<Reports />} />
+          <Route path="realtime-attendance" element={<RealTimeAttendance />} />
           <Route path="my-schedule" element={<MySchedule />} />
         </Route>
 
