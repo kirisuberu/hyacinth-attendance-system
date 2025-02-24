@@ -57,17 +57,17 @@ const LogoutButton = styled.button`
   display: block;
   width: 100%;
   padding: 0.75rem 1rem;
-  margin: 0.5rem -1rem;
-  background: none;
+  margin: 0.5rem 1rem;
+  background-color: rgba(239, 68, 68, 0.1);
   border: none;
   color: #ef4444;
   font-size: 1rem;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
-  border-radius: 4px;
-  
+  border-radius: 8px;
+
   &:hover {
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.2);
   }
 `;
 
