@@ -272,13 +272,14 @@ function MemberLayout() {
     }
   };
 
-  const handleTimeRecord = async (type) => {
+  const handleTimeRecord = async (type, notes) => {
     try {
       const result = await recordAttendance(
         auth.currentUser.uid,
         auth.currentUser.email,
         userName,
-        type.toUpperCase()
+        type.toUpperCase(),
+        notes
       );
 
       if (!result.success) {
@@ -442,7 +443,7 @@ function MemberLayout() {
       <AttendanceConfirmationModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onConfirm={() => handleTimeRecord(pendingAction)}
+        onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
         type={pendingAction?.toUpperCase()}
         userData={{ name: userName, email: user.email }}
       />

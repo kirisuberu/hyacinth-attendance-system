@@ -82,11 +82,41 @@ export const createOrUpdateUser = async (userId, userData) => {
       ...userData
     });
 
-    // If no userId is provided, generate a new one using timestamp and random string
-    const actualUserId = userId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const userRef = doc(db, 'users', actualUserId);
+    // Check if email already exists
+    const usersRef = collection(db, 'users');
+    const emailQuery = query(usersRef, where('email', '==', userData.email));
+    const emailSnapshot = await getDocs(emailQuery);
 
-    // Validate each shift in the schedule
+    if (!emailSnapshot.empty) {
+      const existingDoc = emailSnapshot.docs[0];
+      
+      // If this is a different document, update the ID
+      if (existingDoc.id !== userId) {
+        console.log('Found existing user, updating ID:', {
+          oldId: existingDoc.id,
+          newId: userId
+        });
+        
+        // Copy existing data to new ID
+        await setDoc(doc(db, 'users', userId), existingDoc.data());
+        
+        // Delete old document
+        await deleteDoc(doc(db, 'users', existingDoc.id));
+        return userId;
+      }
+      return existingDoc.id;
+    }
+
+    // No existing user found, check if email is approved for non-admin users
+    const isApproved = await isEmailApproved(userData.email);
+    if (!isApproved && userData.userType !== UserType.ADMIN) {
+      throw new Error('Email is not approved. Please contact an administrator.');
+    }
+
+    // Generate new ID if none provided
+    const actualUserId = userId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Validate schedule if present
     const schedule = userData.schedule || {};
     Object.entries(schedule).forEach(([shiftId, shift]) => {
       if (!validateShiftTimes(shift.startDay, shift.startTime, shift.endDay, shift.endTime)) {
@@ -94,16 +124,14 @@ export const createOrUpdateUser = async (userId, userData) => {
       }
     });
 
+    // Create new user document
+    const userRef = doc(db, 'users', actualUserId);
     await setDoc(userRef, {
-      name: userData.name,
-      email: userData.email,
-      userType: userData.userType,
-      schedule: schedule,
+      ...userData,
       createdAt: userData.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-    
-    console.log('User created/updated successfully');
+
     return actualUserId;
   } catch (error) {
     console.error('Error creating/updating user:', error);
@@ -233,6 +261,59 @@ export const getApprovedEmails = async () => {
     return querySnapshot.docs.map(doc => doc.data());
   } catch (error) {
     console.error('Error getting approved emails:', error);
+    throw error;
+  }
+};
+
+// Clean up duplicate users
+export const cleanupDuplicateUsers = async () => {
+  try {
+    const usersRef = collection(db, 'users');
+    const snapshot = await getDocs(usersRef);
+    
+    // Create a map to store email -> user documents
+    const emailMap = new Map();
+    
+    // First pass: collect all users by email
+    snapshot.docs.forEach(doc => {
+      const userData = doc.data();
+      if (!emailMap.has(userData.email)) {
+        emailMap.set(userData.email, []);
+      }
+      emailMap.get(userData.email).push({
+        id: doc.id,
+        ...userData
+      });
+    });
+
+    // Second pass: clean up duplicates
+    for (const [email, users] of emailMap) {
+      if (users.length > 1) {
+        console.log(`Found duplicate users for email ${email}:`, users);
+        
+        // Sort by userType priority (admin > accountant > member)
+        const sortedUsers = users.sort((a, b) => {
+          const typePriority = {
+            [UserType.ADMIN]: 3,
+            [UserType.ACCOUNTANT]: 2,
+            [UserType.MEMBER]: 1
+          };
+          return typePriority[b.userType] - typePriority[a.userType];
+        });
+
+        // Keep the first user (highest priority) and delete the rest
+        const keepUser = sortedUsers[0];
+        console.log(`Keeping user with ID ${keepUser.id} (${keepUser.userType})`);
+        
+        for (let i = 1; i < sortedUsers.length; i++) {
+          const deleteUser = sortedUsers[i];
+          console.log(`Deleting duplicate user with ID ${deleteUser.id} (${deleteUser.userType})`);
+          await deleteDoc(doc(db, 'users', deleteUser.id));
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error cleaning up duplicate users:', error);
     throw error;
   }
 };

@@ -102,6 +102,23 @@ const Button = styled.button`
   }
 `;
 
+const TextArea = styled.textarea`
+  width: 100%;
+  min-height: 100px;
+  padding: 0.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  
+  &:focus {
+    outline: none;
+    border-color: #10B981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
+  }
+`;
+
 const AttendanceConfirmationModal = ({ 
   isOpen, 
   onClose, 
@@ -110,6 +127,13 @@ const AttendanceConfirmationModal = ({
   userData
 }) => {
   if (!isOpen) return null;
+
+  const [notes, setNotes] = React.useState('');
+  
+  const handleConfirm = () => {
+    onConfirm(notes);
+    setNotes(''); // Reset notes after submission
+  };
 
   const now = new Date();
   const timeFormat = 'hh:mm:ss a';
@@ -149,11 +173,20 @@ const AttendanceConfirmationModal = ({
           </div>
         </TimeSection>
 
+        <InfoSection>
+          <div className="label">Remarks (Optional)</div>
+          <TextArea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="I am late because . . ."
+          />
+        </InfoSection>
+
         <ButtonGroup>
           <Button className="cancel" onClick={onClose}>
             Cancel
           </Button>
-          <Button className="confirm" onClick={onConfirm}>
+          <Button className="confirm" onClick={handleConfirm}>
             Confirm
           </Button>
         </ButtonGroup>

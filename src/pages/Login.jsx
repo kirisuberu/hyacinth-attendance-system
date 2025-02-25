@@ -4,7 +4,7 @@ import { signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { checkUserAccess, UserType, WeeklySchedule, createOrUpdateUser, isEmailApproved } from '../utils/userService';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 const LoginContainer = styled.div`
   display: flex;
@@ -82,11 +82,58 @@ function Login() {
         uid: user.uid
       });
 
-      // Check if user exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      // First check if a user with this email already exists
+      const usersRef = collection(db, 'users');
+      const emailQuery = query(usersRef, where('email', '==', user.email));
+      const emailSnapshot = await getDocs(emailQuery);
       
-      if (!userDoc.exists()) {
-        // Check if email is approved before creating new user
+      if (!emailSnapshot.empty) {
+        // If multiple documents exist with this email, clean them up
+        if (emailSnapshot.size > 1) {
+          console.log(`Found ${emailSnapshot.size} documents with email ${user.email}, cleaning up...`);
+          await cleanupDuplicateUsers();
+          
+          // Re-fetch the user after cleanup
+          const cleanupSnapshot = await getDocs(emailQuery);
+          if (!cleanupSnapshot.empty) {
+            const existingUserDoc = cleanupSnapshot.docs[0];
+            const existingData = existingUserDoc.data();
+
+            if (existingUserDoc.id !== user.uid) {
+              console.log('Updating user ID:', {
+                oldId: existingUserDoc.id,
+                newId: user.uid,
+                type: existingData.userType
+              });
+
+              // Copy existing data to new document with new UID
+              await setDoc(doc(db, 'users', user.uid), existingData);
+              
+              // Delete the old document
+              await deleteDoc(doc(db, 'users', existingUserDoc.id));
+            }
+          }
+        } else {
+          // Only one document exists, handle normally
+          const existingUserDoc = emailSnapshot.docs[0];
+          const existingData = existingUserDoc.data();
+
+          if (existingUserDoc.id !== user.uid) {
+            console.log('Updating user ID:', {
+              oldId: existingUserDoc.id,
+              newId: user.uid,
+              type: existingData.userType
+            });
+
+            // Copy existing data to new document with new UID
+            await setDoc(doc(db, 'users', user.uid), existingData);
+            
+            // Delete the old document
+            await deleteDoc(doc(db, 'users', existingUserDoc.id));
+          }
+        }
+      } else {
+        // Only create new user if email doesn't exist AND is approved
         const isApproved = await isEmailApproved(user.email);
         if (!isApproved) {
           setError('Your email is not approved. Please contact an administrator.');
@@ -95,22 +142,24 @@ function Login() {
           return;
         }
 
-        // Create new user document
         console.log('Creating new user document');
-        await createOrUpdateUser(user.uid, {
+        await setDoc(doc(db, 'users', user.uid), {
           name: user.displayName || 'User',
           email: user.email,
-          userType: UserType.MEMBER, // Default to member
+          userType: UserType.MEMBER,
           schedule: WeeklySchedule,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         });
       }
 
-      // Check if user has admin or accountant access
-      const { hasAccess, role } = await checkUserAccess(user);
+      // Get the latest user data
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userData = userDoc.data();
       
-      if (hasAccess) {
-        console.log(`User is ${role}, redirecting to admin dashboard`);
+      // Navigate based on user type
+      if (userData.userType === UserType.ADMIN || userData.userType === UserType.ACCOUNTANT) {
+        console.log(`User is ${userData.userType}, redirecting to admin dashboard`);
         navigate('/admin/dashboard');
       } else {
         console.log('User is a regular member, redirecting to member dashboard');
@@ -118,21 +167,20 @@ function Login() {
       }
     } catch (error) {
       console.error('Login error:', error);
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message
-      });
-      
-      // Handle specific error cases
-      if (error.code === 'auth/popup-closed-by-user') {
-        setError('Sign in cancelled. Please try again.');
-      } else if (error.code === 'auth/popup-blocked') {
-        setError('Popup was blocked by your browser. Please allow popups for this site.');
-      } else {
-        setError('Failed to sign in. Please try again.');
-      }
+      setError(error.message || 'Failed to sign in. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cleanupDuplicateUsers = async () => {
+    const usersRef = collection(db, 'users');
+    const emailQuery = query(usersRef, where('email', '==', user.email));
+    const emailSnapshot = await getDocs(emailQuery);
+
+    if (emailSnapshot.size > 1) {
+      const docsToDelete = emailSnapshot.docs.slice(1);
+      await Promise.all(docsToDelete.map(doc => deleteDoc(doc.ref)));
     }
   };
 

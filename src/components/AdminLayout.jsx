@@ -195,7 +195,7 @@ function AdminLayout() {
     setShowConfirmation(true);
   };
 
-  const handleConfirmAttendance = async () => {
+  const handleConfirmAttendance = async (notes) => {
     if (!currentUser || isRecording) return;
 
     setIsRecording(true);
@@ -204,7 +204,8 @@ function AdminLayout() {
         currentUser.uid,
         currentUser.email,
         currentUser.displayName || 'Admin User',
-        pendingAttendanceType
+        pendingAttendanceType,
+        notes
       );
       
       if (result.success) {

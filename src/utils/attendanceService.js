@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 
 const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
   if (!scheduleTime) {
@@ -68,7 +68,7 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
   }
 };
 
-export const recordAttendance = async (userId, email, name, type) => {
+export const recordAttendance = async (userId, email, name, type, notes = '') => {
   console.log('Recording attendance with type:', type);
   try {
     // Get the current date and time
@@ -80,40 +80,39 @@ export const recordAttendance = async (userId, email, name, type) => {
 
     // Get user's schedule and type
     const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('email', '==', email));
-    const querySnapshot = await getDocs(q);
+    const userDoc = doc(usersRef, userId);
+    const userSnapshot = await getDoc(userDoc);
     
     let scheduleTime = null;
     let userType = null;
 
-    if (!querySnapshot.empty) {
-      const userData = querySnapshot.docs[0].data();
+    if (userSnapshot.exists()) {
+      const userData = userSnapshot.data();
       userType = userData.userType;
       
+      // For other users, use their custom schedule
+      const userSchedule = userData.schedule || {};
       
-        // For other users, use their custom schedule
-        const userSchedule = userData.schedule || {};
-        
-        // Handle shifts that might span across days
-        if (type === 'IN') {
-          // For time in, look for shifts that start on the current day
-          Object.values(userSchedule).forEach(shift => {
-            if (shift.startDay === dayOfWeek) {
-              scheduleTime = shift.startTime;
-            }
-          });
-        } else {
-          // For time out, look for shifts that either:
-          // 1. End on the current day
-          // 2. Started the previous day and end today
-          Object.values(userSchedule).forEach(shift => {
-            if (shift.endDay === dayOfWeek) {
-              scheduleTime = shift.endTime;
-            } else if (shift.startDay === previousDayOfWeek && shift.endDay === dayOfWeek) {
-              scheduleTime = shift.endTime;
-            }
-          });
-        }
+      // Handle shifts that might span across days
+      if (type === 'IN') {
+        // For time in, look for shifts that start on the current day
+        Object.values(userSchedule).forEach(shift => {
+          if (shift.startDay.toLowerCase() === dayOfWeek) {
+            scheduleTime = shift.startTime;
+          }
+        });
+      } else {
+        // For time out, look for shifts that either:
+        // 1. End on the current day
+        // 2. Started the previous day and end today
+        Object.values(userSchedule).forEach(shift => {
+          if (shift.endDay.toLowerCase() === dayOfWeek) {
+            scheduleTime = shift.endTime;
+          } else if (shift.startDay.toLowerCase() === previousDayOfWeek && shift.endDay.toLowerCase() === dayOfWeek) {
+            scheduleTime = shift.endTime;
+          }
+        });
+      }
     }
 
     console.log('Found schedule time:', {
@@ -141,7 +140,8 @@ export const recordAttendance = async (userId, email, name, type) => {
       timeDiffHours: timeDiff.hours,
       timeDiffMinutes: timeDiff.minutes,
       totalMinutesDiff: timeDiff.totalMinutes,
-      dayOfWeek
+      dayOfWeek,
+      notes
     };
 
     // Save to Firestore

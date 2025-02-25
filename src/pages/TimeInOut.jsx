@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { auth, db } from '../firebase'
-import { collection, query, where, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, Timestamp, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { recordAttendance } from '../utils/attendanceService'
 import TopBar from '../components/TopBar'
@@ -159,11 +159,48 @@ function TimeInOut() {
     }
 
     try {
-      setUserEmail(auth.currentUser.email); // Set email immediately since we know we have auth.currentUser
+      setUserEmail(auth.currentUser.email);
       
-      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-      if (userDoc.exists()) {
-        setUserName(userDoc.data().name);
+      // First try to find any existing user document with this email
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', auth.currentUser.email));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const existingUserDoc = querySnapshot.docs[0];
+        const existingUserData = existingUserDoc.data();
+        
+        // If the document ID doesn't match the auth UID, we need to migrate it
+        if (existingUserDoc.id !== auth.currentUser.uid) {
+          // Create new document with auth UID
+          await setDoc(doc(db, 'users', auth.currentUser.uid), {
+            ...existingUserData,
+            updatedAt: new Date().toISOString()
+          });
+          
+          // Delete the old document
+          await deleteDoc(doc(db, 'users', existingUserDoc.id));
+          
+          setUserName(existingUserData.name);
+        } else {
+          setUserName(existingUserData.name);
+        }
+      } else {
+        // No existing user document found by email, check by UID
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        if (userDoc.exists()) {
+          setUserName(userDoc.data().name);
+        } else {
+          // Create a new user document if none exists
+          const newUserData = {
+            email: auth.currentUser.email,
+            name: auth.currentUser.displayName || auth.currentUser.email.split('@')[0],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await setDoc(doc(db, 'users', auth.currentUser.uid), newUserData);
+          setUserName(newUserData.name);
+        }
       }
     } catch (error) {
       console.error('Error fetching user info:', error);
@@ -230,13 +267,14 @@ function TimeInOut() {
     }
   }
 
-  const handleTimeRecord = async (type) => {
+  const handleTimeRecord = async (type, notes) => {
     try {
       const result = await recordAttendance(
         auth.currentUser.uid,
         auth.currentUser.email,
         userName,
-        type.toUpperCase()
+        type.toUpperCase(),
+        notes
       );
 
       if (!result.success) {
@@ -247,7 +285,7 @@ function TimeInOut() {
       checkTodayAttendance();
 
       // Show status message
-      const statusMessage = `${type.toUpperCase()} recorded - ${result.status}`;
+      let statusMessage = `${type.toUpperCase()} recorded - ${result.status}`;
       if (result.timeDiff) {
         const hours = Math.abs(result.timeDiff.hours);
         const minutes = Math.abs(result.timeDiff.minutes);
@@ -339,7 +377,7 @@ function TimeInOut() {
       <AttendanceConfirmationModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onConfirm={() => handleTimeRecord(pendingAction)}
+        onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
         type={pendingAction?.toUpperCase()}
         userData={{ name: userName, email: userEmail }}
       />
