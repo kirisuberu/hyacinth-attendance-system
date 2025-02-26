@@ -187,7 +187,7 @@ function Login() {
   return (
     <LoginContainer>
       <LoginBox>
-        <Title>Welcome to Hyacinth</Title>
+        <Title>Welcome to HyAttendance</Title>
         <ErrorMessage visible={!!error}>{error}</ErrorMessage>
         <GoogleButton 
           onClick={handleGoogleSignIn}

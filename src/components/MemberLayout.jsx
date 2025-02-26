@@ -227,43 +227,78 @@ function MemberLayout() {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      
+      // Create end of day timestamp
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
+      // Use a simpler query that doesn't require a composite index
       const q = query(
         collection(db, 'attendance'),
-        where('userId', '==', auth.currentUser.uid),
-        where('date', '==', today.getTime())
+        where('userId', '==', auth.currentUser.uid)
       );
 
       const querySnapshot = await getDocs(q);
+      console.log(`Found ${querySnapshot.size} total attendance records for user`);
       
       if (!querySnapshot.empty) {
-        const records = querySnapshot.docs.map(doc => ({
+        // Get all records
+        const allRecords = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
-        // Sort by timestamp in descending order
-        records.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
-        const latestRecord = records[0];
         
-        // Format the status with time difference
-        let statusText = latestRecord.status || 'No Status';
-        if (latestRecord.timeDiffHours || latestRecord.timeDiffMinutes) {
-          const parts = [];
-          if (latestRecord.timeDiffHours) {
-            parts.push(`${Math.abs(latestRecord.timeDiffHours)}h`);
+        // Filter for today's records client-side
+        const todayRecords = allRecords.filter(record => {
+          if (!record.timestamp) return false;
+          
+          const recordDate = new Date(record.timestamp.seconds * 1000);
+          const isToday = recordDate >= today && recordDate < tomorrow;
+          if (isToday) {
+            console.log('Found today\'s record:', {
+              id: record.id,
+              type: record.type,
+              timestamp: recordDate.toLocaleString(),
+              status: record.status
+            });
           }
-          if (latestRecord.timeDiffMinutes) {
-            parts.push(`${Math.abs(latestRecord.timeDiffMinutes)}m`);
-          }
-          if (parts.length > 0) {
-            statusText += ` (${parts.join(' ')})`;
-          }
-        }
-        
-        setTodayRecord({
-          ...latestRecord,
-          formattedStatus: statusText
+          return isToday;
         });
+        
+        console.log(`Found ${todayRecords.length} records for today`);
+        
+        // Sort by timestamp in descending order
+        todayRecords.sort((a, b) => {
+          const timestampA = a.timestamp?.seconds || 0;
+          const timestampB = b.timestamp?.seconds || 0;
+          return timestampB - timestampA;
+        });
+        
+        if (todayRecords.length > 0) {
+          const latestRecord = todayRecords[0];
+          
+          // Format the status with time difference
+          let statusText = latestRecord.status || 'No Status';
+          if (latestRecord.timeDiffHours || latestRecord.timeDiffMinutes) {
+            const parts = [];
+            if (latestRecord.timeDiffHours) {
+              parts.push(`${Math.abs(latestRecord.timeDiffHours)}h`);
+            }
+            if (latestRecord.timeDiffMinutes) {
+              parts.push(`${Math.abs(latestRecord.timeDiffMinutes)}m`);
+            }
+            if (parts.length > 0) {
+              statusText += ` (${parts.join(' ')})`;
+            }
+          }
+          
+          setTodayRecord({
+            ...latestRecord,
+            formattedStatus: statusText
+          });
+        } else {
+          setTodayRecord(null);
+        }
       } else {
         setTodayRecord(null);
       }
@@ -274,6 +309,8 @@ function MemberLayout() {
 
   const handleTimeRecord = async (type, notes) => {
     try {
+      console.log(`Recording ${type.toUpperCase()} attendance with notes: ${notes}`);
+      
       const result = await recordAttendance(
         auth.currentUser.uid,
         auth.currentUser.email,
@@ -287,7 +324,12 @@ function MemberLayout() {
       }
 
       setShowModal(false);
-      checkTodayAttendance();
+      
+      // Add a small delay to ensure the Firestore record is fully processed
+      setTimeout(() => {
+        console.log('Refreshing attendance records after recording');
+        checkTodayAttendance();
+      }, 1000);
 
       // Show status message
       const statusMessage = `${type.toUpperCase()} recorded - ${result.status}`;
@@ -297,11 +339,30 @@ function MemberLayout() {
         const timeDesc = [];
         if (hours > 0) timeDesc.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
         if (minutes > 0) timeDesc.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+        
         if (timeDesc.length > 0) {
-          alert(`${statusMessage} (${timeDesc.join(' and ')}${result.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`);
+          let message = `${statusMessage} (${timeDesc.join(' and ')}${result.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`;
+          
+          // Add shift duration for OUT records
+          if (type.toUpperCase() === 'OUT' && result.shiftDuration) {
+            const shiftHours = result.shiftDuration.hours;
+            const shiftMinutes = result.shiftDuration.minutes;
+            const shiftDesc = [];
+            
+            if (shiftHours > 0) shiftDesc.push(`${shiftHours} hour${shiftHours !== 1 ? 's' : ''}`);
+            if (shiftMinutes > 0) shiftDesc.push(`${shiftMinutes} minute${shiftMinutes !== 1 ? 's' : ''}`);
+            
+            if (shiftDesc.length > 0) {
+              message += `\nShift Duration: ${shiftDesc.join(' and ')}`;
+            }
+          }
+          
+          alert(message);
         } else {
           alert(statusMessage);
         }
+      } else {
+        alert(statusMessage);
       }
     } catch (error) {
       console.error('Error recording time:', error);
@@ -373,7 +434,7 @@ function MemberLayout() {
         </TimeInButton>
         
         {todayRecord && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fff', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fff',color: '#4b5563', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             <p><strong>Today's Record:</strong></p>
             <p>Type: {todayRecord.type}</p>
             <p>Time: {formatTime(todayRecord.timestamp)}</p>
@@ -396,12 +457,29 @@ function MemberLayout() {
                      todayRecord.status?.toLowerCase().includes('early') ? '#1E40AF' :
                      todayRecord.status?.toLowerCase().includes('overtime') ? '#92400E' : '#166534'
             }}>{todayRecord.formattedStatus}</span></p>
+            
+            {/* Display shift duration for OUT records */}
+            {todayRecord.type === 'OUT' && todayRecord.shiftDurationHours !== undefined && (
+              <div style={{ 
+                marginTop: '0.5rem', 
+                padding: '0.5rem', 
+                background: '#F0FDF4', 
+                borderRadius: '4px', 
+                borderLeft: '4px solid #22C55E' 
+              }}>
+                <p style={{ margin: '0', fontWeight: 'bold' }}>Shift Duration:</p>
+                <p style={{ margin: '0' }}>
+                  {todayRecord.shiftDurationHours > 0 && `${todayRecord.shiftDurationHours} hour${todayRecord.shiftDurationHours !== 1 ? 's' : ''} `}
+                  {todayRecord.shiftDurationMinutes > 0 && `${todayRecord.shiftDurationMinutes} minute${todayRecord.shiftDurationMinutes !== 1 ? 's' : ''}`}
+                </p>
+              </div>
+            )}
           </div>
         )}
         
         <TimeOutButton 
           onClick={() => handleTimeButtonClick('out')} 
-          disabled={!todayRecord || todayRecord?.type === 'OUT'}
+          disabled={!todayRecord || todayRecord.type !== 'IN'}
         >
           Time Out
         </TimeOutButton>

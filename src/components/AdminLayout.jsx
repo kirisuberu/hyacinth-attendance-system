@@ -17,15 +17,20 @@ const Sidebar = styled.div`
   background: #1a1a1a;
   color: white;
   padding: 2rem;
-  position: relative;
-  max-height: 90vh;
-
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 10;
 `;
 
 const MainContent = styled.main`
   flex: 1;
   background: #f3f4f6;
   padding: 2rem;
+  margin-left: 250px;
 `;
 
 const NavLink = styled(Link)`
