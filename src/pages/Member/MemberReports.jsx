@@ -9,11 +9,25 @@ const ReportsContainer = styled.div`
   max-width: 100%;
   padding: 1rem;
   overflow-x: hidden;
+  
+  @media (min-width: 768px) {
+    padding: 1.5rem;
+  }
+  
+  @media (min-width: 1024px) {
+    padding: 2rem;
+  }
 `;
 
 const Title = styled.h1`
-  margin-bottom: 2rem;
-  color: #1a1a1a;
+  margin-bottom: 1.5rem;
+  color: #111827;
+  font-size: 1.5rem;
+  
+  @media (min-width: 768px) {
+    font-size: 1.75rem;
+    margin-bottom: 2rem;
+  }
 `;
 
 const TableWrapper = styled.div`
@@ -22,14 +36,23 @@ const TableWrapper = styled.div`
   background: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+  
+  @media (min-width: 768px) {
+    margin-bottom: 2rem;
+  }
 `;
 
 const Table = styled.table`
   width: 100%;
-  min-width: 900px;
+  min-width: 650px;
   border-collapse: collapse;
-  color: #1a1a1a;
+  color: #111827;
   table-layout: fixed;
+
+  @media (min-width: 768px) {
+    min-width: 900px;
+  }
 
   th:nth-child(1), td:nth-child(1) { width: 12%; } /* Date */
   th:nth-child(2), td:nth-child(2) { width: 12%; } /* Day of Week */
@@ -42,36 +65,60 @@ const Table = styled.table`
 
 const Th = styled.th`
   text-align: left;
-  padding: 1rem;
+  padding: 0.75rem;
   border-bottom: 2px solid #e5e7eb;
-  color: #6b7280;
+  color: #4b5563;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.75rem;
+  
+  @media (min-width: 768px) {
+    padding: 1rem;
+    font-size: 0.875rem;
+  }
 `;
 
 const Td = styled.td`
-  padding: 1rem;
+  padding: 0.75rem;
   border-bottom: 1px solid #e5e7eb;
-  color: #1a1a1a;
+  color: #111827;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 0.75rem;
+  
+  @media (min-width: 768px) {
+    padding: 1rem;
+    font-size: 0.875rem;
+  }
 `;
 
 const DateFilter = styled.div`
   margin-bottom: 1rem;
   display: flex;
-  gap: 1rem;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.75rem;
+  
+  @media (min-width: 640px) {
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
 `;
 
 const FilterInput = styled.input`
   padding: 0.5rem;
   border: 1px solid #e5e7eb;
   border-radius: 4px;
+  font-size: 0.875rem;
+  width: 100%;
+  
+  @media (min-width: 640px) {
+    width: auto;
+  }
 `;
 
 const FilterButton = styled.button`
@@ -82,6 +129,7 @@ const FilterButton = styled.button`
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
+  font-size: 0.875rem;
   
   &:hover {
     background: #2563eb;
@@ -99,50 +147,85 @@ const StatusBadge = styled.span`
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 500;
-  background-color: ${props => {
-    switch (props.status?.toLowerCase()) {
-      case 'late':
-        return '#fee2e2';
-      case 'early':
-        return '#e0f2fe';
-      case 'on time':
-        return '#dcfce7';
-      case 'overtime':
-        return '#fef9c3';
-      case 'early out':
-        return '#fce7f3';
-      default:
-        return '#f3f4f6';
-    }
+  background: ${props => {
+    if (props.status?.toLowerCase().includes('late')) return '#FEE2E2';
+    if (props.status?.toLowerCase().includes('early')) return '#DBEAFE';
+    if (props.status?.toLowerCase().includes('on time')) return '#DCFCE7';
+    if (props.status?.toLowerCase().includes('overtime')) return '#FEF3C7';
+    return '#F3F4F6';
   }};
   color: ${props => {
-    switch (props.status?.toLowerCase()) {
-      case 'late':
-        return '#b91c1c';
-      case 'early':
-        return '#0369a1';
-      case 'on time':
-        return '#15803d';
-      case 'overtime':
-        return '#854d0e';
-      case 'early out':
-        return '#9d174d';
-      default:
-        return '#4b5563';
-    }
+    if (props.status?.toLowerCase().includes('late')) return '#991B1B';
+    if (props.status?.toLowerCase().includes('early')) return '#1E40AF';
+    if (props.status?.toLowerCase().includes('on time')) return '#166534';
+    if (props.status?.toLowerCase().includes('overtime')) return '#92400E';
+    return '#1F2937';
   }};
+  
+  @media (min-width: 768px) {
+    padding: 0.25rem 0.75rem;
+  }
 `;
 
 const EmptyState = styled.div`
+  padding: 2rem;
   text-align: center;
-  padding: 3rem;
   color: #6b7280;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+`;
+
+const NoDataMessage = styled.div`
+  padding: 2rem;
+  text-align: center;
+  color: #4b5563;
+  font-weight: 500;
+`;
+
+const PaginationContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  
+  @media (min-width: 768px) {
+    margin-top: 1.5rem;
+    gap: 0.75rem;
+  }
+`;
+
+const PageButton = styled.button`
+  padding: 0.375rem 0.625rem;
+  border: 1px solid #e5e7eb;
+  background: ${props => props.active ? '#3b82f6' : 'white'};
+  color: ${props => props.active ? 'white' : '#4b5563'};
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  
+  &:hover {
+    background: ${props => props.active ? '#2563eb' : '#f9fafb'};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  @media (min-width: 768px) {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
 `;
 
 const LoadingState = styled.div`
-  text-align: center;
   padding: 2rem;
-  color: #6b7280;
+  text-align: center;
+  color: #4b5563;
+  font-weight: 500;
 `;
 
 function MemberReports() {
@@ -402,9 +485,9 @@ function MemberReports() {
           </Table>
         </TableWrapper>
       ) : (
-        <EmptyState>
+        <NoDataMessage>
           No attendance records found for the selected date range.
-        </EmptyState>
+        </NoDataMessage>
       )}
     </ReportsContainer>
   );

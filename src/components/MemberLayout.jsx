@@ -8,205 +8,388 @@ import { recordAttendance } from '../utils/attendanceService';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 
 const LayoutContainer = styled.div`
-  min-height: 100vh;
-  background: #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+  
+  @media (min-width: 1024px) {
+    flex-direction: row;
+    flex-wrap: nowrap;
+  }
+`;
+
+const MainContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: #f9fafb;
+  color: #111827;
+  
+  @media (min-width: 1024px) {
+    width: calc(100% - 250px);
+    margin-left: 0;
+  }
 `;
 
 const TopNav = styled.nav`
-  background: #1a1a1a;
-  color: white;
-  padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  position: relative;
-  z-index: 1000;
+  padding: 1rem;
+  background: #1f2937;
+  color: white;
+  
+  @media (min-width: 768px) {
+    padding: 1rem 2rem;
+  }
+  
+  @media (min-width: 1024px) {
+    padding-left: 2rem;
+  }
 `;
 
 const HamburgerButton = styled.button`
   background: none;
   border: none;
-  color: white;
-  font-size: 1.5rem;
   cursor: pointer;
-  padding: 0.5rem;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   height: 20px;
+  padding: 0;
+  position: relative;
+  width: 30px;
+  z-index: 1000;
   
   span {
-    display: block;
-    width: 25px;
-    height: 2px;
     background-color: white;
+    border-radius: 3px;
+    display: block;
+    height: 3px;
     transition: all 0.3s ease;
+    width: 100%;
   }
-
+  
   &.open {
     span:first-child {
-      transform: translateY(9px) rotate(45deg);
+      transform: translateY(8px) rotate(45deg);
     }
+    
     span:nth-child(2) {
       opacity: 0;
     }
+    
     span:last-child {
-      transform: translateY(-9px) rotate(-45deg);
+      transform: translateY(-8px) rotate(-45deg);
     }
+  }
+  
+  @media (min-width: 1024px) {
+    display: none;
   }
 `;
 
-const Sidebar = styled.div`
+const Sidebar = styled.aside`
+  background: #1f2937;
+  width: 250px;
+  height: 100vh;
   position: fixed;
   top: 0;
-  left: ${props => props.isOpen ? '0' : '-300px'};
-  width: 300px;
-  height: 100vh;
-  background: #1a1a1a;
-  padding-top: 80px;
-  transition: left 0.3s ease;
-  z-index: 999;
-  box-shadow: ${props => props.isOpen ? '2px 0 8px rgba(0,0,0,0.2)' : 'none'};
+  left: 0;
+  z-index: 100;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  
+  &.open {
+    transform: translateX(0);
+  }
+  
+  @media (min-width: 1024px) {
+    position: static;
+    transform: translateX(0);
+    flex-shrink: 0;
+    width: 250px;
+  }
 `;
 
 const Overlay = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
   background: rgba(0, 0, 0, 0.5);
-  opacity: ${props => props.isOpen ? 1 : 0};
-  visibility: ${props => props.isOpen ? 'visible' : 'hidden'};
-  transition: all 0.3s ease;
-  z-index: 998;
+  z-index: 90;
+  display: ${props => props.isOpen ? 'block' : 'none'};
+  
+  @media (min-width: 1024px) {
+    display: none;
+  }
 `;
 
 const NavLink = styled(Link)`
-  color: white;
+  color: #f3f4f6;
   text-decoration: none;
-  padding: 1rem 2rem;
+  padding: 1rem 1.5rem;
   display: block;
   transition: background 0.2s;
   position: relative;
+  font-size: 1rem;
+  font-weight: 500;
 
   &:hover {
     background: rgba(255, 255, 255, 0.1);
+    color: white;
   }
 
   &.active {
     background: #3b82f6;
+    color: white;
+    font-weight: 600;
     &::before {
       content: '';
       position: absolute;
       left: 0;
       top: 0;
-      bottom: 0;
+      height: 100%;
       width: 4px;
       background: white;
     }
   }
+  
+  @media (min-width: 768px) {
+    padding: 1rem 2rem;
+  }
 `;
 
 const Logo = styled.div`
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: bold;
-`;
-
-const UserSection = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+  color: white;
+  padding: 1.5rem;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  
+  @media (min-width: 768px) {
+    font-size: 1.5rem;
+  }
 `;
 
 const UserInfo = styled.div`
-  text-align: right;
-  .name {
-    font-weight: bold;
-  }
-  .email {
-    font-size: 0.8rem;
-    opacity: 0.8;
-  }
-`;
-
-const LogoutButton = styled.button`
-  background: none;
-  border: none;
-  color: #ef4444;
-  padding: 1rem 2rem;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   
-  &:hover {
-    background: rgba(239, 68, 68, 0.1);
+  .name {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: white;
+  }
+  
+  .email {
+    font-size: 0.75rem;
+    color: #e5e7eb;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  @media (min-width: 768px) {
+    .name {
+      font-size: 1rem;
+    }
+    
+    .email {
+      font-size: 0.875rem;
+      max-width: 200px;
+    }
   }
 `;
 
-const MainContent = styled.main`
-  padding: 2rem;
+const Content = styled.main`
+  flex: 1;
+  padding: 1rem;
+  background: #f9fafb;
+  color: #111827;
+  overflow-y: auto;
+  
+  @media (min-width: 768px) {
+    padding: 2rem;
+  }
 `;
 
 const TimeInOutBar = styled.div`
-  background: white;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid #e5e7eb;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
+  padding: 1rem;
   gap: 1rem;
+  background: #f3f4f6;
+  border-bottom: 1px solid #e5e7eb;
+  
+  @media (min-width: 768px) {
+    flex-direction: row;
+    padding: 1.5rem 2rem;
+  }
+`;
+
+const TimeButtonsContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  flex-direction: column;
+  flex: 1;
+  order: 1;
+  
+  @media (min-width: 768px) {
+    flex-direction: row;
+    order: 1;
+  }
+`;
+
+const TimeRecordCard = styled.div`
+  margin-top: 0;
+  padding: 1rem;
+  background: #fff;
+  color: #111827;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  flex: 1;
+  order: 2;
+  
+  @media (min-width: 768px) {
+    margin-top: 0;
+    order: 2;
+  }
 `;
 
 const TimeButton = styled.button`
-  padding: 0.75rem 2rem;
-  border-radius: 6px;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  color: white;
-  border: none;
+  flex: 1;
+  font-size: 0.875rem;
   
   &:disabled {
-    opacity: 0.5;
+    opacity: 0.6;
     cursor: not-allowed;
+  }
+  
+  @media (min-width: 768px) {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
   }
 `;
 
 const TimeInButton = styled(TimeButton)`
-  background-color: #10b981;
+  background: #10b981;
+  color: white;
+  order: 1;
   
   &:hover:not(:disabled) {
-    background-color: #059669;
+    background: #059669;
+  }
+  
+  &:disabled {
+    background: #6ee7b7;
+    color: #f9fafb;
+  }
+  
+  @media (min-width: 768px) {
+    order: 1;
   }
 `;
 
 const TimeOutButton = styled(TimeButton)`
-  background-color: #ef4444;
+  background: #ef4444;
+  color: white;
+  order: 3;
   
   &:hover:not(:disabled) {
-    background-color: #dc2626;
+    background: #dc2626;
+  }
+  
+  &:disabled {
+    background: #fca5a5;
+    color: #f9fafb;
+  }
+  
+  @media (min-width: 768px) {
+    order: 3;
   }
 `;
 
-const StatusText = styled.div`
-  color: #4b5563;
-  font-size: 0.9rem;
-  margin: 0 1rem;
+const LogoutButton = styled.button`
+  margin: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid #ef4444;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: rgba(239, 68, 68, 0.25);
+    color: white;
+  }
+  
+  @media (min-width: 768px) {
+    margin: 1rem 2rem;
+  }
 `;
 
 function MemberLayout() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [todayRecord, setTodayRecord] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [userName, setUserName] = useState('');
   const location = useLocation();
+  const isMobile = window.innerWidth < 1024;
   
   useEffect(() => {
     checkTodayAttendance();
     fetchUserInfo();
   }, []);
+
+  useEffect(() => {
+    // Close sidebar on route change (especially for mobile)
+    closeSidebar();
+  }, [location]);
+
+  useEffect(() => {
+    // Handle window resize to determine mobile state
+    const handleResize = () => {
+      // Update isMobile state
+      const newIsMobile = window.innerWidth < 1024;
+      
+      // If transitioning from mobile to desktop, ensure sidebar is visible
+      if (!newIsMobile && window.innerWidth >= 1024) {
+        // No need to explicitly open sidebar on desktop as it's handled by CSS
+        // Just make sure it's closed on mobile when transitioning to desktop
+        if (sidebarOpen) {
+          closeSidebar();
+        }
+      }
+    };
+
+    // Initial check
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarOpen]);
 
   const fetchUserInfo = async () => {
     if (!auth.currentUser) return;
@@ -394,11 +577,11 @@ function MemberLayout() {
   };
 
   const toggleSidebar = () => {
-    setIsOpen(!isOpen);
+    setSidebarOpen(!sidebarOpen);
   };
 
   const closeSidebar = () => {
-    setIsOpen(false);
+    setSidebarOpen(false);
   };
 
   const user = auth.currentUser;
@@ -408,123 +591,125 @@ function MemberLayout() {
 
   return (
     <LayoutContainer>
-      <TopNav>
-        <HamburgerButton 
-          onClick={toggleSidebar}
-          className={isOpen ? 'open' : ''}
-          aria-label="Toggle menu"
-        >
-          <span></span>
-          <span></span>
-          <span></span>
-        </HamburgerButton>
-        <Logo>Hyacinth</Logo>
-        <UserInfo>
-          <div className="name">{user.displayName || 'User'}</div>
-          <div className="email">{user.email}</div>
-        </UserInfo>
-      </TopNav>
-
-      <TimeInOutBar>
-        <TimeInButton 
-          onClick={() => handleTimeButtonClick('in')} 
-          disabled={todayRecord?.type === 'IN'}
-        >
-          Time In
-        </TimeInButton>
-        
-        {todayRecord && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: '#fff',color: '#4b5563', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-            <p><strong>Today's Record:</strong></p>
-            <p>Type: {todayRecord.type}</p>
-            <p>Time: {formatTime(todayRecord.timestamp)}</p>
-            {todayRecord.scheduleTime && (
-              <p>Schedule: {new Date(`1970-01-01T${todayRecord.scheduleTime}`).toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              })}</p>
-            )}
-            <p>Status: <span style={{
-              padding: '0.25rem 0.75rem',
-              borderRadius: '9999px',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              background: todayRecord.status?.toLowerCase().includes('late') ? '#FEE2E2' :
-                         todayRecord.status?.toLowerCase().includes('early') ? '#DBEAFE' :
-                         todayRecord.status?.toLowerCase().includes('overtime') ? '#FEF3C7' : '#DCFCE7',
-              color: todayRecord.status?.toLowerCase().includes('late') ? '#991B1B' :
-                     todayRecord.status?.toLowerCase().includes('early') ? '#1E40AF' :
-                     todayRecord.status?.toLowerCase().includes('overtime') ? '#92400E' : '#166534'
-            }}>{todayRecord.formattedStatus}</span></p>
-            
-            {/* Display shift duration for OUT records */}
-            {todayRecord.type === 'OUT' && todayRecord.shiftDurationHours !== undefined && (
-              <div style={{ 
-                marginTop: '0.5rem', 
-                padding: '0.5rem', 
-                background: '#F0FDF4', 
-                borderRadius: '4px', 
-                borderLeft: '4px solid #22C55E' 
-              }}>
-                <p style={{ margin: '0', fontWeight: 'bold' }}>Shift Duration:</p>
-                <p style={{ margin: '0' }}>
-                  {todayRecord.shiftDurationHours > 0 && `${todayRecord.shiftDurationHours} hour${todayRecord.shiftDurationHours !== 1 ? 's' : ''} `}
-                  {todayRecord.shiftDurationMinutes > 0 && `${todayRecord.shiftDurationMinutes} minute${todayRecord.shiftDurationMinutes !== 1 ? 's' : ''}`}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-        
-        <TimeOutButton 
-          onClick={() => handleTimeButtonClick('out')} 
-          disabled={!todayRecord || todayRecord.type !== 'IN'}
-        >
-          Time Out
-        </TimeOutButton>
-      </TimeInOutBar>
-
-      <Overlay isOpen={isOpen} onClick={closeSidebar} />
-      
-      <Sidebar isOpen={isOpen}>
-        <NavLink 
-          to="/member/dashboard" 
-          className={location.pathname === '/member/dashboard' ? 'active' : ''}
-          onClick={closeSidebar}
-        >
+      <Sidebar 
+        className={sidebarOpen ? 'open' : ''}
+      >
+        <Logo>Hyacinth Attendance</Logo>
+        <NavLink to="/member/dashboard" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
           Dashboard
         </NavLink>
-        <NavLink 
-          to="/member/my-schedule" 
-          className={location.pathname === '/member/my-schedule' ? 'active' : ''}
-          onClick={closeSidebar}
-        >
+        <NavLink to="/member/my-schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
           My Schedule
         </NavLink>
-        <NavLink 
-          to="/member/reports" 
-          className={location.pathname === '/member/reports' ? 'active' : ''}
-          onClick={closeSidebar}
-        >
+        <NavLink to="/member/reports" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
           Reports
         </NavLink>
         <LogoutButton onClick={handleLogout}>
-          Sign Out
+          Logout
         </LogoutButton>
       </Sidebar>
 
-      <MainContent>
-        <Outlet />
-      </MainContent>
+      <Overlay isOpen={sidebarOpen} onClick={closeSidebar} />
 
-      <AttendanceConfirmationModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
-        type={pendingAction?.toUpperCase()}
-        userData={{ name: userName, email: user.email }}
-      />
+      <MainContainer>
+        <TopNav>
+          <HamburgerButton 
+            onClick={toggleSidebar}
+            className={sidebarOpen ? 'open' : ''}
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </HamburgerButton>
+          
+          <UserInfo>
+            <span className="name">{user.displayName || 'User'}</span>
+            <span className="email">{user.email}</span>
+          </UserInfo>
+        </TopNav>
+
+        <TimeInOutBar>
+          <TimeButtonsContainer>
+            <TimeInButton 
+              onClick={() => handleTimeButtonClick('in')} 
+              disabled={todayRecord?.type === 'IN'}
+            >
+              Time In
+            </TimeInButton>
+            
+            <TimeOutButton 
+              onClick={() => handleTimeButtonClick('out')} 
+              disabled={!todayRecord || todayRecord.type !== 'IN'}
+            >
+              Time Out
+            </TimeOutButton>
+          </TimeButtonsContainer>
+          
+          {todayRecord && (
+            <TimeRecordCard>
+              <p style={{ margin: '0 0 0.5rem', fontWeight: 'bold', color: '#111827' }}>Today's Record:</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ flex: '1 0 45%', minWidth: '120px' }}>
+                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Type:</strong> {todayRecord.type}</p>
+                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Time:</strong> {formatTime(todayRecord.timestamp)}</p>
+                </div>
+                <div style={{ flex: '1 0 45%', minWidth: '120px' }}>
+                  {todayRecord.scheduleTime && (
+                    <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Schedule:</strong> {new Date(`1970-01-01T${todayRecord.scheduleTime}`).toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true
+                    })}</p>
+                  )}
+                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Status:</strong> <span style={{
+                    padding: '0.25rem 0.5rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '500',
+                    display: 'inline-block',
+                    marginTop: '0.25rem',
+                    background: todayRecord.status?.toLowerCase().includes('late') ? '#FEE2E2' :
+                              todayRecord.status?.toLowerCase().includes('early') ? '#DBEAFE' :
+                              todayRecord.status?.toLowerCase().includes('overtime') ? '#FEF3C7' : '#DCFCE7',
+                    color: todayRecord.status?.toLowerCase().includes('late') ? '#991B1B' :
+                          todayRecord.status?.toLowerCase().includes('early') ? '#1E40AF' :
+                          todayRecord.status?.toLowerCase().includes('overtime') ? '#92400E' : '#166534'
+                  }}>{todayRecord.formattedStatus}</span></p>
+                </div>
+              </div>
+              
+              {/* Display shift duration for OUT records */}
+              {todayRecord.type === 'OUT' && todayRecord.shiftDurationHours !== undefined && (
+                <div style={{ 
+                  marginTop: '0.5rem', 
+                  padding: '0.5rem', 
+                  background: '#F0FDF4', 
+                  borderRadius: '4px', 
+                  borderLeft: '4px solid #22C55E' 
+                }}>
+                  <p style={{ margin: '0', fontWeight: 'bold', fontSize: '0.875rem', color: '#166534' }}>Shift Duration:</p>
+                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#166534' }}>
+                    {todayRecord.shiftDurationHours > 0 && `${todayRecord.shiftDurationHours} hour${todayRecord.shiftDurationHours !== 1 ? 's' : ''} `}
+                    {todayRecord.shiftDurationMinutes > 0 && `${todayRecord.shiftDurationMinutes} minute${todayRecord.shiftDurationMinutes !== 1 ? 's' : ''}`}
+                  </p>
+                </div>
+              )}
+            </TimeRecordCard>
+          )}
+        </TimeInOutBar>
+
+        <Content>
+          <Outlet />
+        </Content>
+
+        <AttendanceConfirmationModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
+          type={pendingAction?.toUpperCase()}
+          userData={{ name: userName, email: user.email }}
+        />
+      </MainContainer>
     </LayoutContainer>
   );
 }
