@@ -349,12 +349,97 @@ const LogoutButton = styled.button`
   }
 `;
 
+const ConfirmationPopup = styled.div`
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1100;
+  max-width: 90%;
+  width: 400px;
+`;
+
+const PopupOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+`;
+
+const PopupTitle = styled.h3`
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #111827;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  
+  svg {
+    margin-right: 0.5rem;
+    color: #10B981;
+  }
+`;
+
+const PopupContent = styled.div`
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  color: #4B5563;
+  
+  p {
+    margin: 0.5rem 0;
+  }
+  
+  .shift-duration {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #F0FDF4;
+    border-radius: 4px;
+    border-left: 4px solid #22C55E;
+    
+    p {
+      margin: 0;
+      color: #166534;
+      
+      &:first-child {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+      }
+    }
+  }
+`;
+
+const PopupButton = styled.button`
+  padding: 0.5rem 1.5rem;
+  background: #10B981;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  
+  &:hover {
+    background: #059669;
+  }
+`;
+
 function MemberLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [todayRecord, setTodayRecord] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [userName, setUserName] = useState('');
+  const [confirmationPopup, setConfirmationPopup] = useState({ show: false, message: '', shiftDuration: null, type: '' });
   const location = useLocation();
   const isMobile = window.innerWidth < 1024;
   
@@ -527,25 +612,41 @@ function MemberLayout() {
           let message = `${statusMessage} (${timeDesc.join(' and ')}${result.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`;
           
           // Add shift duration for OUT records
+          let shiftDuration = null;
           if (type.toUpperCase() === 'OUT' && result.shiftDuration) {
             const shiftHours = result.shiftDuration.hours;
             const shiftMinutes = result.shiftDuration.minutes;
-            const shiftDesc = [];
             
-            if (shiftHours > 0) shiftDesc.push(`${shiftHours} hour${shiftHours !== 1 ? 's' : ''}`);
-            if (shiftMinutes > 0) shiftDesc.push(`${shiftMinutes} minute${shiftMinutes !== 1 ? 's' : ''}`);
-            
-            if (shiftDesc.length > 0) {
-              message += `\nShift Duration: ${shiftDesc.join(' and ')}`;
-            }
+            shiftDuration = {
+              hours: shiftHours,
+              minutes: shiftMinutes
+            };
           }
           
-          alert(message);
+          // Show confirmation popup instead of alert
+          setConfirmationPopup({
+            show: true,
+            message: message,
+            shiftDuration: shiftDuration,
+            type: type.toUpperCase()
+          });
         } else {
-          alert(statusMessage);
+          // Show confirmation popup instead of alert
+          setConfirmationPopup({
+            show: true,
+            message: statusMessage,
+            shiftDuration: null,
+            type: type.toUpperCase()
+          });
         }
       } else {
-        alert(statusMessage);
+        // Show confirmation popup instead of alert
+        setConfirmationPopup({
+          show: true,
+          message: statusMessage,
+          shiftDuration: null,
+          type: type.toUpperCase()
+        });
       }
     } catch (error) {
       console.error('Error recording time:', error);
@@ -709,6 +810,34 @@ function MemberLayout() {
           type={pendingAction?.toUpperCase()}
           userData={{ name: userName, email: user.email }}
         />
+        
+        {confirmationPopup.show && (
+          <PopupOverlay>
+            <ConfirmationPopup>
+              <PopupTitle>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {confirmationPopup.type} Recorded
+              </PopupTitle>
+              <PopupContent>
+                <p>{confirmationPopup.message}</p>
+                {confirmationPopup.shiftDuration && (
+                  <div className="shift-duration">
+                    <p>Shift Duration:</p>
+                    <p>
+                      {confirmationPopup.shiftDuration.hours > 0 && `${confirmationPopup.shiftDuration.hours} hour${confirmationPopup.shiftDuration.hours !== 1 ? 's' : ''} `}
+                      {confirmationPopup.shiftDuration.minutes > 0 && `${confirmationPopup.shiftDuration.minutes} minute${confirmationPopup.shiftDuration.minutes !== 1 ? 's' : ''}`}
+                    </p>
+                  </div>
+                )}
+              </PopupContent>
+              <PopupButton onClick={() => setConfirmationPopup({ show: false, message: '', shiftDuration: null, type: '' })}>
+                OK
+              </PopupButton>
+            </ConfirmationPopup>
+          </PopupOverlay>
+        )}
       </MainContainer>
     </LayoutContainer>
   );
