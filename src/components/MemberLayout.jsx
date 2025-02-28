@@ -11,6 +11,7 @@ const LayoutContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
   overflow: hidden;
   position: relative;
   
@@ -31,7 +32,8 @@ const MainContainer = styled.div`
   
   @media (min-width: 1024px) {
     width: calc(100% - 250px);
-    margin-left: 0;
+    margin-left: 250px;
+    padding-left: 0;
   }
 `;
 
@@ -42,6 +44,12 @@ const TopNav = styled.nav`
   padding: 1rem;
   background: #1f2937;
   color: white;
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 50;
+  height: 60px;
   
   @media (min-width: 768px) {
     padding: 1rem 2rem;
@@ -49,6 +57,7 @@ const TopNav = styled.nav`
   
   @media (min-width: 1024px) {
     padding-left: 2rem;
+    left: 250px;
   }
 `;
 
@@ -112,7 +121,7 @@ const Sidebar = styled.aside`
   }
   
   @media (min-width: 1024px) {
-    position: static;
+    position: fixed;
     transform: translateX(0);
     flex-shrink: 0;
     width: 250px;
@@ -216,27 +225,30 @@ const UserInfo = styled.div`
 
 const Content = styled.main`
   flex: 1;
-  padding: 1rem;
+  padding: 1rem 1rem 1rem 0;
   background: #f9fafb;
   color: #111827;
   overflow-y: auto;
+  width: 100%;
+  height: 100%;
   
   @media (min-width: 768px) {
-    padding: 2rem;
+    padding: 2rem 2rem 2rem 0;
   }
 `;
 
 const TimeInOutBar = styled.div`
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  padding: 1rem 1rem 1rem 0;
   gap: 1rem;
   background: #f3f4f6;
   border-bottom: 1px solid #e5e7eb;
+  margin-top: 60px;
   
   @media (min-width: 768px) {
     flex-direction: row;
-    padding: 1.5rem 2rem;
+    padding: 1.5rem 2rem 1.5rem 0;
   }
 `;
 
@@ -701,6 +713,12 @@ function MemberLayout() {
         </NavLink>
         <NavLink to="/member/my-schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
           My Schedule
+        </NavLink>
+        <NavLink to="/member/all-schedules" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+          All Schedules
+        </NavLink>
+        <NavLink to="/member/realtime-attendance" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+          Real-Time Attendance
         </NavLink>
         <NavLink to="/member/reports" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
           Reports

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import styled from 'styled-components';
-import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes } from '../../utils/userService';
+import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes, updateUserSchedule } from '../../utils/userService';
 import { auth } from '../../firebase';
 
 const Container = styled.div`
@@ -111,8 +111,13 @@ const Input = styled.input`
   border-radius: 4px;
 `;
 
-const TimeInput = styled(Input).attrs({ type: 'time' })`
-  width: auto;
+const TimeInput = styled(Input).attrs({ 
+  type: 'time',
+  required: true,
+  pattern: '[0-9]{2}:[0-9]{2}',
+  placeholder: 'HH:MM'
+})`
+  /* Additional styling for time input */
 `;
 
 function UserManagement() {
@@ -133,6 +138,8 @@ function UserManagement() {
   const [approvedEmails, setApprovedEmails] = useState([]);
   const [newApprovedEmail, setNewApprovedEmail] = useState('');
   const [showApprovedEmailsModal, setShowApprovedEmailsModal] = useState(false);
+  const [sortField, setSortField] = useState('name');
+  const [sortDirection, setSortDirection] = useState('asc');
 
   useEffect(() => {
     loadUsers();
@@ -164,17 +171,17 @@ function UserManagement() {
     setCreateError('');
     
     try {
-      // Create the user document in Firestore with just email and name
+      // First add the email to approved emails list
+      await addApprovedEmail(newUser.email);
+      
+      // Then create the user document in Firestore
       const userDocRef = await createOrUpdateUser(null, {
         name: newUser.name,
         email: newUser.email,
         userType: newUser.userType,
-        schedule: WeeklySchedule,
+        schedule: {}, // Empty object for schedule
         createdAt: new Date().toISOString()
       });
-
-      // Automatically add the email to approved emails list
-      await addApprovedEmail(newUser.email);
 
       // Reset form and close modal
       setNewUser({
@@ -221,18 +228,14 @@ function UserManagement() {
         return;
       }
 
-      await createOrUpdateUser(userId, {
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        schedule: schedule,
-        createdAt: user.createdAt
-      });
+      // Use the dedicated updateUserSchedule function instead of createOrUpdateUser
+      await updateUserSchedule(userId, schedule);
       
       setShowScheduleModal(false);
       await loadUsers();
     } catch (error) {
       console.error('Error updating schedule:', error);
+      alert('Error updating schedule: ' + error.message);
     }
   };
 
@@ -286,6 +289,118 @@ function UserManagement() {
     } catch (error) {
       console.error('Error removing approved email:', error);
     }
+  };
+
+  const handleSort = (field) => {
+    // If clicking the same field, toggle direction
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // If clicking a new field, set it as the sort field and default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const calculateTotalHours = (schedule) => {
+    if (!schedule || Object.keys(schedule).length === 0) {
+      return 0;
+    }
+    
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    let totalMinutes = 0;
+    
+    Object.values(schedule).forEach(shift => {
+      if (!shift.startDay || !shift.startTime || !shift.endDay || !shift.endTime) {
+        return; // Skip invalid shifts
+      }
+      
+      try {
+        // Normalize day names to lowercase
+        const startDayLower = shift.startDay.toLowerCase();
+        const endDayLower = shift.endDay.toLowerCase();
+        
+        const startDayIndex = days.indexOf(startDayLower);
+        const endDayIndex = days.indexOf(endDayLower);
+        
+        if (startDayIndex === -1 || endDayIndex === -1) {
+          return; // Skip invalid days
+        }
+        
+        // Convert times to minutes for calculation
+        const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+        const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+        
+        if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+          return; // Skip invalid time formats
+        }
+        
+        const startTotalMinutes = startHour * 60 + startMinute;
+        const endTotalMinutes = endHour * 60 + endMinute;
+        
+        // Calculate the duration considering day change
+        let duration;
+        if (startDayIndex === endDayIndex) {
+          duration = endTotalMinutes - startTotalMinutes;
+          if (duration < 0) {
+            duration += 24 * 60; // Add 24 hours if end time is on next day
+          }
+        } else {
+          const daysDiff = (endDayIndex - startDayIndex + 7) % 7;
+          duration = (daysDiff * 24 * 60) + (endTotalMinutes - startTotalMinutes);
+        }
+        
+        totalMinutes += duration;
+      } catch (error) {
+        console.error('Error calculating shift duration:', error);
+      }
+    });
+    
+    // Convert total minutes to hours with one decimal place
+    return (totalMinutes / 60).toFixed(1);
+  };
+
+  const getSortedUsers = () => {
+    if (!users.length) return [];
+    
+    return [...users].sort((a, b) => {
+      let aValue, bValue;
+      
+      // Get the values to compare based on the sort field
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'type':
+          aValue = a.userType.toLowerCase();
+          bValue = b.userType.toLowerCase();
+          break;
+        case 'createdAt':
+          // Handle dates - if createdAt doesn't exist, use current date
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        case 'shiftCount':
+          aValue = a.schedule ? Object.keys(a.schedule).length : 0;
+          bValue = b.schedule ? Object.keys(b.schedule).length : 0;
+          break;
+        case 'totalHours':
+          aValue = parseFloat(calculateTotalHours(a.schedule));
+          bValue = parseFloat(calculateTotalHours(b.schedule));
+          break;
+        default:
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+      }
+      
+      // Compare based on direction
+      if (sortDirection === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
   };
 
   const ScheduleModal = () => {
@@ -347,29 +462,44 @@ function UserManagement() {
       }
 
       try {
-        if (!validateShiftTimes(
-          shiftFormData.startDay || 'monday',
+        // Ensure we have valid day values
+        const startDay = shiftFormData.startDay || 'monday';
+        const endDay = shiftFormData.endDay || 'monday';
+        
+        // Validate the shift times
+        const isValid = validateShiftTimes(
+          startDay,
           shiftFormData.startTime,
-          shiftFormData.endDay || 'monday',
+          endDay,
           shiftFormData.endTime
-        )) {
-          alert('Invalid shift times. Please check your input.');
+        );
+        
+        if (!isValid) {
+          alert('Invalid shift times. End time must be after start time.');
           return;
         }
 
+        // Create a unique shift ID if not editing an existing one
         const shiftId = selectedShift || `shift_${Date.now()}`;
+        
+        // Update the schedule with the new/edited shift
         setSchedule(prev => ({
           ...prev,
           [shiftId]: {
-            startDay: shiftFormData.startDay || 'monday',
+            startDay: startDay,
             startTime: shiftFormData.startTime,
-            endDay: shiftFormData.endDay || 'monday',
+            endDay: endDay,
             endTime: shiftFormData.endTime
           }
         }));
+        
+        // Close the shift form
         setShowShiftForm(false);
+        
+        console.log('Shift saved successfully:', shiftId);
       } catch (error) {
-        alert(error.message);
+        console.error('Error saving shift:', error);
+        alert(error.message || 'Error saving shift. Please check your input.');
       }
     };
 
@@ -650,14 +780,27 @@ function UserManagement() {
       <Table>
         <thead>
           <tr>
-            <Th>Name</Th>
+            <Th onClick={() => handleSort('name')} style={{ cursor: 'pointer' }}>
+              Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </Th>
             <Th>Email</Th>
-            <Th>Type</Th>
+            <Th onClick={() => handleSort('type')} style={{ cursor: 'pointer' }}>
+              Type {sortField === 'type' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </Th>
+            <Th onClick={() => handleSort('createdAt')} style={{ cursor: 'pointer' }}>
+              Created {sortField === 'createdAt' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </Th>
+            <Th onClick={() => handleSort('shiftCount')} style={{ cursor: 'pointer' }}>
+              Shifts {sortField === 'shiftCount' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </Th>
+            <Th onClick={() => handleSort('totalHours')} style={{ cursor: 'pointer' }}>
+              Hours {sortField === 'totalHours' && (sortDirection === 'asc' ? '↑' : '↓')}
+            </Th>
             <Th>Actions</Th>
           </tr>
         </thead>
         <tbody>
-          {users.map(user => (
+          {getSortedUsers().map(user => (
             <tr key={user.id}>
               <Td>{user.name}</Td>
               <Td>{user.email}</Td>
@@ -672,6 +815,31 @@ function UserManagement() {
                     </option>
                   ))}
                 </Select>
+              </Td>
+              <Td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</Td>
+              <Td>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.25rem',
+                  backgroundColor: user.schedule && Object.keys(user.schedule).length > 0 ? '#10B981' : '#EF4444',
+                  color: 'white',
+                  fontWeight: 'bold'
+                }}>
+                  {user.schedule ? Object.keys(user.schedule).length : 0}
+                </span>
+              </Td>
+              <Td>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.25rem',
+                  backgroundColor: calculateTotalHours(user.schedule) > 0 ? '#3B82F6' : '#9CA3AF',
+                  color: 'white',
+                  fontWeight: 'bold'
+                }}>
+                  {calculateTotalHours(user.schedule)} hrs
+                </span>
               </Td>
               <Td>
                 <Button

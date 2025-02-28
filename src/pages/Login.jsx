@@ -215,10 +215,14 @@ function Login() {
         return;
       }
 
+      console.log('User authenticated successfully with type:', userType);
+      
       // Navigate based on user type
-      if (userType === UserType.ADMIN) {
+      if (userType === UserType.ADMIN || userType === UserType.ACCOUNTANT) {
+        console.log('Redirecting to admin dashboard');
         navigate('/admin');
       } else {
+        console.log('Redirecting to member dashboard');
         navigate('/dashboard');
       }
     } catch (error) {

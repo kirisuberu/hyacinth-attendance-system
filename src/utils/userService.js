@@ -9,68 +9,150 @@ export const UserType = {
 };
 
 // Schedule type definition
-export const WeeklySchedule = {};
+export const WeeklySchedule = {
+  // This is an empty default schedule
+  // Will be populated with shift entries when configured
+};
 
 // Helper function to validate shift times
 export const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const startDayIndex = days.indexOf(startDay.toLowerCase());
-  const endDayIndex = days.indexOf(endDay.toLowerCase());
-  
-  if (startDayIndex === -1 || endDayIndex === -1) {
-    throw new Error('Invalid day provided');
+  // Check if any of the parameters are null or undefined
+  if (!startDay || !startTime || !endDay || !endTime) {
+    console.warn('validateShiftTimes: Missing required parameters', { startDay, startTime, endDay, endTime });
+    return false;
   }
 
-  // Convert times to minutes for comparison
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
-  const startTotalMinutes = startHour * 60 + startMinute;
-  const endTotalMinutes = endHour * 60 + endMinute;
-
-  // Calculate the total duration considering day change
-  let duration;
-  if (startDayIndex === endDayIndex) {
-    duration = endTotalMinutes - startTotalMinutes;
-    if (duration < 0) {
-      duration += 24 * 60; // Add 24 hours if end time is on next day
+  try {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    
+    // Normalize day names to lowercase
+    const startDayLower = startDay.toLowerCase();
+    const endDayLower = endDay.toLowerCase();
+    
+    const startDayIndex = days.indexOf(startDayLower);
+    const endDayIndex = days.indexOf(endDayLower);
+    
+    if (startDayIndex === -1 || endDayIndex === -1) {
+      console.warn('validateShiftTimes: Invalid day provided', { startDay, endDay });
+      return false;
     }
-  } else {
-    const daysDiff = (endDayIndex - startDayIndex + 7) % 7;
-    duration = (daysDiff * 24 * 60) + (endTotalMinutes - startTotalMinutes);
-  }
 
-  return duration > 0;
+    // Convert times to minutes for comparison
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+    
+    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+      console.warn('validateShiftTimes: Invalid time format', { startTime, endTime });
+      return false;
+    }
+    
+    const startTotalMinutes = startHour * 60 + startMinute;
+    const endTotalMinutes = endHour * 60 + endMinute;
+
+    // Calculate the total duration considering day change
+    let duration;
+    if (startDayIndex === endDayIndex) {
+      duration = endTotalMinutes - startTotalMinutes;
+      if (duration < 0) {
+        duration += 24 * 60; // Add 24 hours if end time is on next day
+      }
+    } else {
+      const daysDiff = (endDayIndex - startDayIndex + 7) % 7;
+      duration = (daysDiff * 24 * 60) + (endTotalMinutes - startTotalMinutes);
+    }
+
+    return duration > 0;
+  } catch (error) {
+    console.error('Error in validateShiftTimes:', error);
+    return false;
+  }
 };
 
 // Check if user has admin or accountant access
-export const checkUserAccess = async (user) => {
+export const checkUserAccess = async (uid) => {
   try {
-    if (!user?.email) {
-      console.log('No user email provided');
-      return { hasAccess: false, role: null };
+    if (!uid) {
+      console.log('No user ID provided');
+      return { hasAccess: false, userType: null };
     }
 
-    console.log('Checking access for email:', user.email);
+    console.log('Checking access for user ID:', uid);
 
-    // Query users collection by email
-    const usersRef = collection(db, 'users');
-    const q = query(usersRef, where('email', '==', user.email));
-    const querySnapshot = await getDocs(q);
-
-    // Check if any user document has this email and is admin or accountant
-    for (const doc of querySnapshot.docs) {
-      const userData = doc.data();
-      if (userData.userType === UserType.ADMIN || userData.userType === UserType.ACCOUNTANT) {
-        console.log('Found user with access:', userData);
-        return { hasAccess: true, role: userData.userType };
+    // First try to get the user document directly by ID
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        console.log('Found user document:', userData);
+        
+        // Check if user is admin or accountant
+        if (userData.userType === UserType.ADMIN) {
+          console.log('User has admin access');
+          return { hasAccess: true, userType: UserType.ADMIN };
+        } else if (userData.userType === UserType.ACCOUNTANT) {
+          console.log('User has accountant access');
+          return { hasAccess: true, userType: UserType.ACCOUNTANT };
+        } else if (userData.userType === UserType.MEMBER) {
+          console.log('User is a regular member');
+          return { hasAccess: true, userType: UserType.MEMBER };
+        }
+      } else {
+        console.log('User document not found');
+      }
+    } catch (docError) {
+      console.error('Error getting user document:', docError);
+      // If there's an error getting the document directly, we'll try the query approach
+      // But first check if it's a connection error
+      if (docError.message?.includes('network error') || 
+          docError.code === 'failed-precondition' ||
+          docError.message?.includes('ERR_BLOCKED_BY_CLIENT')) {
+        throw docError; // Re-throw to be caught by the outer try-catch
       }
     }
 
-    console.log('User does not have admin/accountant access');
-    return { hasAccess: false, role: null };
+    // If we're here, either the document doesn't exist or we couldn't access it directly
+    // Try querying by email as a fallback
+    const usersRef = collection(db, 'users');
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      const email = userData.email;
+      
+      if (email) {
+        const q = query(usersRef, where('email', '==', email));
+        const querySnapshot = await getDocs(q);
+        
+        for (const doc of querySnapshot.docs) {
+          const userData = doc.data();
+          if (userData.userType === UserType.ADMIN) {
+            console.log('Found user with admin access via email query:', userData);
+            return { hasAccess: true, userType: UserType.ADMIN };
+          } else if (userData.userType === UserType.ACCOUNTANT) {
+            console.log('Found user with accountant access via email query:', userData);
+            return { hasAccess: true, userType: UserType.ACCOUNTANT };
+          } else if (userData.userType === UserType.MEMBER) {
+            console.log('User is a regular member (via email query)');
+            return { hasAccess: true, userType: UserType.MEMBER };
+          }
+        }
+      }
+    }
+
+    console.log('User does not have access');
+    return { hasAccess: false, userType: null };
   } catch (error) {
     console.error('Error checking user access:', error);
-    return { hasAccess: false, role: null };
+    
+    // Check if the error is related to network blocking
+    if (error.message?.includes('network error') || 
+        error.code === 'failed-precondition' ||
+        error.message?.includes('ERR_BLOCKED_BY_CLIENT')) {
+      throw new Error('Connection to the database was blocked. This may be caused by an ad blocker or privacy extension.');
+    }
+    
+    return { hasAccess: false, userType: null };
   }
 };
 
@@ -116,13 +198,15 @@ export const createOrUpdateUser = async (userId, userData) => {
     // Generate new ID if none provided
     const actualUserId = userId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Validate schedule if present
+    // Validate schedule if present and not empty
     const schedule = userData.schedule || {};
-    Object.entries(schedule).forEach(([shiftId, shift]) => {
-      if (!validateShiftTimes(shift.startDay, shift.startTime, shift.endDay, shift.endTime)) {
-        throw new Error(`Invalid shift times for shift ${shiftId}`);
-      }
-    });
+    if (Object.keys(schedule).length > 0) {
+      Object.entries(schedule).forEach(([shiftId, shift]) => {
+        if (shift && !validateShiftTimes(shift.startDay, shift.startTime, shift.endDay, shift.endTime)) {
+          throw new Error(`Invalid shift times for shift ${shiftId}`);
+        }
+      });
+    }
 
     // Create new user document
     const userRef = doc(db, 'users', actualUserId);

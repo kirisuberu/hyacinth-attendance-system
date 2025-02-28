@@ -10,6 +10,14 @@ import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 const LayoutContainer = styled.div`
   display: flex;
   min-height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 `;
 
 const Sidebar = styled.div`
@@ -31,6 +39,9 @@ const MainContent = styled.main`
   background: #f3f4f6;
   padding: 2rem;
   margin-left: 250px;
+  height: 100vh;
+  overflow-y: auto;
+  width: calc(100vw - 250px);
 `;
 
 const NavLink = styled(Link)`
@@ -83,7 +94,7 @@ const UserInfo = styled.div`
   right: 0;
   padding: 1rem 2rem;
   background: rgba(0, 0, 0, 0.2);
-  color: white;
+  color: #ffffff;
   font-size: 0.9rem;
 
   .name {
@@ -139,7 +150,7 @@ const AttendanceButton = styled.button`
 `;
 
 function AdminLayout() {
-  const [userAccess, setUserAccess] = useState({ hasAccess: null, role: null });
+  const [userAccess, setUserAccess] = useState({ hasAccess: null, userType: null });
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -151,7 +162,7 @@ function AdminLayout() {
       try {
         if (!user) {
           console.log('No user found in checkAccess');
-          setUserAccess({ hasAccess: false, role: null });
+          setUserAccess({ hasAccess: false, userType: null });
           setLoading(false);
           return;
         }
@@ -162,16 +173,17 @@ function AdminLayout() {
           emailVerified: user.emailVerified
         });
 
-        const access = await checkUserAccess(user);
-        console.log('Access check result:', access);
-        setUserAccess(access);
+        const { hasAccess, userType } = await checkUserAccess(user.uid);
+        console.log('Access check result:', { hasAccess, userType });
+        
+        setUserAccess({ hasAccess, userType });
       } catch (error) {
         console.error('Error checking access:', error);
         console.error('Error details:', {
           code: error.code,
           message: error.message
         });
-        setUserAccess({ hasAccess: false, role: null });
+        setUserAccess({ hasAccess: false, userType: null });
       }
       setLoading(false);
     };
@@ -187,7 +199,7 @@ function AdminLayout() {
       } else {
         console.log('Auth state changed - No user logged in');
         setCurrentUser(null);
-        setUserAccess({ hasAccess: false, role: null });
+        setUserAccess({ hasAccess: false, userType: null });
         setLoading(false);
       }
     });
@@ -258,22 +270,24 @@ function AdminLayout() {
     );
   }
 
-  if (!userAccess.hasAccess) {
-    console.log('User does not have access, redirecting to home');
-    return <Navigate to="/" replace />;
+  // Redirect non-admin/accountant users to member dashboard
+  if (!userAccess.hasAccess || userAccess.userType === UserType.MEMBER) {
+    console.log('User does not have admin/accountant access, redirecting to member dashboard', userAccess);
+    return <Navigate to="/member/dashboard" replace />;
   }
 
   return (
     <LayoutContainer>
       <Sidebar>
-        <Logo>Hyacinth {userAccess.role === UserType.ADMIN ? 'Admin' : 'Accountant'}</Logo>
+        <Logo>Hyacinth {userAccess.userType === UserType.ADMIN ? 'Admin' : 'Accountant'}</Logo>
         <nav>
-          {userAccess.role === UserType.ADMIN && (
+          {userAccess.userType === UserType.ADMIN && (
             <NavLink to="/admin/users">User Management</NavLink>
           )}
           <NavLink to="/admin/dashboard">Dashboard</NavLink>
           <NavLink to="/admin/reports">Reports</NavLink>
           <NavLink to="/admin/my-schedule">My Schedule</NavLink>
+          <NavLink to="/admin/all-schedules">All Schedules</NavLink>
           <NavLink to="/admin/realtime-attendance">Real-Time Attendance</NavLink>
           <LogoutButton onClick={handleLogout}>
             Sign Out

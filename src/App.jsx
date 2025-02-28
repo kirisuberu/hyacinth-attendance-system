@@ -15,21 +15,29 @@ import MySchedule from './pages/MySchedule';
 import MemberDashboard from './pages/Member/MemberDashboard';
 import MemberReports from './pages/Member/MemberReports';
 import RealTimeAttendance from './pages/Admin/RealTimeAttendance';
+import AllSchedules from './pages/Admin/AllSchedules';
 import AbsenteeService from './components/AbsenteeService';
 import './App.css'
 
 function PrivateRoute({ children, requiredRole = null, allowMember = false }) {
   const [user, setUser] = useState(null)
-  const [userAccess, setUserAccess] = useState({ hasAccess: null, role: null })
+  const [userAccess, setUserAccess] = useState({ hasAccess: null, userType: null })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const checkAccess = async (user) => {
       if (user) {
-        const access = await checkUserAccess(user);
-        setUserAccess(access);
+        try {
+          console.log('Checking access for user in PrivateRoute:', user.uid);
+          const access = await checkUserAccess(user.uid);
+          console.log('Access result in PrivateRoute:', access);
+          setUserAccess(access);
+        } catch (error) {
+          console.error('Error checking access in PrivateRoute:', error);
+          setUserAccess({ hasAccess: false, userType: null });
+        }
       } else {
-        setUserAccess({ hasAccess: false, role: null });
+        setUserAccess({ hasAccess: false, userType: null });
       }
       setLoading(false);
     };
@@ -39,7 +47,7 @@ function PrivateRoute({ children, requiredRole = null, allowMember = false }) {
       if (user) {
         checkAccess(user);
       } else {
-        setUserAccess({ hasAccess: false, role: null });
+        setUserAccess({ hasAccess: false, userType: null });
         setLoading(false);
       }
     })
@@ -66,8 +74,13 @@ function PrivateRoute({ children, requiredRole = null, allowMember = false }) {
   }
 
   // If a specific role is required, check for it
-  if (requiredRole && userAccess.role !== requiredRole) {
-    return <Navigate to="/admin/dashboard" />
+  if (requiredRole && userAccess.userType !== requiredRole) {
+    // If admin route but user is not admin, redirect to appropriate dashboard
+    if (requiredRole === UserType.ADMIN && userAccess.userType === UserType.ACCOUNTANT) {
+      return <Navigate to="/admin/dashboard" />
+    } else {
+      return <Navigate to="/member/dashboard" />
+    }
   }
 
   return children
@@ -103,6 +116,7 @@ function App() {
           <Route path="reports" element={<Reports />} />
           <Route path="realtime-attendance" element={<RealTimeAttendance />} />
           <Route path="my-schedule" element={<MySchedule />} />
+          <Route path="all-schedules" element={<AllSchedules />} />
         </Route>
 
         {/* Member Routes */}
@@ -118,6 +132,8 @@ function App() {
           <Route path="dashboard" element={<MemberDashboard />} />
           <Route path="reports" element={<MemberReports />} />
           <Route path="my-schedule" element={<MySchedule />} />
+          <Route path="all-schedules" element={<AllSchedules />} />
+          <Route path="realtime-attendance" element={<RealTimeAttendance />} />
         </Route>
 
         {/* Catch all route */}
