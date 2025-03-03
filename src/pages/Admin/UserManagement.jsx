@@ -3,6 +3,9 @@ import styled from 'styled-components';
 import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes, updateUserSchedule } from '../../utils/userService';
 import { auth } from '../../firebase';
 
+//icons
+import { PencilSimpleLine, Calendar, Trash } from 'phosphor-react'; 
+
 const Container = styled.div`
   padding: 2rem;
   max-width: 1200px;
@@ -849,7 +852,7 @@ function UserManagement() {
                   }}
                   style={{ backgroundColor: '#4B5563' }}
                 >
-                  Edit User
+                  <PencilSimpleLine size={20} />
                 </Button>
                 <Button
                   onClick={() => {
@@ -858,7 +861,7 @@ function UserManagement() {
                   }}
                   style={{ backgroundColor: '#4B5563' }}
                 >
-                  Edit Schedule
+                  <Calendar size={20} />
                 </Button>
                 <Button 
                   style={{ marginLeft: '0.5rem', backgroundColor: '#EF4444' }}
@@ -867,7 +870,7 @@ function UserManagement() {
                     setShowDeleteModal(true);
                   }}
                 >
-                  Delete
+                  <Trash size={20} />
                 </Button>
               </Td>
             </tr>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { checkUserAccess, UserType } from './utils/userService';
+import { isPCDevice } from './utils/deviceDetection';
 import Login from './pages/Login';
 import TimeInOut from './pages/TimeInOut';
 import AdminLayout from './components/AdminLayout';
@@ -18,6 +19,16 @@ import RealTimeAttendance from './pages/Admin/RealTimeAttendance';
 import AllSchedules from './pages/Admin/AllSchedules';
 import AbsenteeService from './components/AbsenteeService';
 import './App.css'
+import DeniedGIF from './assets/gif/no.gif'
+import {
+  DeviceRestrictionContainer,
+  DeviceRestrictionContent,
+  Title,
+  Image,
+  Message,
+  ErrorMessage,
+  FunMessage
+} from './components/DeviceRestriction.styled';
 
 function PrivateRoute({ children, requiredRole = null, allowMember = false }) {
   const [user, setUser] = useState(null)
@@ -87,6 +98,42 @@ function PrivateRoute({ children, requiredRole = null, allowMember = false }) {
 }
 
 function App() {
+  const [isPC, setIsPC] = useState(true);
+
+  useEffect(() => {
+    // Check if the device is a PC
+    setIsPC(isPCDevice());
+
+    // Add resize event listener to handle orientation changes or window resizing
+    const handleResize = () => {
+      setIsPC(isPCDevice());
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    // Clean up event listener
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // If not a PC device, show a message instead of the application
+  if (!isPC) {
+    return (
+      <DeviceRestrictionContainer>
+        <DeviceRestrictionContent>
+          <Title>PC Access Only!</Title>
+          <Image src={DeniedGIF} alt="Denied GIF" />
+          <Message>This application is only accessible on PC devices.</Message>
+          <Message>Please open this application on a desktop computer in the office.</Message>
+          <ErrorMessage>If you believe this is an error, contact the system administrator.</ErrorMessage>
+          <FunMessage>PUNTA KA SA OFFICE, BILIIIIISSSS!!! HAHAHAHAHA    </FunMessage>
+          <FunMessage style={{ textAlign: 'right', scale: 0.8 }}>Message from: Cristobal ^_^    </FunMessage>
+        </DeviceRestrictionContent>
+      </DeviceRestrictionContainer>
+    );
+  }
+
   return (
     <Router>
       <AbsenteeService />

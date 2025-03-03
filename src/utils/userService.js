@@ -114,6 +114,8 @@ export const checkUserAccess = async (uid) => {
     // If we're here, either the document doesn't exist or we couldn't access it directly
     // Try querying by email as a fallback
     const usersRef = collection(db, 'users');
+    
+    // Get the user document again to get the email
     const userDoc = await getDoc(doc(db, 'users', uid));
     
     if (userDoc.exists()) {
@@ -141,6 +143,31 @@ export const checkUserAccess = async (uid) => {
     }
 
     console.log('User does not have access');
+    
+    // One last attempt - try to find by userId field
+    try {
+      const userIdQuery = query(usersRef, where('userId', '==', uid));
+      const userIdSnapshot = await getDocs(userIdQuery);
+      
+      if (!userIdSnapshot.empty) {
+        for (const doc of userIdSnapshot.docs) {
+          const userData = doc.data();
+          if (userData.userType === UserType.ADMIN) {
+            console.log('Found user with admin access via userId query:', userData);
+            return { hasAccess: true, userType: UserType.ADMIN };
+          } else if (userData.userType === UserType.ACCOUNTANT) {
+            console.log('Found user with accountant access via userId query:', userData);
+            return { hasAccess: true, userType: UserType.ACCOUNTANT };
+          } else if (userData.userType === UserType.MEMBER) {
+            console.log('User is a regular member (via userId query)');
+            return { hasAccess: true, userType: UserType.MEMBER };
+          }
+        }
+      }
+    } catch (userIdError) {
+      console.error('Error in userId fallback query:', userIdError);
+    }
+    
     return { hasAccess: false, userType: null };
   } catch (error) {
     console.error('Error checking user access:', error);

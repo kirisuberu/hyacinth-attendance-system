@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, addDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, serverTimestamp, Timestamp, doc, setDoc } from 'firebase/firestore';
 
 const ABSENCE_THRESHOLD_HOURS = 3;
 
@@ -33,28 +33,62 @@ export const markAbsentUsers = async () => {
           const startOfDay = new Date(now);
           startOfDay.setHours(0, 0, 0, 0);
           
+          // Create a timestamp for the start of the day
+          const startOfDayTimestamp = Timestamp.fromDate(startOfDay);
+          
           const attendanceRef = collection(db, 'attendance');
+          
+          // Query for today's attendance records for this user
+          // Using a different approach to avoid the composite index requirement
           const attendanceQuery = query(
             attendanceRef,
             where('userId', '==', userDoc.id),
-            where('timestamp', '>=', startOfDay)
+            where('date', '>=', startOfDay.getTime())
           );
           
           const attendanceSnapshot = await getDocs(attendanceQuery);
           
           // If no attendance record exists for today, mark as absent
           if (attendanceSnapshot.empty) {
-            await addDoc(collection(db, 'attendance'), {
+            // Create a custom document ID with the format: yyyymmdd_tttt_(IN/OUT)_status_name
+            const formatNumber = (num) => num.toString().padStart(2, '0');
+            const year = now.getFullYear();
+            const month = formatNumber(now.getMonth() + 1);
+            const day = formatNumber(now.getDate());
+            const hours = formatNumber(now.getHours());
+            const minutes = formatNumber(now.getMinutes());
+            
+            // Format the time portion (tttt)
+            const timeFormat = `${hours}${minutes}`;
+            
+            // Format the date portion (yyyymmdd)
+            const dateFormat = `${year}${month}${day}`;
+            
+            // Create the custom document ID
+            const customDocId = `${dateFormat}_${timeFormat}_IN_Absent_${userData.name.replace(/\s+/g, '_')}`;
+            
+            // Create the attendance record
+            const attendanceRecord = {
               userId: userDoc.id,
               email: userData.email,
               name: userData.name,
               type: 'IN',
               status: 'Absent',
               timestamp: serverTimestamp(),
-              scheduleTime: todayShift.startTime
-            });
+              date: startOfDay.getTime(),
+              dateISO: now.toISOString(),
+              scheduleTime: todayShift.startTime,
+              dayOfWeek: dayOfWeek
+            };
             
-            console.log(`Marked user ${userData.email} as absent`);
+            // Create a document reference with the custom ID
+            const attendanceRef = collection(db, 'attendance');
+            const customDocRef = doc(attendanceRef, customDocId);
+            
+            // Use setDoc to create the document with the custom ID
+            await setDoc(customDocRef, attendanceRecord);
+            
+            console.log(`Marked user ${userData.email} as absent with ID: ${customDocId}`);
           }
         }
       }

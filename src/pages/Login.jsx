@@ -200,6 +200,7 @@ function Login() {
           name: user.displayName || 'User',
           email: user.email,
           userType: UserType.MEMBER,
+          userId: user.uid,
           schedule: WeeklySchedule,
           createdAt: new Date().toISOString(),
         });
@@ -223,7 +224,7 @@ function Login() {
         navigate('/admin');
       } else {
         console.log('Redirecting to member dashboard');
-        navigate('/dashboard');
+        navigate('/member/dashboard');
       }
     } catch (error) {
       console.error('Error during Google sign in:', error);

@@ -413,7 +413,7 @@ function AllSchedules() {
 
   // Convert time from PHT (default storage format) to selected timezone
   const convertTime = (timeString, fromTimezone = 'PHT', toTimezone = selectedTimezone) => {
-    if (!timeString) return 'Not set';
+    if (!timeString) return { time: 'Not set', dayChange: 0 };
     
     // Parse the time string
     const [hours, minutes] = timeString.split(':').map(Number);
@@ -425,12 +425,15 @@ function AllSchedules() {
     
     // Apply the offset
     let newHours = hours + hourDifference;
+    let dayChange = 0; // 0 = same day, -1 = previous day, 1 = next day
     
     // Handle day wrapping
     if (newHours < 0) {
       newHours += 24;
+      dayChange = -1; // Previous day
     } else if (newHours >= 24) {
       newHours -= 24;
+      dayChange = 1; // Next day
     }
     
     // Format the time
@@ -439,14 +442,34 @@ function AllSchedules() {
     const hour12 = hour % 12 || 12;
     const minutesFormatted = minutes.toString().padStart(2, '0');
     
-    return `${hour12}:${minutesFormatted} ${period}`;
+    return {
+      time: `${hour12}:${minutesFormatted} ${period}`,
+      dayChange
+    };
+  };
+
+  const formatTimeWithDayInfo = (time) => {
+    if (!time) return 'Not set';
+    
+    // Convert the time to the selected timezone
+    const result = convertTime(time);
+    
+    // Add day change information if needed
+    if (result.dayChange === -1) {
+      return `${result.time} (previous day)`;
+    } else if (result.dayChange === 1) {
+      return `${result.time} (next day)`;
+    } else {
+      return result.time;
+    }
   };
 
   const formatTime = (time) => {
     if (!time) return 'Not set';
     
     // Convert the time to the selected timezone
-    return convertTime(time);
+    const result = convertTime(time);
+    return result.time;
   };
 
   const formatDayName = (day) => {
@@ -464,19 +487,89 @@ function AllSchedules() {
     const currentHour = new Date().getHours();
     const currentMinutes = new Date().getMinutes();
     
-    // Check if the shift starts or ends today
-    if (days[today] !== shift.startDay.toLowerCase() && days[today] !== shift.endDay.toLowerCase()) {
+    // Get the original day indices
+    const startDayIndex = getDayIndex(shift.startDay);
+    const endDayIndex = getDayIndex(shift.endDay);
+    
+    // Get timezone conversion information
+    const convertedStartTime = convertTime(shift.startTime);
+    const convertedEndTime = convertTime(shift.endTime);
+    
+    // Apply day changes from timezone conversion
+    const effectiveStartDayIndex = (startDayIndex + convertedStartTime.dayChange + 7) % 7;
+    const effectiveEndDayIndex = (endDayIndex + convertedEndTime.dayChange + 7) % 7;
+    
+    // Check if today is within the effective start and end days
+    let isTodayInShiftRange = false;
+    
+    if (effectiveStartDayIndex === effectiveEndDayIndex) {
+      // Shift starts and ends on the same day
+      isTodayInShiftRange = today === effectiveStartDayIndex;
+    } else if (effectiveStartDayIndex < effectiveEndDayIndex) {
+      // Normal range (e.g., Monday to Wednesday)
+      isTodayInShiftRange = today >= effectiveStartDayIndex && today <= effectiveEndDayIndex;
+    } else {
+      // Wrap-around range (e.g., Saturday to Monday)
+      isTodayInShiftRange = today >= effectiveStartDayIndex || today <= effectiveEndDayIndex;
+    }
+    
+    if (!isTodayInShiftRange) {
       return false;
     }
     
-    const [startHour, startMinutes] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinutes] = shift.endTime.split(':').map(Number);
+    // Parse the converted times
+    const startTimeParts = convertedStartTime.time.split(' ');
+    const startTimeValue = startTimeParts[0];
+    const startPeriod = startTimeParts[1];
+    
+    const endTimeParts = convertedEndTime.time.split(' ');
+    const endTimeValue = endTimeParts[0];
+    const endPeriod = endTimeParts[1];
+    
+    const [startHourStr, startMinuteStr] = startTimeValue.split(':');
+    const [endHourStr, endMinuteStr] = endTimeValue.split(':');
+    
+    let startHour = parseInt(startHourStr);
+    let endHour = parseInt(endHourStr);
+    const startMinutes = parseInt(startMinuteStr);
+    const endMinutes = parseInt(endMinuteStr);
+    
+    // Convert to 24-hour format
+    if (startPeriod === 'PM' && startHour !== 12) {
+      startHour += 12;
+    } else if (startPeriod === 'AM' && startHour === 12) {
+      startHour = 0;
+    }
+    
+    if (endPeriod === 'PM' && endHour !== 12) {
+      endHour += 12;
+    } else if (endPeriod === 'AM' && endHour === 12) {
+      endHour = 0;
+    }
     
     const currentTime = currentHour * 60 + currentMinutes;
     const startTime = startHour * 60 + startMinutes;
     const endTime = endHour * 60 + endMinutes;
     
-    return currentTime >= startTime && currentTime <= endTime;
+    // Check if current time is within the shift time range
+    if (today === effectiveStartDayIndex && today === effectiveEndDayIndex) {
+      // Same day shift
+      if (startTime <= endTime) {
+        return currentTime >= startTime && currentTime <= endTime;
+      } else {
+        // End time is earlier than start time on the same day, which means it wraps to the next day
+        return currentTime >= startTime || currentTime <= endTime;
+      }
+    } else if (today === effectiveStartDayIndex) {
+      // First day of multi-day shift
+      return currentTime >= startTime;
+    } else if (today === effectiveEndDayIndex) {
+      // Last day of multi-day shift
+      return currentTime <= endTime;
+    } else {
+      // Middle day of multi-day shift
+      return true;
+    }
   };
 
   const getDayIndex = (day) => {
@@ -489,45 +582,105 @@ function AllSchedules() {
       return 0;
     }
 
-    const [startHour, startMinutes] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinutes] = shift.endTime.split(':').map(Number);
+    // Convert start and end times to the selected timezone
+    const convertedStartTime = convertTime(shift.startTime);
+    const convertedEndTime = convertTime(shift.endTime);
     
+    // Parse the converted times
+    const startTimeParts = convertedStartTime.time.split(' ');
+    const startTimeValue = startTimeParts[0];
+    const startPeriod = startTimeParts[1];
+    
+    const endTimeParts = convertedEndTime.time.split(' ');
+    const endTimeValue = endTimeParts[0];
+    const endPeriod = endTimeParts[1];
+    
+    const [startHourStr, startMinuteStr] = startTimeValue.split(':');
+    const [endHourStr, endMinuteStr] = endTimeValue.split(':');
+    
+    let startHour = parseInt(startHourStr);
+    let endHour = parseInt(endHourStr);
+    const startMinutes = parseInt(startMinuteStr);
+    const endMinutes = parseInt(endMinuteStr);
+    
+    // Convert to 24-hour format
+    if (startPeriod === 'PM' && startHour !== 12) {
+      startHour += 12;
+    } else if (startPeriod === 'AM' && startHour === 12) {
+      startHour = 0;
+    }
+    
+    if (endPeriod === 'PM' && endHour !== 12) {
+      endHour += 12;
+    } else if (endPeriod === 'AM' && endHour === 12) {
+      endHour = 0;
+    }
+    
+    // Calculate duration considering day changes
     let duration;
-    if (shift.startDay === shift.endDay) {
+    
+    // Check if the days are different in the original schedule
+    const startDayIndex = getDayIndex(shift.startDay);
+    const endDayIndex = getDayIndex(shift.endDay);
+    const dayDifference = (endDayIndex - startDayIndex + 7) % 7;
+    
+    // Apply timezone day changes
+    const effectiveStartDay = startDayIndex + convertedStartTime.dayChange;
+    const effectiveEndDay = endDayIndex + convertedEndTime.dayChange;
+    const effectiveDayDifference = (effectiveEndDay - effectiveStartDay + 7) % 7;
+    
+    if (effectiveDayDifference === 0) {
       // Same day calculation
-      duration = (endHour * 60 + endMinutes) - (startHour * 60 + startMinutes);
+      if (endHour < startHour || (endHour === startHour && endMinutes < startMinutes)) {
+        // End time is earlier than start time on the same day, which means it wraps to the next day
+        duration = ((24 + endHour) * 60 + endMinutes) - (startHour * 60 + startMinutes);
+      } else {
+        duration = (endHour * 60 + endMinutes) - (startHour * 60 + startMinutes);
+      }
     } else {
-      // Different day calculation (assuming next day)
-      duration = ((24 + endHour) * 60 + endMinutes) - (startHour * 60 + startMinutes);
+      // Different day calculation
+      duration = ((24 * effectiveDayDifference) + endHour * 60 + endMinutes) - (startHour * 60 + startMinutes);
     }
     
     return Math.round(duration / 60 * 10) / 10; // Round to 1 decimal place
   };
 
-  // Calculate shift position based on time in the selected timezone
   const calculateShiftPosition = (shift) => {
     if (!shift || !shift.startTime) return { left: 0, width: 0 };
     
     // Convert the time to the selected timezone for positioning
-    const [hours, minutes] = shift.startTime.split(':').map(Number);
+    const convertedTime = convertTime(shift.startTime);
     
-    // Calculate the time difference between PHT and selected timezone
-    const phtOffset = timezoneOffsets['PHT'];
-    const selectedOffset = timezoneOffsets[selectedTimezone];
-    const hourDifference = selectedOffset - phtOffset;
+    // Get the day change information
+    const dayChange = convertedTime.dayChange;
     
-    // Apply the offset
-    let newHours = hours + hourDifference;
-    let newMinutes = minutes;
-    
-    // Handle day wrapping
-    if (newHours < 0) {
-      newHours += 24;
-    } else if (newHours >= 24) {
-      newHours -= 24;
+    // If the day has changed, we need to adjust the visual position
+    let totalMinutes;
+    if (dayChange === -1) {
+      // Previous day - show at the end of the current day
+      totalMinutes = 23 * 60;
+    } else if (dayChange === 1) {
+      // Next day - show at the beginning of the current day
+      totalMinutes = 0;
+    } else {
+      // Same day - normal calculation
+      const timeParts = convertedTime.time.split(' ');
+      const timeValue = timeParts[0];
+      const period = timeParts[1];
+      
+      const [hourStr, minuteStr] = timeValue.split(':');
+      let hour = parseInt(hourStr);
+      const minutes = parseInt(minuteStr);
+      
+      // Convert to 24-hour format
+      if (period === 'PM' && hour !== 12) {
+        hour += 12;
+      } else if (period === 'AM' && hour === 12) {
+        hour = 0;
+      }
+      
+      totalMinutes = hour * 60 + minutes;
     }
-    
-    const totalMinutes = newHours * 60 + newMinutes;
     
     // Calculate position as percentage of day (24 hours)
     // Limit the left position to ensure it's visible (at least 5% from the left edge)
@@ -723,11 +876,22 @@ function AllSchedules() {
                 {days.map((day, index) => (
                   <DayColumn key={day}>
                     {user.schedule && Object.values(user.schedule)
-                      .filter(shift => 
-                        shift && 
-                        shift.startDay && 
-                        getDayIndex(shift.startDay) === index
-                      )
+                      .filter(shift => {
+                        if (!shift || !shift.startDay || !shift.startTime) return false;
+                        
+                        // Get the original day index
+                        const originalDayIndex = getDayIndex(shift.startDay);
+                        
+                        // Get the day change from timezone conversion
+                        const convertedTime = convertTime(shift.startTime);
+                        const dayChange = convertedTime.dayChange;
+                        
+                        // Calculate the effective day after timezone conversion
+                        const effectiveDayIndex = (originalDayIndex + dayChange + 7) % 7;
+                        
+                        // Check if this shift should be displayed on this day
+                        return effectiveDayIndex === index;
+                      })
                       .map((shift, shiftIndex) => {
                         const { left, width } = calculateShiftPosition(shift);
                         return (
@@ -743,7 +907,7 @@ function AllSchedules() {
                             onClick={(e) => handleShiftClick(e, shift)}
                           >
                             <ShiftTime isCurrentShift={isCurrentShift(shift)}>
-                              {formatTime(shift.startTime)}
+                              {formatTimeWithDayInfo(shift.startTime)}
                             </ShiftTime>
                           </ShiftBlock>
                         );
@@ -770,12 +934,20 @@ function AllSchedules() {
               ` - ${formatDayName(tooltipInfo.shift.endDay)}`}
           </TooltipHeader>
           <TooltipRow>
-            <TooltipLabel>Start Time:</TooltipLabel>
-            <TooltipValue>{formatTime(tooltipInfo.shift.startTime)} ({selectedTimezone})</TooltipValue>
+            <TooltipLabel>Start Time (PHT):</TooltipLabel>
+            <TooltipValue>{tooltipInfo.shift.startTime}</TooltipValue>
           </TooltipRow>
           <TooltipRow>
-            <TooltipLabel>End Time:</TooltipLabel>
-            <TooltipValue>{formatTime(tooltipInfo.shift.endTime)} ({selectedTimezone})</TooltipValue>
+            <TooltipLabel>End Time (PHT):</TooltipLabel>
+            <TooltipValue>{tooltipInfo.shift.endTime}</TooltipValue>
+          </TooltipRow>
+          <TooltipRow>
+            <TooltipLabel>Start Time ({selectedTimezone}):</TooltipLabel>
+            <TooltipValue>{formatTimeWithDayInfo(tooltipInfo.shift.startTime)}</TooltipValue>
+          </TooltipRow>
+          <TooltipRow>
+            <TooltipLabel>End Time ({selectedTimezone}):</TooltipLabel>
+            <TooltipValue>{formatTimeWithDayInfo(tooltipInfo.shift.endTime)}</TooltipValue>
           </TooltipRow>
           <TooltipRow>
             <TooltipLabel>Duration:</TooltipLabel>

@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
 
 const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
   console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString() });
@@ -17,10 +17,37 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
   }
 
   const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number);
+  
+  // Create a date object for the schedule time on the same day as the actual time
   const scheduleDate = new Date(actualTime);
-  scheduleDate.setHours(scheduleHours, scheduleMinutes, 0);
+  scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0); // Set seconds and milliseconds to 0
+  
+  // If the schedule time is later than the actual time and we're checking for a time-in,
+  // it's possible the schedule is for the previous day
+  // For example, if it's 1 AM and the schedule is for 10 PM, we should compare with 10 PM of the previous day
+  if (type === 'IN' && scheduleDate > actualTime && scheduleHours >= 18) { // Assuming shifts starting after 6 PM might be for previous day
+    scheduleDate.setDate(scheduleDate.getDate() - 1);
+    console.log('Adjusted schedule date to previous day for late night shift');
+  }
+  
+  // If the schedule time is earlier than the actual time and we're checking for a time-out,
+  // it's possible the schedule is for the next day
+  // For example, if it's 11 PM and the schedule is for 2 AM, we should compare with 2 AM of the next day
+  if (type === 'OUT' && scheduleDate < actualTime && scheduleHours <= 6) { // Assuming shifts ending before 6 AM might be for next day
+    scheduleDate.setDate(scheduleDate.getDate() + 1);
+    console.log('Adjusted schedule date to next day for overnight shift');
+  }
 
-  const diffMinutes = Math.round((actualTime - scheduleDate) / (1000 * 60));
+  const diffMilliseconds = actualTime.getTime() - scheduleDate.getTime();
+  const diffMinutes = Math.round(diffMilliseconds / (1000 * 60));
+  
+  console.log('Time difference calculation:', {
+    actualTime: actualTime.toISOString(),
+    scheduleDate: scheduleDate.toISOString(),
+    diffMilliseconds,
+    diffMinutes,
+    type
+  });
 
   const formatTimeDiff = (diffMins) => {
     const hours = Math.floor(Math.abs(diffMins) / 60);
@@ -35,30 +62,44 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
   const timeDiff = formatTimeDiff(diffMinutes);
 
   if (type === 'IN') {
-    if (diffMinutes < -15) {
+    console.log('Evaluating IN status conditions:', {
+      diffMinutes,
+      isEarly: diffMinutes <= -60,
+      isOnTime: diffMinutes > -60 && diffMinutes <= 0,
+      isLate: diffMinutes > 0
+    });
+    
+    // Early: 60 mins or more before schedule time
+    if (diffMinutes <= -60) {
       return {
         status: 'Early',
         timeDiff
       };
     }
-    if (diffMinutes <= 15) {
+    
+    // On Time: Between 60 mins before and exactly on schedule time (inclusive)
+    if (diffMinutes > -60 && diffMinutes <= 0) {
       return {
         status: 'On Time',
         timeDiff
       };
     }
-    return {
-      status: 'Late',
-      timeDiff
-    };
+    
+    // Late: Any time after schedule time (1 min or more)
+    if (diffMinutes > 0) {
+      return {
+        status: 'Late',
+        timeDiff
+      };
+    }
   } else {
-    if (diffMinutes < -15) {
+    if (diffMinutes < 0) {
       return {
         status: 'Early Out',
         timeDiff
       };
     }
-    if (diffMinutes <= 15) {
+    if (diffMinutes <= 60) {
       return {
         status: 'On Time',
         timeDiff
@@ -276,8 +317,30 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
 
     // Save to Firestore
     const attendanceRef = collection(db, 'attendance');
-    const docRef = await addDoc(attendanceRef, attendanceRecord);
-    console.log('Saved attendance record with ID:', docRef.id);
+    
+    // Create a custom document ID with the format: yyyymmdd_tttt_(IN/OUT)_status_name
+    const formatNumber = (num) => num.toString().padStart(2, '0');
+    const year = now.getFullYear();
+    const month = formatNumber(now.getMonth() + 1);
+    const day = formatNumber(now.getDate());
+    const hours = formatNumber(now.getHours());
+    const minutes = formatNumber(now.getMinutes());
+    
+    // Format the time portion (tttt)
+    const timeFormat = `${hours}${minutes}`;
+    
+    // Format the date portion (yyyymmdd)
+    const dateFormat = `${year}${month}${day}`;
+    
+    // Create the custom document ID
+    const customDocId = `${dateFormat}_${timeFormat}_${type}_${status.replace(/\s+/g, '')}_${name.replace(/\s+/g, '_')}`;
+    
+    // Create a document reference with the custom ID
+    const customDocRef = doc(attendanceRef, customDocId);
+    
+    // Use setDoc to create the document with the custom ID
+    await setDoc(customDocRef, attendanceRecord);
+    console.log('Saved attendance record with ID:', customDocId);
 
     return {
       success: true,
