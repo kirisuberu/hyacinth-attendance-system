@@ -1,11 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
-import styled from 'styled-components';
+import styled, { createGlobalStyle } from 'styled-components';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { recordAttendance } from '../utils/attendanceService';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
+
+const GlobalStyles = createGlobalStyle`
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  body {
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
+`;
 
 const LayoutContainer = styled.div`
   display: flex;
@@ -14,14 +28,18 @@ const LayoutContainer = styled.div`
   width: 100vw;
   overflow: hidden;
   position: relative;
+  margin: 0;
+  padding: 0;
   
   @media (min-width: 1024px) {
     flex-direction: row;
     flex-wrap: nowrap;
+    gap: 0;
   }
 `;
 
 const MainContainer = styled.div`
+  margin-left: 0;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -29,11 +47,17 @@ const MainContainer = styled.div`
   overflow: hidden;
   background: #f9fafb;
   color: #111827;
+  padding: 0;
   
   @media (min-width: 1024px) {
-    width: calc(100% - 250px);
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: calc(100vw - 250px);
     margin-left: 250px;
     padding-left: 0;
+    border-left: none;
   }
 `;
 
@@ -109,6 +133,8 @@ const Sidebar = styled.aside`
   position: fixed;
   top: 0;
   left: 0;
+  bottom: 0;
+  margin-right: 0;
   z-index: 100;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
@@ -225,6 +251,7 @@ const UserInfo = styled.div`
 
 const Content = styled.main`
   flex: 1;
+  margin-left: 0;
   padding: 1rem 1rem 1rem 0;
   background: #f9fafb;
   color: #111827;
@@ -234,6 +261,10 @@ const Content = styled.main`
   
   @media (min-width: 768px) {
     padding: 2rem 2rem 2rem 0;
+  }
+  
+  @media (min-width: 1024px) {
+    padding-left: 0;
   }
 `;
 
@@ -245,6 +276,7 @@ const TimeInOutBar = styled.div`
   background: #f3f4f6;
   border-bottom: 1px solid #e5e7eb;
   margin-top: 60px;
+  margin-left: 0;
   
   @media (min-width: 768px) {
     flex-direction: row;
@@ -703,161 +735,164 @@ function MemberLayout() {
   }
 
   return (
-    <LayoutContainer>
-      <Sidebar 
-        className={sidebarOpen ? 'open' : ''}
-      >
-        <Logo>Hyacinth Attendance</Logo>
-        <NavLink to="/member/dashboard" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
-          Dashboard
-        </NavLink>
-        <NavLink to="/member/my-schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
-          My Schedule
-        </NavLink>
-        <NavLink to="/member/all-schedules" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
-          All Schedules
-        </NavLink>
-        <NavLink to="/member/realtime-attendance" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
-          Real-Time Attendance
-        </NavLink>
-        <NavLink to="/member/reports" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
-          Reports
-        </NavLink>
-        <LogoutButton onClick={handleLogout}>
-          Logout
-        </LogoutButton>
-      </Sidebar>
+    <>
+      <GlobalStyles />
+      <LayoutContainer>
+        <Sidebar 
+          className={sidebarOpen ? 'open' : ''}
+        >
+          <Logo>Hyacinth Attendance</Logo>
+          <NavLink to="/member/dashboard" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            Dashboard
+          </NavLink>
+          <NavLink to="/member/my-schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            My Schedule
+          </NavLink>
+          <NavLink to="/member/all-schedules" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            All Schedules
+          </NavLink>
+          <NavLink to="/member/realtime-attendance" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            Real-Time Attendance
+          </NavLink>
+          <NavLink to="/member/reports" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            Reports
+          </NavLink>
+          <LogoutButton onClick={handleLogout}>
+            Logout
+          </LogoutButton>
+        </Sidebar>
 
-      <Overlay isOpen={sidebarOpen} onClick={closeSidebar} />
+        <Overlay isOpen={sidebarOpen} onClick={closeSidebar} />
 
-      <MainContainer>
-        <TopNav>
-          <HamburgerButton 
-            onClick={toggleSidebar}
-            className={sidebarOpen ? 'open' : ''}
-          >
-            <span></span>
-            <span></span>
-            <span></span>
-          </HamburgerButton>
-          
-          <UserInfo>
-            <span className="name">{user.displayName || 'User'}</span>
-            <span className="email">{user.email}</span>
-          </UserInfo>
-        </TopNav>
-
-        <TimeInOutBar>
-          <TimeButtonsContainer>
-            <TimeInButton 
-              onClick={() => handleTimeButtonClick('in')} 
-              disabled={todayRecord?.type === 'IN'}
+        <MainContainer>
+          <TopNav>
+            <HamburgerButton 
+              onClick={toggleSidebar}
+              className={sidebarOpen ? 'open' : ''}
             >
-              Time In
-            </TimeInButton>
+              <span></span>
+              <span></span>
+              <span></span>
+            </HamburgerButton>
             
-            <TimeOutButton 
-              onClick={() => handleTimeButtonClick('out')} 
-              disabled={!todayRecord || todayRecord.type !== 'IN'}
-            >
-              Time Out
-            </TimeOutButton>
-          </TimeButtonsContainer>
-          
-          {todayRecord && (
-            <TimeRecordCard>
-              <p style={{ margin: '0 0 0.5rem', fontWeight: 'bold', color: '#111827' }}>Today's Record:</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={{ flex: '1 0 45%', minWidth: '120px' }}>
-                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Type:</strong> {todayRecord.type}</p>
-                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Time:</strong> {formatTime(todayRecord.timestamp)}</p>
-                </div>
-                <div style={{ flex: '1 0 45%', minWidth: '120px' }}>
-                  {todayRecord.scheduleTime && (
-                    <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Schedule:</strong> {new Date(`1970-01-01T${todayRecord.scheduleTime}`).toLocaleTimeString('en-US', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true
-                    })}</p>
-                  )}
-                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Status:</strong> <span style={{
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '9999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '500',
-                    display: 'inline-block',
-                    marginTop: '0.25rem',
-                    background: todayRecord.status?.toLowerCase().includes('late') ? '#FEE2E2' :
-                              todayRecord.status?.toLowerCase().includes('early') ? '#DBEAFE' :
-                              todayRecord.status?.toLowerCase().includes('overtime') ? '#FEF3C7' : '#DCFCE7',
-                    color: todayRecord.status?.toLowerCase().includes('late') ? '#991B1B' :
-                          todayRecord.status?.toLowerCase().includes('early') ? '#1E40AF' :
-                          todayRecord.status?.toLowerCase().includes('overtime') ? '#92400E' : '#166534'
-                  }}>{todayRecord.formattedStatus}</span></p>
-                </div>
-              </div>
+            <UserInfo>
+              <span className="name">{user.displayName || 'User'}</span>
+              <span className="email">{user.email}</span>
+            </UserInfo>
+          </TopNav>
+
+          <TimeInOutBar>
+            <TimeButtonsContainer>
+              <TimeInButton 
+                onClick={() => handleTimeButtonClick('in')} 
+                disabled={todayRecord?.type === 'IN'}
+              >
+                Time In
+              </TimeInButton>
               
-              {/* Display shift duration for OUT records */}
-              {todayRecord.type === 'OUT' && todayRecord.shiftDurationHours !== undefined && (
-                <div style={{ 
-                  marginTop: '0.5rem', 
-                  padding: '0.5rem', 
-                  background: '#F0FDF4', 
-                  borderRadius: '4px', 
-                  borderLeft: '4px solid #22C55E' 
-                }}>
-                  <p style={{ margin: '0', fontWeight: 'bold', fontSize: '0.875rem', color: '#166534' }}>Shift Duration:</p>
-                  <p style={{ margin: '0', fontSize: '0.875rem', color: '#166534' }}>
-                    {todayRecord.shiftDurationHours > 0 && `${todayRecord.shiftDurationHours} hour${todayRecord.shiftDurationHours !== 1 ? 's' : ''} `}
-                    {todayRecord.shiftDurationMinutes > 0 && `${todayRecord.shiftDurationMinutes} minute${todayRecord.shiftDurationMinutes !== 1 ? 's' : ''}`}
-                  </p>
+              <TimeOutButton 
+                onClick={() => handleTimeButtonClick('out')} 
+                disabled={!todayRecord || todayRecord.type !== 'IN'}
+              >
+                Time Out
+              </TimeOutButton>
+            </TimeButtonsContainer>
+            
+            {todayRecord && (
+              <TimeRecordCard>
+                <p style={{ margin: '0 0 0.5rem', fontWeight: 'bold', color: '#111827' }}>Today's Record:</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div style={{ flex: '1 0 45%', minWidth: '120px' }}>
+                    <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Type:</strong> {todayRecord.type}</p>
+                    <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Time:</strong> {formatTime(todayRecord.timestamp)}</p>
+                  </div>
+                  <div style={{ flex: '1 0 45%', minWidth: '120px' }}>
+                    {todayRecord.scheduleTime && (
+                      <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Schedule:</strong> {new Date(`1970-01-01T${todayRecord.scheduleTime}`).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                      })}</p>
+                    )}
+                    <p style={{ margin: '0', fontSize: '0.875rem', color: '#111827' }}><strong>Status:</strong> <span style={{
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '9999px',
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                      display: 'inline-block',
+                      marginTop: '0.25rem',
+                      background: todayRecord.status?.toLowerCase().includes('late') ? '#FEE2E2' :
+                                todayRecord.status?.toLowerCase().includes('early') ? '#DBEAFE' :
+                                todayRecord.status?.toLowerCase().includes('overtime') ? '#FEF3C7' : '#DCFCE7',
+                      color: todayRecord.status?.toLowerCase().includes('late') ? '#991B1B' :
+                            todayRecord.status?.toLowerCase().includes('early') ? '#1E40AF' :
+                            todayRecord.status?.toLowerCase().includes('overtime') ? '#92400E' : '#166534'
+                    }}>{todayRecord.formattedStatus}</span></p>
+                  </div>
                 </div>
-              )}
-            </TimeRecordCard>
-          )}
-        </TimeInOutBar>
-
-        <Content>
-          <Outlet />
-        </Content>
-
-        <AttendanceConfirmationModal
-          isOpen={showModal}
-          onClose={() => setShowModal(false)}
-          onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
-          type={pendingAction?.toUpperCase()}
-          userData={{ name: userName, email: user.email }}
-        />
-        
-        {confirmationPopup.show && (
-          <PopupOverlay>
-            <ConfirmationPopup>
-              <PopupTitle>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {confirmationPopup.type} Recorded
-              </PopupTitle>
-              <PopupContent>
-                <p>{confirmationPopup.message}</p>
-                {confirmationPopup.shiftDuration && (
-                  <div className="shift-duration">
-                    <p>Shift Duration:</p>
-                    <p>
-                      {confirmationPopup.shiftDuration.hours > 0 && `${confirmationPopup.shiftDuration.hours} hour${confirmationPopup.shiftDuration.hours !== 1 ? 's' : ''} `}
-                      {confirmationPopup.shiftDuration.minutes > 0 && `${confirmationPopup.shiftDuration.minutes} minute${confirmationPopup.shiftDuration.minutes !== 1 ? 's' : ''}`}
+                
+                {/* Display shift duration for OUT records */}
+                {todayRecord.type === 'OUT' && todayRecord.shiftDurationHours !== undefined && (
+                  <div style={{ 
+                    marginTop: '0.5rem', 
+                    padding: '0.5rem', 
+                    background: '#F0FDF4', 
+                    borderRadius: '4px', 
+                    borderLeft: '4px solid #22C55E' 
+                  }}>
+                    <p style={{ margin: '0', fontWeight: 'bold', fontSize: '0.875rem', color: '#166534' }}>Shift Duration:</p>
+                    <p style={{ margin: '0', fontSize: '0.875rem', color: '#166534' }}>
+                      {todayRecord.shiftDurationHours > 0 && `${todayRecord.shiftDurationHours} hour${todayRecord.shiftDurationHours !== 1 ? 's' : ''} `}
+                      {todayRecord.shiftDurationMinutes > 0 && `${todayRecord.shiftDurationMinutes} minute${todayRecord.shiftDurationMinutes !== 1 ? 's' : ''}`}
                     </p>
                   </div>
                 )}
-              </PopupContent>
-              <PopupButton onClick={() => setConfirmationPopup({ show: false, message: '', shiftDuration: null, type: '' })}>
-                OK
-              </PopupButton>
-            </ConfirmationPopup>
-          </PopupOverlay>
-        )}
-      </MainContainer>
-    </LayoutContainer>
+              </TimeRecordCard>
+            )}
+          </TimeInOutBar>
+
+          <Content>
+            <Outlet />
+          </Content>
+
+          <AttendanceConfirmationModal
+            isOpen={showModal}
+            onClose={() => setShowModal(false)}
+            onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
+            type={pendingAction?.toUpperCase()}
+            userData={{ name: userName, email: user.email }}
+          />
+          
+          {confirmationPopup.show && (
+            <PopupOverlay>
+              <ConfirmationPopup>
+                <PopupTitle>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {confirmationPopup.type} Recorded
+                </PopupTitle>
+                <PopupContent>
+                  <p>{confirmationPopup.message}</p>
+                  {confirmationPopup.shiftDuration && (
+                    <div className="shift-duration">
+                      <p>Shift Duration:</p>
+                      <p>
+                        {confirmationPopup.shiftDuration.hours > 0 && `${confirmationPopup.shiftDuration.hours} hour${confirmationPopup.shiftDuration.hours !== 1 ? 's' : ''} `}
+                        {confirmationPopup.shiftDuration.minutes > 0 && `${confirmationPopup.shiftDuration.minutes} minute${confirmationPopup.shiftDuration.minutes !== 1 ? 's' : ''}`}
+                      </p>
+                    </div>
+                  )}
+                </PopupContent>
+                <PopupButton onClick={() => setConfirmationPopup({ show: false, message: '', shiftDuration: null, type: '' })}>
+                  OK
+                </PopupButton>
+              </ConfirmationPopup>
+            </PopupOverlay>
+          )}
+        </MainContainer>
+      </LayoutContainer>
+    </>
   );
 }
 
