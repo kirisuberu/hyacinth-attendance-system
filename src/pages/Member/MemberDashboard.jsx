@@ -6,12 +6,15 @@ import { format, differenceInDays, parseISO, isToday, isThisWeek, isThisMonth } 
 
 const DashboardContainer = styled.div`
   width: 100%;
+  max-width: 100%;
   margin: 0 auto;
-  padding: 1rem;
+  padding: 2rem;
+  overflow-x: hidden;
+  box-sizing: border-box;
   
   @media (min-width: 768px) {
-    padding: 1.5rem;
-    max-width: 1200px;
+    padding: 2rem;
+    max-width: 100%;
   }
 `;
 

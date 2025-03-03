@@ -14,6 +14,14 @@ const GlobalStyles = createGlobalStyle`
     padding: 0;
   }
   
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+  }
+  
   body {
     overflow: hidden;
     margin: 0;
@@ -25,7 +33,8 @@ const LayoutContainer = styled.div`
   display: flex;
   flex-direction: column;
   height: 100vh;
-  width: 100vw;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   position: relative;
   margin: 0;
@@ -44,7 +53,8 @@ const MainContainer = styled.div`
   flex-direction: column;
   height: 100vh;
   width: 100%;
-  overflow: hidden;
+  max-width: 100%;
+  overflow-x: hidden;
   background: #f9fafb;
   color: #111827;
   padding: 0;
@@ -134,7 +144,7 @@ const Sidebar = styled.aside`
   top: 0;
   left: 0;
   bottom: 0;
-  margin-right: 0;
+  margin-right: 0 !important;
   z-index: 100;
   transform: translateX(-100%);
   transition: transform 0.3s ease;
@@ -252,15 +262,23 @@ const UserInfo = styled.div`
 const Content = styled.main`
   flex: 1;
   margin-left: 0;
-  padding: 1rem 1rem 1rem 0;
+  padding: 0;
   background: #f9fafb;
   color: #111827;
   overflow-y: auto;
+  overflow-x: hidden;
   width: 100%;
+  max-width: 100%;
   height: 100%;
+  box-sizing: border-box;
+  
+  & > * {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
   
   @media (min-width: 768px) {
-    padding: 2rem 2rem 2rem 0;
+    padding: 0;
   }
   
   @media (min-width: 1024px) {
@@ -271,16 +289,18 @@ const Content = styled.main`
 const TimeInOutBar = styled.div`
   display: flex;
   flex-direction: column;
-  padding: 1rem 1rem 1rem 0;
+  padding: 1rem;
   gap: 1rem;
   background: #f3f4f6;
   border-bottom: 1px solid #e5e7eb;
   margin-top: 60px;
   margin-left: 0;
+  width: 100%;
+  box-sizing: border-box;
   
   @media (min-width: 768px) {
     flex-direction: row;
-    padding: 1.5rem 2rem 1.5rem 0;
+    padding: 1.5rem 2rem;
   }
 `;
 
@@ -478,12 +498,17 @@ const PopupButton = styled.button`
 `;
 
 function MemberLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userType, setUserType] = useState('');
   const [todayRecord, setTodayRecord] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
-  const [userName, setUserName] = useState('');
+  const [canTimeIn, setCanTimeIn] = useState(true);
   const [confirmationPopup, setConfirmationPopup] = useState({ show: false, message: '', shiftDuration: null, type: '' });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const isMobile = window.innerWidth < 1024;
   
@@ -527,6 +552,8 @@ function MemberLayout() {
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
         setUserName(userDoc.data().name);
+        setUserEmail(userDoc.data().email);
+        setUserType(userDoc.data().type);
       }
     } catch (error) {
       console.error('Error fetching user info:', error);
@@ -608,11 +635,16 @@ function MemberLayout() {
             ...latestRecord,
             formattedStatus: statusText
           });
+          
+          // Check if the latest record is a time-in and disable the time-in button
+          setCanTimeIn(latestRecord.type !== 'IN');
         } else {
           setTodayRecord(null);
+          setCanTimeIn(true);
         }
       } else {
         setTodayRecord(null);
+        setCanTimeIn(true);
       }
     } catch (error) {
       console.error('Error checking attendance:', error);
@@ -785,7 +817,7 @@ function MemberLayout() {
             <TimeButtonsContainer>
               <TimeInButton 
                 onClick={() => handleTimeButtonClick('in')} 
-                disabled={todayRecord?.type === 'IN'}
+                disabled={!canTimeIn}
               >
                 Time In
               </TimeInButton>
@@ -860,7 +892,7 @@ function MemberLayout() {
             onClose={() => setShowModal(false)}
             onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
             type={pendingAction?.toUpperCase()}
-            userData={{ name: userName, email: user.email }}
+            userData={{ name: userName, email: userEmail }}
           />
           
           {confirmationPopup.show && (

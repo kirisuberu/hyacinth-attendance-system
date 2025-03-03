@@ -1,5 +1,5 @@
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, getDoc, setDoc, orderBy, limit } from 'firebase/firestore';
 
 const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
   console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString() });
@@ -158,23 +158,147 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
           endTime: '18:00'
         };
       } else {
-        // Handle shifts that might span across days
+        // For time in, we need to check if we should allow timing in for the next shift
         if (type === 'IN') {
-          // For time in, look for shifts that start on the current day
+          // Get the current time
+          const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
+          
+          // Find all potential shifts for today
+          const todayShifts = [];
+          const nextDayShifts = [];
+          
           Object.entries(userSchedule).forEach(([shiftId, shift]) => {
             if (shift.startDay && shift.startDay.toLowerCase() === dayOfWeek) {
-              scheduleTime = shift.startTime;
-              currentShift = { ...shift, id: shiftId };
-              console.log('Found matching IN schedule:', shift);
+              todayShifts.push({ ...shift, id: shiftId });
+            }
+            
+            // Also check for shifts that start on the next day (for overnight workers)
+            const nextDay = new Date(now);
+            nextDay.setDate(nextDay.getDate() + 1);
+            const nextDayOfWeek = nextDay.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            
+            if (shift.startDay && shift.startDay.toLowerCase() === nextDayOfWeek) {
+              nextDayShifts.push({ ...shift, id: shiftId });
             }
           });
           
-          // If no matching schedule found, use the first available start time
-          if (!scheduleTime && Object.entries(userSchedule).length > 0) {
+          console.log('Today shifts:', todayShifts);
+          console.log('Next day shifts:', nextDayShifts);
+          
+          // Sort shifts by start time
+          const sortShiftsByTime = (shifts) => {
+            return shifts.sort((a, b) => {
+              const [aHours, aMinutes] = a.startTime.split(':').map(Number);
+              const [bHours, bMinutes] = b.startTime.split(':').map(Number);
+              return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
+            });
+          };
+          
+          const sortedTodayShifts = sortShiftsByTime(todayShifts);
+          const sortedNextDayShifts = sortShiftsByTime(nextDayShifts);
+          
+          // Get the last attendance record to check when the previous shift ended
+          const attendanceRef = collection(db, 'attendance');
+          const lastRecordQuery = query(
+            attendanceRef,
+            where('userId', '==', userId)
+          );
+          
+          const lastRecordSnapshot = await getDocs(lastRecordQuery);
+          let lastRecord = null;
+          
+          if (!lastRecordSnapshot.empty) {
+            // Get all records and sort them client-side
+            const records = lastRecordSnapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            
+            // Sort by timestamp in descending order
+            records.sort((a, b) => {
+              const timestampA = a.timestamp?.seconds || 0;
+              const timestampB = b.timestamp?.seconds || 0;
+              return timestampB - timestampA;
+            });
+            
+            // Get the most recent record
+            lastRecord = records[0];
+            console.log('Last attendance record:', lastRecord);
+          }
+          
+          // Find the appropriate shift to use
+          let selectedShift = null;
+          
+          // If we have a previous record with a shift, find the next shift
+          if (lastRecord && lastRecord.shiftId) {
+            // Get the previous shift details
+            const prevShift = userSchedule[lastRecord.shiftId];
+            
+            if (prevShift) {
+              // Calculate when the previous shift ended (or was supposed to end)
+              const prevShiftEndTime = prevShift.endTime;
+              const [endHours, endMinutes] = prevShiftEndTime.split(':').map(Number);
+              
+              // Calculate 4 hours after the end of the previous shift
+              const fourHoursAfterEnd = new Date(now);
+              fourHoursAfterEnd.setHours(endHours, endMinutes, 0, 0);
+              fourHoursAfterEnd.setHours(fourHoursAfterEnd.getHours() + 4);
+              
+              // If it's been at least 4 hours since the end of the previous shift,
+              // allow timing in for the next shift
+              if (now >= fourHoursAfterEnd) {
+                console.log('It has been at least 4 hours since the end of the previous shift');
+                
+                // Find the next shift after the previous one
+                const allShifts = [...sortedTodayShifts, ...sortedNextDayShifts];
+                const prevShiftIndex = allShifts.findIndex(s => s.id === lastRecord.shiftId);
+                
+                if (prevShiftIndex !== -1 && prevShiftIndex < allShifts.length - 1) {
+                  // Use the next shift in sequence
+                  selectedShift = allShifts[prevShiftIndex + 1];
+                } else {
+                  // If it was the last shift, cycle back to the first shift
+                  selectedShift = allShifts[0];
+                }
+              }
+            }
+          }
+          
+          // If no shift was selected based on the 4-hour rule, find the current or next available shift
+          if (!selectedShift) {
+            // Find the next available shift based on current time
+            for (const shift of sortedTodayShifts) {
+              const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
+              const shiftStartTime = startHours * 60 + startMinutes; // Shift start time in minutes
+              
+              // If this shift starts in the future or within the last hour, use it
+              if (shiftStartTime > currentTime - 60) {
+                selectedShift = shift;
+                break;
+              }
+            }
+            
+            // If no suitable shift found for today, use the first shift of the next day
+            if (!selectedShift && sortedNextDayShifts.length > 0) {
+              selectedShift = sortedNextDayShifts[0];
+            }
+            
+            // If still no shift found, use the first available shift
+            if (!selectedShift && sortedTodayShifts.length > 0) {
+              selectedShift = sortedTodayShifts[0];
+            }
+          }
+          
+          if (selectedShift) {
+            scheduleTime = selectedShift.startTime;
+            currentShift = selectedShift;
+            console.log('Selected shift for time in:', selectedShift);
+          } else if (Object.entries(userSchedule).length > 0) {
+            // Fallback: use the first available shift
             const [shiftId, firstShift] = Object.entries(userSchedule)[0];
             scheduleTime = firstShift.startTime;
             currentShift = { ...firstShift, id: shiftId };
-            console.log('No matching schedule for today, using first available start time:', scheduleTime);
+            console.log('No suitable shift found, using first available shift:', currentShift);
           }
         } else {
           // For time out, look for shifts that either:
@@ -232,22 +356,27 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
       // Look back up to 2 days to handle overnight shifts
       startOfLookup.setDate(startOfLookup.getDate() - 2);
       
+      // First query for records by userId only
       const q = query(
         collection(db, 'attendance'),
-        where('userId', '==', userId),
-        where('type', '==', 'IN')
+        where('userId', '==', userId)
       );
       
       const querySnapshot = await getDocs(q);
-      console.log(`Found ${querySnapshot.size} IN records for user`);
+      console.log(`Found ${querySnapshot.size} records for user`);
       
       if (!querySnapshot.empty) {
+        // Then filter the results in memory
         const inRecords = querySnapshot.docs
           .map(doc => ({
             id: doc.id,
             ...doc.data()
           }))
           .filter(record => {
+            // Filter for IN records
+            if (record.type !== 'IN') return false;
+            
+            // Filter by date
             if (!record.timestamp) return false;
             const recordDate = new Date(record.timestamp.seconds * 1000);
             return recordDate >= startOfLookup;

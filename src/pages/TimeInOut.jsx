@@ -145,6 +145,7 @@ function TimeInOut() {
   const [userEmail, setUserEmail] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [pendingAction, setPendingAction] = useState(null)
+  const [canTimeIn, setCanTimeIn] = useState(true)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -256,9 +257,13 @@ function TimeInOut() {
               : ''}`
             : ''
         })
+        
+        // Check if the latest record is a time-in and disable the time-in button
+        setCanTimeIn(latestRecord.type !== 'IN')
       } else {
         console.log('No records found for today')
         setTodayRecord(null)
+        setCanTimeIn(true)
       }
     } catch (error) {
       console.error('Error checking attendance:', error)
@@ -342,7 +347,7 @@ function TimeInOut() {
             <ButtonGroup>
               <TimeInButton 
                 onClick={() => handleTimeButtonClick('in')} 
-                disabled={todayRecord?.type === 'IN'}
+                disabled={!canTimeIn}
               >
                 Time In
               </TimeInButton>

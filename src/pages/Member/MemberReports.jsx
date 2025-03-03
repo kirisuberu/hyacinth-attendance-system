@@ -7,11 +7,11 @@ import { format, parseISO } from 'date-fns';
 const ReportsContainer = styled.div`
   width: 100%;
   max-width: 100%;
-  padding: 1rem;
+  padding: 2rem;
   overflow-x: hidden;
   
   @media (min-width: 768px) {
-    padding: 1.5rem;
+    padding: 2rem;
   }
   
   @media (min-width: 1024px) {
