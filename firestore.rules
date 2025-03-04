@@ -40,5 +40,14 @@ service cloud.firestore {
       // Allow write only for admin users
       allow write: if isAdmin();
     }
+    
+    // Schedule templates collection rules
+    match /scheduleTemplates/{templateId} {
+      // Allow read for authenticated users
+      allow read: if isAuthenticated();
+      
+      // Allow write only for admin users
+      allow write: if isAdmin();
+    }
   }
 }

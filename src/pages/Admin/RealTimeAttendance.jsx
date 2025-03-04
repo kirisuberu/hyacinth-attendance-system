@@ -114,7 +114,8 @@ function RealTimeAttendance() {
             time: 'N/A',
             type: data.type,
             status: 'No Timestamp',
-            scheduleTime: 'N/A'
+            scheduleTime: 'N/A',
+            timeRegion: data.timeRegion || 'PHT'
           };
         }
 
@@ -194,7 +195,8 @@ function RealTimeAttendance() {
           time: timeString,
           type: data.type,
           status: statusWithDiff,
-          scheduleTime: scheduleTimeFormatted
+          scheduleTime: scheduleTimeFormatted,
+          timeRegion: data.timeRegion || 'PHT'
         };
       });
       
@@ -221,6 +223,7 @@ function RealTimeAttendance() {
             <Th>Day</Th>
             <Th>Time</Th>
             <Th>Schedule</Th>
+            <Th>Time Region</Th>
             <Th>Type</Th>
             <Th>Status</Th>
           </tr>
@@ -233,6 +236,7 @@ function RealTimeAttendance() {
               <Td>{record.dayOfWeek}</Td>
               <Td>{record.time}</Td>
               <Td>{record.scheduleTime}</Td>
+              <Td>{record.timeRegion}</Td>
               <Td>{record.type}</Td>
               <Td>
                 <StatusBadge status={record.status}>

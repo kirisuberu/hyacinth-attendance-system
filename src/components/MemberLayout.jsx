@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
-import styled, { createGlobalStyle } from 'styled-components';
+import styled, { createGlobalStyle, keyframes } from 'styled-components';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
@@ -358,6 +358,7 @@ const TimeInButton = styled(TimeButton)`
   background: #10b981;
   color: white;
   order: 1;
+  font-size: 1.5rem;
   
   &:hover:not(:disabled) {
     background: #059669;
@@ -377,6 +378,7 @@ const TimeOutButton = styled(TimeButton)`
   background: #ef4444;
   color: white;
   order: 3;
+  font-size: 1.5rem;
   
   &:hover:not(:disabled) {
     background: #dc2626;
@@ -497,6 +499,179 @@ const PopupButton = styled.button`
   }
 `;
 
+const progressAnimation = keyframes`
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+`;
+
+const TimeoutProgressContainer = styled.div`
+  margin-top: 1rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const TimeoutProgressLabel = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  color: #4b5563;
+  
+  .time-left {
+    font-weight: 600;
+    color: ${props => props.percentage < 25 ? '#ef4444' : props.percentage < 50 ? '#f59e0b' : '#10b981'};
+  }
+`;
+
+const TimeoutProgressBar = styled.div`
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: ${props => props.percentage}%;
+    background: ${props => 
+      props.percentage < 25 
+        ? 'linear-gradient(90deg, #ef4444, #f87171)' 
+        : props.percentage < 50 
+          ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' 
+          : 'linear-gradient(90deg, #10b981, #34d399)'};
+    background-size: 200% 200%;
+    animation: ${progressAnimation} 2s ease infinite;
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+`;
+
+const calculateNextTimeIn = (userSchedule) => {
+  if (!userSchedule || Object.keys(userSchedule).length === 0) {
+    return null;
+  }
+
+  const now = new Date();
+  const currentDayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
+  
+  // Get all shifts sorted by day and time
+  const allShifts = [];
+  const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const currentDayIndex = daysOfWeek.indexOf(currentDayOfWeek);
+  
+  // Create a map of shifts by day
+  const shiftsByDay = {};
+  daysOfWeek.forEach(day => {
+    shiftsByDay[day] = [];
+  });
+  
+  // Populate shifts by day
+  Object.entries(userSchedule).forEach(([shiftId, shift]) => {
+    if (shift.startDay && shift.startTime) {
+      const day = shift.startDay.toLowerCase();
+      if (shiftsByDay[day]) {
+        shiftsByDay[day].push({
+          ...shift,
+          id: shiftId
+        });
+      }
+    }
+  });
+  
+  // Sort shifts within each day by start time
+  Object.keys(shiftsByDay).forEach(day => {
+    shiftsByDay[day].sort((a, b) => {
+      const [aHours, aMinutes] = a.startTime.split(':').map(Number);
+      const [bHours, bMinutes] = b.startTime.split(':').map(Number);
+      return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
+    });
+  });
+  
+  // First check today's remaining shifts
+  const todayShifts = shiftsByDay[currentDayOfWeek];
+  for (const shift of todayShifts) {
+    const [hours, minutes] = shift.startTime.split(':').map(Number);
+    const shiftStartTime = hours * 60 + minutes;
+    
+    if (shiftStartTime > currentTime) {
+      // This shift is later today
+      const nextTimeIn = new Date(now);
+      nextTimeIn.setHours(hours, minutes, 0, 0);
+      
+      return {
+        nextTimeIn,
+        shift
+      };
+    }
+  }
+  
+  // Check future days
+  for (let i = 1; i <= 7; i++) {
+    const nextDayIndex = (currentDayIndex + i) % 7;
+    const nextDay = daysOfWeek[nextDayIndex];
+    const nextDayShifts = shiftsByDay[nextDay];
+    
+    if (nextDayShifts.length > 0) {
+      // Take the first shift of the next day that has shifts
+      const nextShift = nextDayShifts[0];
+      const [hours, minutes] = nextShift.startTime.split(':').map(Number);
+      
+      // Calculate days to add
+      const daysToAdd = i;
+      
+      const nextTimeIn = new Date(now);
+      nextTimeIn.setDate(nextTimeIn.getDate() + daysToAdd);
+      nextTimeIn.setHours(hours, minutes, 0, 0);
+      
+      return {
+        nextTimeIn,
+        shift: nextShift
+      };
+    }
+  }
+  
+  return null;
+};
+
+const formatCountdown = (targetDate) => {
+  if (!targetDate) return null;
+  
+  const now = new Date();
+  const diffMs = targetDate - now;
+  
+  if (diffMs <= 0) return null;
+  
+  // Calculate days, hours, minutes
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  
+  let countdownText = '';
+  if (days > 0) {
+    countdownText += `${days} day${days !== 1 ? 's' : ''} `;
+  }
+  if (hours > 0 || days > 0) {
+    countdownText += `${hours} hour${hours !== 1 ? 's' : ''} `;
+  }
+  countdownText += `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  
+  return countdownText;
+};
+
 function MemberLayout() {
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -507,8 +682,15 @@ function MemberLayout() {
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [canTimeIn, setCanTimeIn] = useState(true);
-  const [confirmationPopup, setConfirmationPopup] = useState({ show: false, message: '', shiftDuration: null, type: '' });
+  const [confirmationPopup, setConfirmationPopup] = useState({ 
+    show: false, 
+    message: '', 
+    nextTimeIn: null, 
+    type: '' 
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [timeoutProgress, setTimeoutProgress] = useState({ percentage: 100, timeLeft: '', endTime: null });
+  const [nextTimeInInfo, setNextTimeInInfo] = useState(null);
   const location = useLocation();
   const isMobile = window.innerWidth < 1024;
   
@@ -544,6 +726,59 @@ function MemberLayout() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    if (todayRecord && todayRecord.type === 'IN' && todayRecord.scheduleTime) {
+      // Calculate the expected end time based on the schedule
+      const [startHours, startMinutes] = todayRecord.scheduleTime.split(':').map(Number);
+      const timestampDate = new Date(todayRecord.timestamp.seconds * 1000);
+      
+      // Create a date for the scheduled end time
+      // Assuming a standard 8-hour shift
+      const endTime = new Date(timestampDate);
+      endTime.setHours(startHours + 8, startMinutes, 0, 0);
+      
+      // If the end time is in the past, don't show the progress bar
+      if (endTime <= new Date()) {
+        setTimeoutProgress({ percentage: 0, timeLeft: 'Shift ended', endTime: null });
+        return;
+      }
+      
+      // Update the timeout progress
+      const updateProgress = () => {
+        const now = new Date();
+        const startTime = new Date(todayRecord.timestamp.seconds * 1000);
+        const totalDuration = endTime - startTime;
+        const elapsed = now - startTime;
+        const remaining = endTime - now;
+        
+        // Calculate percentage of time remaining
+        const percentage = Math.max(0, Math.min(100, (remaining / totalDuration) * 100));
+        
+        // Format time left
+        const hoursLeft = Math.floor(remaining / (1000 * 60 * 60));
+        const minutesLeft = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        const timeLeft = `${hoursLeft}h ${minutesLeft}m`;
+        
+        setTimeoutProgress({ 
+          percentage, 
+          timeLeft, 
+          endTime 
+        });
+      };
+      
+      // Initial update
+      updateProgress();
+      
+      // Set up interval to update progress
+      const intervalId = setInterval(updateProgress, 60000); // Update every minute
+      
+      return () => clearInterval(intervalId);
+    } else {
+      // Reset progress if not timed in
+      setTimeoutProgress({ percentage: 100, timeLeft: '', endTime: null });
+    }
+  }, [todayRecord]);
 
   const fetchUserInfo = async () => {
     if (!auth.currentUser) return;
@@ -677,6 +912,32 @@ function MemberLayout() {
 
       // Show status message
       const statusMessage = `${type.toUpperCase()} recorded - ${result.status}`;
+      
+      // For OUT records, calculate next time in
+      let nextTimeIn = null;
+      if (type.toUpperCase() === 'OUT') {
+        // Get user schedule
+        try {
+          const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const userSchedule = userData.schedule || {};
+            
+            // Calculate next time in
+            const nextTimeInData = calculateNextTimeIn(userSchedule);
+            if (nextTimeInData) {
+              nextTimeIn = {
+                time: nextTimeInData.nextTimeIn,
+                shiftName: nextTimeInData.shift.name || 'Next Shift',
+                countdown: formatCountdown(nextTimeInData.nextTimeIn)
+              };
+            }
+          }
+        } catch (error) {
+          console.error('Error calculating next time in:', error);
+        }
+      }
+      
       if (result.timeDiff) {
         const hours = Math.abs(result.timeDiff.hours);
         const minutes = Math.abs(result.timeDiff.minutes);
@@ -687,23 +948,11 @@ function MemberLayout() {
         if (timeDesc.length > 0) {
           let message = `${statusMessage} (${timeDesc.join(' and ')}${result.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`;
           
-          // Add shift duration for OUT records
-          let shiftDuration = null;
-          if (type.toUpperCase() === 'OUT' && result.shiftDuration) {
-            const shiftHours = result.shiftDuration.hours;
-            const shiftMinutes = result.shiftDuration.minutes;
-            
-            shiftDuration = {
-              hours: shiftHours,
-              minutes: shiftMinutes
-            };
-          }
-          
           // Show confirmation popup instead of alert
           setConfirmationPopup({
             show: true,
             message: message,
-            shiftDuration: shiftDuration,
+            nextTimeIn: nextTimeIn,
             type: type.toUpperCase()
           });
         } else {
@@ -711,7 +960,7 @@ function MemberLayout() {
           setConfirmationPopup({
             show: true,
             message: statusMessage,
-            shiftDuration: null,
+            nextTimeIn: nextTimeIn,
             type: type.toUpperCase()
           });
         }
@@ -720,10 +969,11 @@ function MemberLayout() {
         setConfirmationPopup({
           show: true,
           message: statusMessage,
-          shiftDuration: null,
+          nextTimeIn: nextTimeIn,
           type: type.toUpperCase()
         });
       }
+
     } catch (error) {
       console.error('Error recording time:', error);
       alert(error.message || 'Failed to record attendance. Please try again.');
@@ -879,6 +1129,17 @@ function MemberLayout() {
                     </p>
                   </div>
                 )}
+                
+                {/* Display timeout progress for IN records */}
+                {todayRecord.type === 'IN' && timeoutProgress.endTime && (
+                  <TimeoutProgressContainer>
+                    <TimeoutProgressLabel percentage={timeoutProgress.percentage}>
+                      <span>Time remaining in shift:</span>
+                      <span className="time-left">{timeoutProgress.timeLeft}</span>
+                    </TimeoutProgressLabel>
+                    <TimeoutProgressBar percentage={timeoutProgress.percentage} />
+                  </TimeoutProgressContainer>
+                )}
               </TimeRecordCard>
             )}
           </TimeInOutBar>
@@ -906,17 +1167,17 @@ function MemberLayout() {
                 </PopupTitle>
                 <PopupContent>
                   <p>{confirmationPopup.message}</p>
-                  {confirmationPopup.shiftDuration && (
-                    <div className="shift-duration">
-                      <p>Shift Duration:</p>
-                      <p>
-                        {confirmationPopup.shiftDuration.hours > 0 && `${confirmationPopup.shiftDuration.hours} hour${confirmationPopup.shiftDuration.hours !== 1 ? 's' : ''} `}
-                        {confirmationPopup.shiftDuration.minutes > 0 && `${confirmationPopup.shiftDuration.minutes} minute${confirmationPopup.shiftDuration.minutes !== 1 ? 's' : ''}`}
-                      </p>
+                  {confirmationPopup.nextTimeIn && confirmationPopup.type === 'OUT' && (
+                    <div className="next-time-in">
+                      <p>Next Time In:</p>
+                      <p>{confirmationPopup.nextTimeIn.shiftName} - {new Date(confirmationPopup.nextTimeIn.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                      {confirmationPopup.nextTimeIn.countdown && (
+                        <p>Countdown: {confirmationPopup.nextTimeIn.countdown}</p>
+                      )}
                     </div>
                   )}
                 </PopupContent>
-                <PopupButton onClick={() => setConfirmationPopup({ show: false, message: '', shiftDuration: null, type: '' })}>
+                <PopupButton onClick={() => setConfirmationPopup({ show: false, message: '', nextTimeIn: null, type: '' })}>
                   OK
                 </PopupButton>
               </ConfirmationPopup>

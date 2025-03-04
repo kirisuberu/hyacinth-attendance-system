@@ -1,5 +1,6 @@
 import { db } from '../firebase';
-import { doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { auth } from '../firebase';
 
 // User types enum
 export const UserType = {
@@ -426,5 +427,193 @@ export const cleanupDuplicateUsers = async () => {
   } catch (error) {
     console.error('Error cleaning up duplicate users:', error);
     throw error;
+  }
+};
+
+// Schedule templates functions
+export const getScheduleTemplates = async () => {
+  try {
+    // Get the current user
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get the user document to check if they're an admin
+    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+    if (!userDoc.exists() || userDoc.data().userType !== 'admin') {
+      throw new Error('Only admins can manage schedule templates');
+    }
+    
+    // Check if the admin document has a scheduleTemplates field
+    if (!userDoc.data().scheduleTemplates) {
+      // Initialize the scheduleTemplates field if it doesn't exist
+      await updateDoc(doc(db, 'users', currentUser.uid), {
+        scheduleTemplates: []
+      });
+      return [];
+    }
+    
+    // Return the templates from the admin's user document
+    return userDoc.data().scheduleTemplates || [];
+  } catch (error) {
+    console.error('Error getting schedule templates:', error);
+    throw new Error('Failed to get schedule templates: ' + error.message);
+  }
+};
+
+export const createScheduleTemplate = async (templateData) => {
+  try {
+    // Validate input
+    if (!templateData.name || typeof templateData.name !== 'string') {
+      throw new Error('Template name is required');
+    }
+    
+    if (!templateData.schedule || typeof templateData.schedule !== 'object') {
+      throw new Error('Template schedule is required and must be an object');
+    }
+    
+    // Check if there are any shifts in the schedule
+    if (Object.keys(templateData.schedule).length === 0) {
+      throw new Error('Template schedule must contain at least one shift');
+    }
+    
+    // Get the current user
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get the user document to check if they're an admin
+    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+    if (!userDoc.exists() || userDoc.data().userType !== 'admin') {
+      throw new Error('Only admins can manage schedule templates');
+    }
+    
+    // Get existing templates
+    const existingTemplates = userDoc.data().scheduleTemplates || [];
+    
+    // Create a new template with a unique ID
+    const newTemplate = {
+      id: `template_${Date.now()}`,
+      name: templateData.name,
+      schedule: templateData.schedule,
+      createdAt: new Date().toISOString()
+    };
+    
+    // Add the new template to the existing templates
+    const updatedTemplates = [...existingTemplates, newTemplate];
+    
+    // Update the admin's user document
+    await updateDoc(doc(db, 'users', currentUser.uid), {
+      scheduleTemplates: updatedTemplates
+    });
+    
+    return newTemplate;
+  } catch (error) {
+    console.error('Error creating schedule template:', error);
+    throw new Error('Failed to create schedule template: ' + error.message);
+  }
+};
+
+export const updateScheduleTemplate = async (templateId, templateData) => {
+  try {
+    // Validate input
+    if (!templateId) {
+      throw new Error('Template ID is required');
+    }
+    
+    if (!templateData.name || typeof templateData.name !== 'string') {
+      throw new Error('Template name is required');
+    }
+    
+    if (!templateData.schedule || typeof templateData.schedule !== 'object') {
+      throw new Error('Template schedule is required and must be an object');
+    }
+    
+    // Check if there are any shifts in the schedule
+    if (Object.keys(templateData.schedule).length === 0) {
+      throw new Error('Template schedule must contain at least one shift');
+    }
+    
+    // Get the current user
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get the user document to check if they're an admin
+    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+    if (!userDoc.exists() || userDoc.data().userType !== 'admin') {
+      throw new Error('Only admins can manage schedule templates');
+    }
+    
+    // Get existing templates
+    const existingTemplates = userDoc.data().scheduleTemplates || [];
+    
+    // Find the template to update
+    const templateIndex = existingTemplates.findIndex(template => template.id === templateId);
+    if (templateIndex === -1) {
+      throw new Error('Template not found');
+    }
+    
+    // Update the template
+    const updatedTemplate = {
+      ...existingTemplates[templateIndex],
+      name: templateData.name,
+      schedule: templateData.schedule,
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Update the templates array
+    const updatedTemplates = [...existingTemplates];
+    updatedTemplates[templateIndex] = updatedTemplate;
+    
+    // Update the admin's user document
+    await updateDoc(doc(db, 'users', currentUser.uid), {
+      scheduleTemplates: updatedTemplates
+    });
+    
+    return updatedTemplate;
+  } catch (error) {
+    console.error('Error updating schedule template:', error);
+    throw new Error('Failed to update schedule template: ' + error.message);
+  }
+};
+
+export const deleteScheduleTemplate = async (templateId) => {
+  try {
+    // Validate input
+    if (!templateId) {
+      throw new Error('Template ID is required');
+    }
+    
+    // Get the current user
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('User not authenticated');
+    }
+    
+    // Get the user document to check if they're an admin
+    const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+    if (!userDoc.exists() || userDoc.data().userType !== 'admin') {
+      throw new Error('Only admins can manage schedule templates');
+    }
+    
+    // Get existing templates
+    const existingTemplates = userDoc.data().scheduleTemplates || [];
+    
+    // Filter out the template to delete
+    const updatedTemplates = existingTemplates.filter(template => template.id !== templateId);
+    
+    // Update the admin's user document
+    await updateDoc(doc(db, 'users', currentUser.uid), {
+      scheduleTemplates: updatedTemplates
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error deleting schedule template:', error);
+    throw new Error('Failed to delete schedule template: ' + error.message);
   }
 };

@@ -1,8 +1,41 @@
 import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, getDoc, setDoc, orderBy, limit } from 'firebase/firestore';
 
-const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
-  console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString() });
+// Time region offset in hours from UTC
+const TIME_REGION_OFFSETS = {
+  'PHT': 8,   // UTC+8
+  'CST': -6,  // UTC-6
+  'EST': -5   // UTC-5
+};
+
+// Convert time from one region to another
+const convertTimeRegion = (time, fromRegion, toRegion) => {
+  if (!time || !fromRegion || !toRegion || fromRegion === toRegion) {
+    return time;
+  }
+
+  const [hours, minutes] = time.split(':').map(Number);
+  
+  // Calculate the time difference between regions
+  const fromOffset = TIME_REGION_OFFSETS[fromRegion] || 0;
+  const toOffset = TIME_REGION_OFFSETS[toRegion] || 0;
+  const hourDifference = fromOffset - toOffset;
+  
+  // Apply the offset
+  let newHours = (hours + hourDifference) % 24;
+  if (newHours < 0) newHours += 24;
+  
+  return `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
+
+const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRegion = 'PHT') => {
+  console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString(), timeRegion });
+  
+  // Validate timeRegion parameter
+  if (!TIME_REGION_OFFSETS[timeRegion]) {
+    console.warn(`Invalid time region: ${timeRegion}, defaulting to PHT`);
+    timeRegion = 'PHT';
+  }
   
   if (!scheduleTime) {
     console.log('No schedule time provided, using default status');
@@ -16,17 +49,28 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
     };
   }
 
+  // Instead of trying to detect the local time region, we'll convert both times to UTC for comparison
+  // Get the schedule time in its original time region
   const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number);
   
   // Create a date object for the schedule time on the same day as the actual time
   const scheduleDate = new Date(actualTime);
-  scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0); // Set seconds and milliseconds to 0
   
+  // First reset the time to midnight in UTC
+  scheduleDate.setUTCHours(0, 0, 0, 0);
+  
+  // Then add the schedule hours and minutes, adjusted for the time region offset
+  const regionOffset = TIME_REGION_OFFSETS[timeRegion] || 0;
+  scheduleDate.setUTCHours(scheduleHours - regionOffset, scheduleMinutes);
+  
+  console.log('Schedule date in UTC:', scheduleDate.toISOString());
+  console.log('Actual time in UTC:', actualTime.toISOString());
+
   // If the schedule time is later than the actual time and we're checking for a time-in,
   // it's possible the schedule is for the previous day
   // For example, if it's 1 AM and the schedule is for 10 PM, we should compare with 10 PM of the previous day
   if (type === 'IN' && scheduleDate > actualTime && scheduleHours >= 18) { // Assuming shifts starting after 6 PM might be for previous day
-    scheduleDate.setDate(scheduleDate.getDate() - 1);
+    scheduleDate.setUTCDate(scheduleDate.getUTCDate() - 1);
     console.log('Adjusted schedule date to previous day for late night shift');
   }
   
@@ -34,7 +78,7 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
   // it's possible the schedule is for the next day
   // For example, if it's 11 PM and the schedule is for 2 AM, we should compare with 2 AM of the next day
   if (type === 'OUT' && scheduleDate < actualTime && scheduleHours <= 6) { // Assuming shifts ending before 6 AM might be for next day
-    scheduleDate.setDate(scheduleDate.getDate() + 1);
+    scheduleDate.setUTCDate(scheduleDate.getUTCDate() + 1);
     console.log('Adjusted schedule date to next day for overnight shift');
   }
 
@@ -46,7 +90,8 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
     scheduleDate: scheduleDate.toISOString(),
     diffMilliseconds,
     diffMinutes,
-    type
+    type,
+    timeRegion
   });
 
   const formatTimeDiff = (diffMins) => {
@@ -65,8 +110,8 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
     console.log('Evaluating IN status conditions:', {
       diffMinutes,
       isEarly: diffMinutes <= -60,
-      isOnTime: diffMinutes > -60 && diffMinutes <= 0,
-      isLate: diffMinutes > 0
+      isOnTime: diffMinutes > -60 && diffMinutes <= 5,
+      isLate: diffMinutes > 5
     });
     
     // Early: 60 mins or more before schedule time
@@ -77,16 +122,16 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type) => {
       };
     }
     
-    // On Time: Between 60 mins before and exactly on schedule time (inclusive)
-    if (diffMinutes > -60 && diffMinutes <= 0) {
+    // On Time: Between 60 mins before and up to 5 minutes after schedule time (inclusive)
+    if (diffMinutes > -60 && diffMinutes <= 5) {
       return {
         status: 'On Time',
         timeDiff
       };
     }
     
-    // Late: Any time after schedule time (1 min or more)
-    if (diffMinutes > 0) {
+    // Late: Any time after 5 minutes past schedule time
+    if (diffMinutes > 5) {
       return {
         status: 'Late',
         timeDiff
@@ -130,10 +175,12 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
     let scheduleTime = null;
     let userType = null;
     let currentShift = null;
+    let timeRegion = null;
 
     if (userSnapshot.exists()) {
       const userData = userSnapshot.data();
       userType = userData.userType;
+      timeRegion = userData.timeRegion;
       
       // For other users, use their custom schedule
       const userSchedule = userData.schedule || {};
@@ -330,17 +377,19 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
       console.log('User document not found:', userId);
     }
 
-    console.log('Found schedule time:', {
-      type,
-      userType,
+    console.log('Using schedule data:', {
       dayOfWeek,
       previousDayOfWeek,
       scheduleTime,
-      currentShift
+      currentShift,
+      timeRegion: currentShift?.timeRegion || 'PHT'
     });
 
+    // Ensure we have a valid time region
+    const shiftTimeRegion = currentShift?.timeRegion || 'PHT';
+    
     // Calculate attendance status based on schedule time
-    const { status, timeDiff } = calculateAttendanceStatus(scheduleTime, now, type);
+    const { status, timeDiff } = calculateAttendanceStatus(scheduleTime, now, type, shiftTimeRegion);
 
     // Get midnight for today (for date filtering)
     const todayMidnight = new Date(now);
@@ -413,24 +462,24 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
       }
     }
 
-    // Create the attendance record
+    // Prepare the attendance record
     const attendanceRecord = {
       userId,
       email,
       name,
       type,
-      userType,
       timestamp: serverTimestamp(),
-      date: todayMidnight.getTime(),
-      dateISO: now.toISOString(),
-      scheduleTime,
+      date: now.toISOString(),
       status,
-      timeDiffHours: timeDiff.hours,
-      timeDiffMinutes: timeDiff.minutes,
+      scheduleTime,
+      actualTime: now.toLocaleTimeString(),
+      hoursDiff: timeDiff.hours,
+      minutesDiff: timeDiff.minutes,
       totalMinutesDiff: timeDiff.totalMinutes,
       dayOfWeek,
       notes,
-      shiftId: currentShift?.id || null
+      shiftId: currentShift?.id || null,
+      timeRegion: shiftTimeRegion
     };
     
     // Add shift duration for OUT records

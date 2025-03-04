@@ -1,15 +1,21 @@
 import React, { useState, useEffect, memo } from 'react';
 import styled from 'styled-components';
-import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes, updateUserSchedule } from '../../utils/userService';
+import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes, updateUserSchedule, getScheduleTemplates, createScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate } from '../../utils/userService';
 import { auth } from '../../firebase';
 
 //icons
-import { PencilSimpleLine, Calendar, Trash } from 'phosphor-react'; 
+import { PencilSimpleLine, Calendar, Trash, Copy, FloppyDisk } from 'phosphor-react'; 
 
 const Container = styled.div`
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
 `;
 
 const Title = styled.h1`
@@ -143,10 +149,16 @@ function UserManagement() {
   const [showApprovedEmailsModal, setShowApprovedEmailsModal] = useState(false);
   const [sortField, setSortField] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
+  const [scheduleTemplates, setScheduleTemplates] = useState([]);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
 
   useEffect(() => {
     loadUsers();
     loadApprovedEmails();
+    loadScheduleTemplates();
   }, []);
 
   const loadUsers = async () => {
@@ -166,6 +178,16 @@ function UserManagement() {
       setApprovedEmails(emails);
     } catch (error) {
       console.error('Error loading approved emails:', error);
+    }
+  };
+
+  const loadScheduleTemplates = async () => {
+    try {
+      const templates = await getScheduleTemplates();
+      setScheduleTemplates(templates);
+    } catch (error) {
+      console.error('Error loading schedule templates:', error);
+      alert('Error loading schedule templates: ' + error.message);
     }
   };
 
@@ -406,20 +428,68 @@ function UserManagement() {
     });
   };
 
-  const ScheduleModal = () => {
-    const [schedule, setSchedule] = useState(selectedUser?.schedule || {});
-    const [selectedShift, setSelectedShift] = useState(null);
+  const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
+    // Convert days to numerical values (0 = Monday, 6 = Sunday)
+    const dayToNumber = {
+      'monday': 0,
+      'tuesday': 1,
+      'wednesday': 2,
+      'thursday': 3,
+      'friday': 4,
+      'saturday': 5,
+      'sunday': 6
+    };
+
+    const startDayNum = dayToNumber[startDay.toLowerCase()];
+    const endDayNum = dayToNumber[endDay.toLowerCase()];
+
+    if (startDayNum === undefined || endDayNum === undefined) {
+      return false;
+    }
+
+    // Parse times (assuming format is HH:MM)
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+
+    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+      return false;
+    }
+
+    // Calculate total minutes for start and end
+    const startTotalMinutes = (startDayNum * 24 * 60) + (startHour * 60) + startMinute;
+    const endTotalMinutes = (endDayNum * 24 * 60) + (endHour * 60) + endMinute;
+
+    // End time should be after start time
+    return endTotalMinutes > startTotalMinutes;
+  };
+
+  const ScheduleModal = ({ userId, userName, currentSchedule }) => {
+    const [schedule, setSchedule] = useState(currentSchedule || {});
     const [showShiftForm, setShowShiftForm] = useState(false);
+    const [selectedShift, setSelectedShift] = useState(null);
     const [shiftFormData, setShiftFormData] = useState({
       startDay: 'monday',
       startTime: '',
       endDay: 'monday',
-      endTime: ''
+      endTime: '',
+      timeRegion: 'PHT'
     });
+    const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
+    const [saveAsTemplateMode, setSaveAsTemplateMode] = useState(false);
+    const [templateName, setTemplateName] = useState('');
 
     const daysOfWeek = [
       'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
     ];
+
+    const timeRegions = [
+      'PHT', 'CST', 'EST'
+    ];
+
+    useEffect(() => {
+      setSchedule(currentSchedule || {});
+    }, [currentSchedule]);
 
     const formatDayName = (day) => {
       if (!day || typeof day !== 'string') return '';
@@ -432,7 +502,8 @@ function UserManagement() {
         startDay: 'monday',
         startTime: '',
         endDay: 'monday',
-        endTime: ''
+        endTime: '',
+        timeRegion: 'PHT'
       });
       setShowShiftForm(true);
     };
@@ -446,7 +517,8 @@ function UserManagement() {
         startDay: shift.startDay || 'monday',
         startTime: shift.startTime || '',
         endDay: shift.endDay || 'monday',
-        endTime: shift.endTime || ''
+        endTime: shift.endTime || '',
+        timeRegion: shift.timeRegion || 'PHT'
       });
       setShowShiftForm(true);
     };
@@ -492,38 +564,96 @@ function UserManagement() {
             startDay: startDay,
             startTime: shiftFormData.startTime,
             endDay: endDay,
-            endTime: shiftFormData.endTime
+            endTime: shiftFormData.endTime,
+            timeRegion: shiftFormData.timeRegion || 'PHT'
           }
         }));
         
         // Close the shift form
         setShowShiftForm(false);
-        
-        console.log('Shift saved successfully:', shiftId);
       } catch (error) {
         console.error('Error saving shift:', error);
         alert(error.message || 'Error saving shift. Please check your input.');
       }
     };
 
-    const handleSave = async () => {
+    const handleSaveSchedule = async () => {
       try {
-        await handleScheduleUpdate(selectedUser.id, schedule);
+        await updateUserSchedule(userId, schedule);
         setShowScheduleModal(false);
         await loadUsers();
       } catch (error) {
         console.error('Error updating schedule:', error);
-        alert('Error saving schedule. Please try again.');
+        alert('Error updating schedule: ' + error.message);
       }
+    };
+
+    const handleSaveAsTemplate = async () => {
+      try {
+        if (!templateName.trim()) {
+          alert('Please enter a template name');
+          return;
+        }
+
+        if (Object.keys(schedule).length === 0) {
+          alert('Please add at least one shift to the template');
+          return;
+        }
+
+        await createScheduleTemplate({
+          name: templateName,
+          schedule: schedule
+        });
+
+        setSaveAsTemplateMode(false);
+        setTemplateName('');
+        await loadScheduleTemplates();
+        alert('Template saved successfully!');
+      } catch (error) {
+        console.error('Error saving template:', error);
+        alert('Error saving template: ' + error.message);
+      }
+    };
+
+    const handleApplyTemplate = () => {
+      if (!selectedTemplate) {
+        alert('Please select a template first');
+        return;
+      }
+
+      // Confirm before overwriting existing schedule
+      if (Object.keys(schedule).length > 0) {
+        if (!confirm('This will replace the current schedule. Continue?')) {
+          return;
+        }
+      }
+
+      setSchedule(selectedTemplate.schedule || {});
+      setShowTemplateSelector(false);
+      setSelectedTemplate(null);
     };
 
     return (
       <Modal>
-        <ModalContent>
-          <h2>Edit Schedule - {selectedUser?.name || 'User'}</h2>
+        <ModalContent style={{ maxWidth: '800px', width: '90%' }}>
+          <h2>Schedule for {userName}</h2>
           
-          <div style={{ marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
             <Button onClick={handleAddShift}>Add Shift</Button>
+            <Button 
+              onClick={() => setShowTemplateSelector(true)}
+              style={{ backgroundColor: '#4F46E5' }}
+            >
+              <Icon><FloppyDisk size={16} /></Icon>
+              Apply Template
+            </Button>
+            <Button 
+              onClick={() => setSaveAsTemplateMode(true)}
+              style={{ backgroundColor: '#059669' }}
+            >
+              <Icon><Copy size={16} /></Icon>
+              Save as Template
+            </Button>
           </div>
 
           {showShiftForm && (
@@ -565,6 +695,17 @@ function UserManagement() {
                   onChange={(e) => setShiftFormData(prev => ({ ...prev, endTime: e.target.value }))}
                 />
               </FormGroup>
+              <FormGroup>
+                <Label>Time Region</Label>
+                <Select
+                  value={shiftFormData.timeRegion || 'PHT'}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, timeRegion: e.target.value }))}
+                >
+                  {timeRegions.map(region => (
+                    <option key={region} value={region}>{region}</option>
+                  ))}
+                </Select>
+              </FormGroup>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <Button onClick={() => setShowShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
                   Cancel
@@ -576,48 +717,141 @@ function UserManagement() {
             </div>
           )}
 
-          <div style={{ marginTop: '1rem', maxHeight: '50vh', overflowY: 'auto' }}>
-            {Object.entries(schedule || {}).map(([shiftId, shift]) => {
-              if (!shift) return null;
-              return (
-                <div key={shiftId} style={{ 
-                  marginBottom: '1rem', 
-                  padding: '1rem',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div>
-                    <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
-                    <div style={{ fontSize: '0.9em', color: '#666' }}>
-                      to
-                    </div>
-                    <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <Button onClick={() => handleEditShift(shiftId)}>
-                      Edit
-                    </Button>
-                    <Button 
-                      onClick={() => handleDeleteShift(shiftId)}
-                      style={{ backgroundColor: '#DC2626' }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
+          {showTemplateSelector && (
+            <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+              <h3>Apply Template</h3>
+              {scheduleTemplates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '1rem', color: '#6B7280' }}>
+                  No templates available. Create a template first.
                 </div>
-              );
-            })}
+              ) : (
+                <>
+                  <FormGroup>
+                    <Label>Select Template</Label>
+                    <Select
+                      value={selectedTemplate ? selectedTemplate.id : ''}
+                      onChange={(e) => {
+                        const template = scheduleTemplates.find(t => t.id === e.target.value);
+                        setSelectedTemplate(template || null);
+                      }}
+                    >
+                      <option value="">-- Select a template --</option>
+                      {scheduleTemplates.map(template => (
+                        <option key={template.id} value={template.id}>{template.name}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  {selectedTemplate && (
+                    <div style={{ marginTop: '1rem', maxHeight: '30vh', overflowY: 'auto' }}>
+                      <h4>Template Preview</h4>
+                      {Object.entries(selectedTemplate.schedule || {}).map(([shiftId, shift]) => (
+                        <div key={shiftId} style={{ 
+                          marginBottom: '0.5rem',
+                          padding: '0.5rem',
+                          backgroundColor: '#F3F4F6',
+                          borderRadius: '4px'
+                        }}>
+                          {formatDayName(shift.startDay)} {shift.startTime} to {formatDayName(shift.endDay)} {shift.endTime} ({shift.timeRegion || 'PHT'})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <Button onClick={() => {
+                  setShowTemplateSelector(false);
+                  setSelectedTemplate(null);
+                }} style={{ backgroundColor: '#6B7280' }}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleApplyTemplate}
+                  disabled={!selectedTemplate}
+                >
+                  Apply Template
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {saveAsTemplateMode && (
+            <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+              <h3>Save as Template</h3>
+              <FormGroup>
+                <Label>Template Name</Label>
+                <Input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="Enter template name"
+                />
+              </FormGroup>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <Button onClick={() => {
+                  setSaveAsTemplateMode(false);
+                  setTemplateName('');
+                }} style={{ backgroundColor: '#6B7280' }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveAsTemplate}>
+                  Save Template
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: '1rem', maxHeight: '40vh', overflowY: 'auto' }}>
+            {Object.keys(schedule).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#6B7280' }}>
+                No shifts added yet. Add a shift or apply a template to get started.
+              </div>
+            ) : (
+              Object.entries(schedule).map(([shiftId, shift]) => {
+                if (!shift) return null;
+                return (
+                  <div key={shiftId} style={{ 
+                    marginBottom: '1rem', 
+                    padding: '1rem',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
+                      <div style={{ fontSize: '0.9em', color: '#666' }}>
+                        to
+                      </div>
+                      <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
+                      <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                        Time Region: {shift.timeRegion || 'PHT'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Button onClick={() => handleEditShift(shiftId)}>
+                        Edit
+                      </Button>
+                      <Button 
+                        onClick={() => handleDeleteShift(shiftId)}
+                        style={{ backgroundColor: '#DC2626' }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
             <Button onClick={() => setShowScheduleModal(false)} style={{ backgroundColor: '#6B7280' }}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>
-              Save Changes
+            <Button onClick={handleSaveSchedule}>
+              Save Schedule
             </Button>
           </div>
         </ModalContent>
@@ -756,6 +990,420 @@ function UserManagement() {
     );
   });
 
+  const ScheduleTemplatesModal = () => {
+    const [templates, setTemplates] = useState(scheduleTemplates);
+    const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+    const [showTemplateForm, setShowTemplateForm] = useState(false);
+    const [templateFormData, setTemplateFormData] = useState({
+      name: '',
+      schedule: {}
+    });
+    const [currentSchedule, setCurrentSchedule] = useState({});
+    const [showShiftForm, setShowShiftForm] = useState(false);
+    const [selectedShift, setSelectedShift] = useState(null);
+    const [shiftFormData, setShiftFormData] = useState({
+      startDay: 'monday',
+      startTime: '',
+      endDay: 'monday',
+      endTime: '',
+      timeRegion: 'PHT'
+    });
+
+    const daysOfWeek = [
+      'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+    ];
+
+    const timeRegions = [
+      'PHT', 'CST', 'EST'
+    ];
+
+    useEffect(() => {
+      setTemplates(scheduleTemplates);
+    }, [scheduleTemplates]);
+
+    const formatDayName = (day) => {
+      if (!day || typeof day !== 'string') return '';
+      return day.charAt(0).toUpperCase() + day.slice(1);
+    };
+
+    const handleAddShift = () => {
+      setSelectedShift(null);
+      setShiftFormData({
+        startDay: 'monday',
+        startTime: '',
+        endDay: 'monday',
+        endTime: '',
+        timeRegion: 'PHT'
+      });
+      setShowShiftForm(true);
+    };
+
+    const handleEditShift = (shiftId) => {
+      const shift = currentSchedule[shiftId];
+      if (!shift) return;
+
+      setSelectedShift(shiftId);
+      setShiftFormData({
+        startDay: shift.startDay || 'monday',
+        startTime: shift.startTime || '',
+        endDay: shift.endDay || 'monday',
+        endTime: shift.endTime || '',
+        timeRegion: shift.timeRegion || 'PHT'
+      });
+      setShowShiftForm(true);
+    };
+
+    const handleDeleteShift = (shiftId) => {
+      if (!shiftId) return;
+      const newSchedule = { ...currentSchedule };
+      delete newSchedule[shiftId];
+      setCurrentSchedule(newSchedule);
+    };
+
+    const handleSaveShift = () => {
+      if (!shiftFormData.startTime || !shiftFormData.endTime) {
+        alert('Please fill in both start and end times');
+        return;
+      }
+
+      try {
+        // Ensure we have valid day values
+        const startDay = shiftFormData.startDay || 'monday';
+        const endDay = shiftFormData.endDay || 'monday';
+        
+        // Validate the shift times
+        const isValid = validateShiftTimes(
+          startDay,
+          shiftFormData.startTime,
+          endDay,
+          shiftFormData.endTime
+        );
+        
+        if (!isValid) {
+          alert('Invalid shift times. End time must be after start time.');
+          return;
+        }
+
+        // Create a unique shift ID if not editing an existing one
+        const shiftId = selectedShift || `shift_${Date.now()}`;
+        
+        // Update the schedule with the new/edited shift
+        setCurrentSchedule(prev => ({
+          ...prev,
+          [shiftId]: {
+            startDay: startDay,
+            startTime: shiftFormData.startTime,
+            endDay: endDay,
+            endTime: shiftFormData.endTime,
+            timeRegion: shiftFormData.timeRegion || 'PHT'
+          }
+        }));
+        
+        // Close the shift form
+        setShowShiftForm(false);
+      } catch (error) {
+        console.error('Error saving shift:', error);
+        alert(error.message || 'Error saving shift. Please check your input.');
+      }
+    };
+
+    const handleCreateTemplate = async () => {
+      try {
+        if (!templateFormData.name.trim()) {
+          alert('Please enter a template name');
+          return;
+        }
+
+        if (Object.keys(currentSchedule).length === 0) {
+          alert('Please add at least one shift to the template');
+          return;
+        }
+
+        await createScheduleTemplate({
+          name: templateFormData.name,
+          schedule: currentSchedule
+        });
+
+        setShowTemplateForm(false);
+        setTemplateFormData({
+          name: '',
+          schedule: {}
+        });
+        setCurrentSchedule({});
+        await loadScheduleTemplates();
+      } catch (error) {
+        console.error('Error creating template:', error);
+        alert('Error creating template: ' + error.message);
+      }
+    };
+
+    const handleEditTemplate = async () => {
+      try {
+        if (!templateFormData.name.trim()) {
+          alert('Please enter a template name');
+          return;
+        }
+
+        if (Object.keys(currentSchedule).length === 0) {
+          alert('Please add at least one shift to the template');
+          return;
+        }
+
+        await updateScheduleTemplate(selectedTemplateId, {
+          name: templateFormData.name,
+          schedule: currentSchedule
+        });
+
+        setShowTemplateForm(false);
+        setSelectedTemplateId(null);
+        setTemplateFormData({
+          name: '',
+          schedule: {}
+        });
+        setCurrentSchedule({});
+        await loadScheduleTemplates();
+      } catch (error) {
+        console.error('Error updating template:', error);
+        alert('Error updating template: ' + error.message);
+      }
+    };
+
+    const handleDeleteTemplate = async (templateId) => {
+      if (!confirm('Are you sure you want to delete this template?')) {
+        return;
+      }
+
+      try {
+        await deleteScheduleTemplate(templateId);
+        await loadScheduleTemplates();
+      } catch (error) {
+        console.error('Error deleting template:', error);
+        alert('Error deleting template: ' + error.message);
+      }
+    };
+
+    const handleEditTemplateClick = (template) => {
+      setSelectedTemplateId(template.id);
+      setTemplateFormData({
+        name: template.name,
+        schedule: template.schedule
+      });
+      setCurrentSchedule(template.schedule || {});
+      setShowTemplateForm(true);
+    };
+
+    const handleCreateNewTemplate = () => {
+      setSelectedTemplateId(null);
+      setTemplateFormData({
+        name: '',
+        schedule: {}
+      });
+      setCurrentSchedule({});
+      setShowTemplateForm(true);
+    };
+
+    return (
+      <Modal>
+        <ModalContent style={{ maxWidth: '800px', width: '90%' }}>
+          <h2>Schedule Templates</h2>
+          <div style={{ marginBottom: '1rem' }}>
+            <Button onClick={handleCreateNewTemplate}>Create New Template</Button>
+          </div>
+
+          {showTemplateForm ? (
+            <div>
+              <h3>{selectedTemplateId ? 'Edit Template' : 'Create New Template'}</h3>
+              <FormGroup>
+                <Label>Template Name</Label>
+                <Input
+                  type="text"
+                  value={templateFormData.name}
+                  onChange={(e) => setTemplateFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter template name"
+                />
+              </FormGroup>
+
+              <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                <h4>Shifts</h4>
+                <Button onClick={handleAddShift}>Add Shift</Button>
+              </div>
+
+              {showShiftForm && (
+                <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+                  <h4>{selectedShift ? 'Edit Shift' : 'Add New Shift'}</h4>
+                  <FormGroup>
+                    <Label>Start Day</Label>
+                    <Select
+                      value={shiftFormData.startDay || 'monday'}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
+                    >
+                      {daysOfWeek.map(day => (
+                        <option key={day} value={day}>{formatDayName(day)}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>Start Time</Label>
+                    <TimeInput
+                      value={shiftFormData.startTime || ''}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>End Day</Label>
+                    <Select
+                      value={shiftFormData.endDay || 'monday'}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, endDay: e.target.value }))}
+                    >
+                      {daysOfWeek.map(day => (
+                        <option key={day} value={day}>{formatDayName(day)}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>End Time</Label>
+                    <TimeInput
+                      value={shiftFormData.endTime || ''}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>Time Region</Label>
+                    <Select
+                      value={shiftFormData.timeRegion || 'PHT'}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, timeRegion: e.target.value }))}
+                    >
+                      {timeRegions.map(region => (
+                        <option key={region} value={region}>{region}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                    <Button onClick={() => setShowShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSaveShift}>
+                      Save Shift
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: '1rem', maxHeight: '30vh', overflowY: 'auto' }}>
+                {Object.entries(currentSchedule || {}).map(([shiftId, shift]) => {
+                  if (!shift) return null;
+                  return (
+                    <div key={shiftId} style={{ 
+                      marginBottom: '1rem', 
+                      padding: '1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
+                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                          to
+                        </div>
+                        <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
+                        <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                          Time Region: {shift.timeRegion || 'PHT'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button onClick={() => handleEditShift(shiftId)}>
+                          Edit
+                        </Button>
+                        <Button 
+                          onClick={() => handleDeleteShift(shiftId)}
+                          style={{ backgroundColor: '#DC2626' }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <Button onClick={() => {
+                  setShowTemplateForm(false);
+                  setSelectedTemplateId(null);
+                }} style={{ backgroundColor: '#6B7280' }}>
+                  Cancel
+                </Button>
+                <Button onClick={selectedTemplateId ? handleEditTemplate : handleCreateTemplate}>
+                  {selectedTemplateId ? 'Update Template' : 'Create Template'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginTop: '1rem', maxHeight: '60vh', overflowY: 'auto' }}>
+              {templates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6B7280' }}>
+                  No templates found. Create your first template to get started.
+                </div>
+              ) : (
+                templates.map(template => (
+                  <div key={template.id} style={{ 
+                    marginBottom: '1rem', 
+                    padding: '1rem',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '4px'
+                  }}>
+                    <div style={{ 
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <h3 style={{ margin: 0 }}>{template.name}</h3>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button onClick={() => handleEditTemplateClick(template)}>
+                          Edit
+                        </Button>
+                        <Button 
+                          onClick={() => handleDeleteTemplate(template.id)}
+                          style={{ backgroundColor: '#DC2626' }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div style={{ fontSize: '0.9em', color: '#4B5563' }}>
+                      {Object.entries(template.schedule || {}).map(([shiftId, shift]) => (
+                        <div key={shiftId} style={{ 
+                          marginBottom: '0.5rem',
+                          padding: '0.5rem',
+                          backgroundColor: '#F3F4F6',
+                          borderRadius: '4px'
+                        }}>
+                          {formatDayName(shift.startDay)} {shift.startTime} to {formatDayName(shift.endDay)} {shift.endTime} ({shift.timeRegion || 'PHT'})
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {!showTemplateForm && (
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+              <Button onClick={() => setShowTemplatesModal(false)} style={{ backgroundColor: '#6B7280' }}>
+                Close
+              </Button>
+            </div>
+          )}
+        </ModalContent>
+      </Modal>
+    );
+  };
+
   if (loading) {
     return <Container>Loading...</Container>;
   }
@@ -765,17 +1413,18 @@ function UserManagement() {
       <Title>
         User Management
         <div>
-          <Button
-            style={{ fontSize: '1rem', marginRight: '1rem' }}
+          <Button onClick={() => setShowCreateModal(true)}>Create User</Button>
+          <Button 
             onClick={() => setShowApprovedEmailsModal(true)}
+            style={{ marginLeft: '0.5rem', backgroundColor: '#4B5563' }}
           >
             Manage Approved Emails
           </Button>
-          <Button
-            style={{ fontSize: '1rem' }}
-            onClick={() => setShowCreateModal(true)}
+          <Button 
+            onClick={() => setShowTemplatesModal(true)}
+            style={{ marginLeft: '0.5rem', backgroundColor: '#4B5563' }}
           >
-            Add New User
+            Manage Schedule Templates
           </Button>
         </div>
       </Title>
@@ -852,7 +1501,7 @@ function UserManagement() {
                   }}
                   style={{ backgroundColor: '#4B5563' }}
                 >
-                  <PencilSimpleLine size={20} />
+                  <Icon><PencilSimpleLine size={20} /></Icon>
                 </Button>
                 <Button
                   onClick={() => {
@@ -861,7 +1510,7 @@ function UserManagement() {
                   }}
                   style={{ backgroundColor: '#4B5563' }}
                 >
-                  <Calendar size={20} />
+                  <Icon><Calendar size={20} /></Icon>
                 </Button>
                 <Button 
                   style={{ marginLeft: '0.5rem', backgroundColor: '#EF4444' }}
@@ -870,7 +1519,7 @@ function UserManagement() {
                     setShowDeleteModal(true);
                   }}
                 >
-                  <Trash size={20} />
+                  <Icon><Trash size={20} /></Icon>
                 </Button>
               </Td>
             </tr>
@@ -929,7 +1578,7 @@ function UserManagement() {
       )}
 
       {showScheduleModal && selectedUser && (
-        <ScheduleModal />
+        <ScheduleModal userId={selectedUser.id} userName={selectedUser.name} currentSchedule={selectedUser.schedule} />
       )}
 
       {/* Delete Confirmation Modal */}
@@ -966,6 +1615,10 @@ function UserManagement() {
 
       {showApprovedEmailsModal && (
         <ApprovedEmailsModal />
+      )}
+
+      {showTemplatesModal && (
+        <ScheduleTemplatesModal />
       )}
     </Container>
   );
