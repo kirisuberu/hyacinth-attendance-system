@@ -6,6 +6,12 @@ import { signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { recordAttendance } from '../utils/attendanceService';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
+import EarlyINGif from '../assets/gif/TimeInOut/EarlyIN.gif';
+import EarlyOUTGif from '../assets/gif/TimeInOut/EarlyOUT.gif';
+import LateINGif from '../assets/gif/TimeInOut/LateIN.gif';
+import OnTimeINGif from '../assets/gif/TimeInOut/OnTimeIN.gif';
+import OnTimeOUTGif from '../assets/gif/TimeInOut/OnTimeOUT.gif';
+import OvertimeOUTGif from '../assets/gif/TimeInOut/OvertimeOUT.gif';
 
 const GlobalStyles = createGlobalStyle`
   * {
@@ -484,6 +490,20 @@ const PopupContent = styled.div`
   }
 `;
 
+const GifContainer = styled.div`
+  margin-bottom: 1.5rem;
+  width: 100%;
+  max-width: 300px;
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 1.5rem auto;
+  
+  img {
+    width: 100%;
+    border-radius: 8px;
+  }
+`;
+
 const PopupButton = styled.button`
   padding: 0.5rem 1.5rem;
   background: #10B981;
@@ -559,17 +579,79 @@ const TimeoutProgressBar = styled.div`
   }
 `;
 
-const calculateNextTimeIn = (userSchedule) => {
+const calculateShiftTiming = (userSchedule) => {
   if (!userSchedule || Object.keys(userSchedule).length === 0) {
-    return null;
+    return { inShift: false, nextTimeIn: null };
   }
 
   const now = new Date();
   const currentDayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  const yesterdayDate = new Date(now);
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayDayOfWeek = yesterdayDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  
   const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
   
+  // Check if user is currently in a shift
+  let currentShift = null;
+  let shiftEndTime = null;
+
+  // First check for overnight shifts that started yesterday
+  Object.entries(userSchedule).forEach(([shiftId, shift]) => {
+    if (shift.startDay && shift.startDay.toLowerCase() === yesterdayDayOfWeek &&
+        shift.endDay && shift.endDay.toLowerCase() === currentDayOfWeek) {
+      
+      // This is an overnight shift from yesterday to today
+      const [endHours, endMinutes] = shift.endTime.split(':').map(Number);
+      const shiftEndTimeMinutes = endHours * 60 + endMinutes;
+      
+      // If current time is before the end time, user is in this shift
+      if (currentTime < shiftEndTimeMinutes) {
+        const endTime = new Date(now);
+        endTime.setHours(endHours, endMinutes, 0, 0);
+        
+        currentShift = { ...shift, id: shiftId };
+        shiftEndTime = endTime;
+      }
+    }
+  });
+
+  // If not in an overnight shift, check for shifts that start and end today
+  if (!currentShift) {
+    Object.entries(userSchedule).forEach(([shiftId, shift]) => {
+      if (shift.startDay && shift.startDay.toLowerCase() === currentDayOfWeek &&
+          shift.endDay && shift.endDay.toLowerCase() === currentDayOfWeek) {
+        
+        const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
+        const [endHours, endMinutes] = shift.endTime.split(':').map(Number);
+        
+        const shiftStartTimeMinutes = startHours * 60 + startMinutes;
+        const shiftEndTimeMinutes = endHours * 60 + endMinutes;
+        
+        // If current time is between start and end, user is in this shift
+        if (currentTime >= shiftStartTimeMinutes && currentTime < shiftEndTimeMinutes) {
+          const endTime = new Date(now);
+          endTime.setHours(endHours, endMinutes, 0, 0);
+          
+          currentShift = { ...shift, id: shiftId };
+          shiftEndTime = endTime;
+        }
+      }
+    });
+  }
+
+  // If user is in a shift, return the current shift info
+  if (currentShift && shiftEndTime) {
+    return {
+      inShift: true,
+      currentShift,
+      shiftEndTime,
+      nextTimeIn: null
+    };
+  }
+
+  // If not in a shift, calculate next time in
   // Get all shifts sorted by day and time
-  const allShifts = [];
   const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const currentDayIndex = daysOfWeek.indexOf(currentDayOfWeek);
   
@@ -613,6 +695,7 @@ const calculateNextTimeIn = (userSchedule) => {
       nextTimeIn.setHours(hours, minutes, 0, 0);
       
       return {
+        inShift: false,
         nextTimeIn,
         shift
       };
@@ -638,13 +721,14 @@ const calculateNextTimeIn = (userSchedule) => {
       nextTimeIn.setHours(hours, minutes, 0, 0);
       
       return {
+        inShift: false,
         nextTimeIn,
         shift: nextShift
       };
     }
   }
   
-  return null;
+  return { inShift: false, nextTimeIn: null };
 };
 
 const formatCountdown = (targetDate) => {
@@ -681,19 +765,22 @@ function MemberLayout() {
   const [todayRecord, setTodayRecord] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState('');
   const [canTimeIn, setCanTimeIn] = useState(true);
   const [confirmationPopup, setConfirmationPopup] = useState({ 
     show: false, 
     message: '', 
-    nextTimeIn: null, 
-    type: '' 
+    shiftInfo: null, 
+    type: '',
+    status: ''
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [timeoutProgress, setTimeoutProgress] = useState({ percentage: 100, timeLeft: '', endTime: null });
-  const [nextTimeInInfo, setNextTimeInInfo] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [userSchedule, setUserSchedule] = useState(null);
   const location = useLocation();
   const isMobile = window.innerWidth < 1024;
-  
+
   useEffect(() => {
     checkTodayAttendance();
     fetchUserInfo();
@@ -733,10 +820,20 @@ function MemberLayout() {
       const [startHours, startMinutes] = todayRecord.scheduleTime.split(':').map(Number);
       const timestampDate = new Date(todayRecord.timestamp.seconds * 1000);
       
-      // Create a date for the scheduled end time
-      // Assuming a standard 8-hour shift
+      // Get the shift duration from the record or use a default of 10 hours
+      const shiftDuration = todayRecord.shiftDuration ? 
+        todayRecord.shiftDuration.hours + (todayRecord.shiftDuration.minutes / 60) : 10;
+      
+      // Create a new Date object for the end time
       const endTime = new Date(timestampDate);
-      endTime.setHours(startHours + 8, startMinutes, 0, 0);
+      
+      // Calculate total minutes and handle day overflow properly
+      const totalMinutes = startMinutes + (shiftDuration * 60);
+      const hoursToAdd = Math.floor(totalMinutes / 60);
+      const minutesRemaining = Math.floor(totalMinutes % 60);
+      
+      // Set the hours and minutes directly
+      endTime.setHours(startHours + hoursToAdd, minutesRemaining, 0, 0);
       
       // If the end time is in the past, don't show the progress bar
       if (endTime <= new Date()) {
@@ -786,9 +883,11 @@ function MemberLayout() {
     try {
       const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
       if (userDoc.exists()) {
-        setUserName(userDoc.data().name);
-        setUserEmail(userDoc.data().email);
-        setUserType(userDoc.data().type);
+        const userData = userDoc.data();
+        setUserName(userData.name);
+        setUserEmail(userData.email);
+        setUserType(userData.type);
+        setUserSchedule(userData.schedule || {});
       }
     } catch (error) {
       console.error('Error fetching user info:', error);
@@ -862,7 +961,7 @@ function MemberLayout() {
               parts.push(`${Math.abs(latestRecord.timeDiffMinutes)}m`);
             }
             if (parts.length > 0) {
-              statusText += ` (${parts.join(' ')})`;
+              statusText += ` (${parts.join(' and ')}${latestRecord.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`;
             }
           }
           
@@ -886,18 +985,81 @@ function MemberLayout() {
     }
   };
 
+  const handleTimeButtonClick = (type) => {
+    const determineExpectedStatus = () => {
+      const now = new Date();
+      
+      // Default times if no schedule is found
+      const defaultStartTime = '09:00';
+      const defaultEndTime = '18:00';
+      
+      // Use user's schedule if available
+      let scheduleStartTime = defaultStartTime;
+      let scheduleEndTime = defaultEndTime;
+      
+      if (todayRecord && todayRecord.schedules && todayRecord.schedules.length > 0) {
+        const sortedSchedules = [...todayRecord.schedules].sort((a, b) => {
+          const [aHours, aMinutes] = a.startTime.split(':').map(Number);
+          const [bHours, bMinutes] = b.startTime.split(':').map(Number);
+          return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
+        });
+        
+        const currentSchedule = sortedSchedules[0];
+        scheduleStartTime = currentSchedule.startTime;
+        scheduleEndTime = currentSchedule.endTime;
+      }
+      
+      const typeUpper = type.toUpperCase();
+      
+      if (typeUpper === 'IN') {
+        const [scheduleHours, scheduleMinutes] = scheduleStartTime.split(':').map(Number);
+        const scheduleDate = new Date();
+        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+        
+        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+        
+        if (diffMinutes <= -60) return 'Early';
+        if (diffMinutes > -60 && diffMinutes <= 5) return 'On Time';
+        if (diffMinutes > 5) return 'Late';
+      }
+      
+      if (typeUpper === 'OUT') {
+        const [scheduleHours, scheduleMinutes] = scheduleEndTime.split(':').map(Number);
+        const scheduleDate = new Date();
+        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+        
+        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+        
+        if (diffMinutes < 0) return 'Early Out';
+        if (diffMinutes >= 0 && diffMinutes <= 5) return 'On Time';
+        if (diffMinutes > 5) return 'Overtime';
+      }
+      
+      return typeUpper === 'IN' ? 'On Time' : 'On Time';
+    };
+    
+    const expectedStatus = determineExpectedStatus();
+    setPendingStatus(expectedStatus);
+    setPendingAction(type.toUpperCase());
+    setShowModal(true);
+  };
+
   const handleTimeRecord = async (type, notes) => {
+    if (!auth.currentUser || isRecording) return;
+
     try {
-      console.log(`Recording ${type.toUpperCase()} attendance with notes: ${notes}`);
+      // Set recording state to prevent multiple submissions
+      setIsRecording(true);
+      console.log(`Recording ${type} attendance with notes: ${notes}`);
       
       const result = await recordAttendance(
         auth.currentUser.uid,
         auth.currentUser.email,
-        userName,
-        type.toUpperCase(),
+        userName || auth.currentUser.displayName || 'Member User',
+        type,
         notes
       );
-
+      
       if (!result.success) {
         throw new Error(result.error || 'Failed to record attendance');
       }
@@ -911,11 +1073,11 @@ function MemberLayout() {
       }, 1000);
 
       // Show status message
-      const statusMessage = `${type.toUpperCase()} recorded - ${result.status}`;
+      const statusMessage = `${type} recorded - ${result.status}`;
       
-      // For OUT records, calculate next time in
-      let nextTimeIn = null;
-      if (type.toUpperCase() === 'OUT') {
+      // For OUT records, calculate shift timing
+      let shiftInfo = null;
+      if (type === 'OUT') {
         // Get user schedule
         try {
           const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
@@ -923,18 +1085,29 @@ function MemberLayout() {
             const userData = userDoc.data();
             const userSchedule = userData.schedule || {};
             
-            // Calculate next time in
-            const nextTimeInData = calculateNextTimeIn(userSchedule);
-            if (nextTimeInData) {
-              nextTimeIn = {
-                time: nextTimeInData.nextTimeIn,
-                shiftName: nextTimeInData.shift.name || 'Next Shift',
-                countdown: formatCountdown(nextTimeInData.nextTimeIn)
+            // Calculate shift timing
+            const shiftTiming = calculateShiftTiming(userSchedule);
+            
+            if (shiftTiming.inShift) {
+              // User is currently in a shift
+              shiftInfo = {
+                inShift: true,
+                shiftName: shiftTiming.currentShift.name || 'Current Shift',
+                endTime: shiftTiming.shiftEndTime,
+                countdown: formatCountdown(shiftTiming.shiftEndTime)
+              };
+            } else if (shiftTiming.nextTimeIn) {
+              // User has a next shift scheduled
+              shiftInfo = {
+                inShift: false,
+                shiftName: shiftTiming.shift.name || 'Next Shift',
+                startTime: shiftTiming.nextTimeIn,
+                countdown: formatCountdown(shiftTiming.nextTimeIn)
               };
             }
           }
         } catch (error) {
-          console.error('Error calculating next time in:', error);
+          console.error('Error calculating shift timing:', error);
         }
       }
       
@@ -952,16 +1125,18 @@ function MemberLayout() {
           setConfirmationPopup({
             show: true,
             message: message,
-            nextTimeIn: nextTimeIn,
-            type: type.toUpperCase()
+            shiftInfo: shiftInfo,
+            type: type,
+            status: result.status
           });
         } else {
           // Show confirmation popup instead of alert
           setConfirmationPopup({
             show: true,
             message: statusMessage,
-            nextTimeIn: nextTimeIn,
-            type: type.toUpperCase()
+            shiftInfo: shiftInfo,
+            type: type,
+            status: result.status
           });
         }
       } else {
@@ -969,20 +1144,17 @@ function MemberLayout() {
         setConfirmationPopup({
           show: true,
           message: statusMessage,
-          nextTimeIn: nextTimeIn,
-          type: type.toUpperCase()
+          shiftInfo: shiftInfo,
+          type: type,
+          status: result.status
         });
       }
-
     } catch (error) {
       console.error('Error recording time:', error);
       alert(error.message || 'Failed to record attendance. Please try again.');
+    } finally {
+      setIsRecording(false);
     }
-  };
-
-  const handleTimeButtonClick = (type) => {
-    setPendingAction(type);
-    setShowModal(true);
   };
 
   const handleLogout = async () => {
@@ -1009,6 +1181,25 @@ function MemberLayout() {
 
   const closeSidebar = () => {
     setSidebarOpen(false);
+  };
+
+  const getGifSource = (status, type) => {
+    if (!status) return null;
+    
+    const statusLower = status.toLowerCase();
+    const upperType = type.toUpperCase();
+    
+    if (upperType === 'IN') {
+      if (statusLower.includes('early')) return EarlyINGif;
+      if (statusLower.includes('late')) return LateINGif;
+      if (statusLower.includes('on time')) return OnTimeINGif;
+    } else if (upperType === 'OUT') {
+      if (statusLower.includes('early out')) return EarlyOUTGif;
+      if (statusLower.includes('overtime')) return OvertimeOUTGif;
+      if (statusLower.includes('on time')) return OnTimeOUTGif;
+    }
+    
+    return null;
   };
 
   const user = auth.currentUser;
@@ -1153,6 +1344,7 @@ function MemberLayout() {
             onClose={() => setShowModal(false)}
             onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
             type={pendingAction?.toUpperCase()}
+            status={pendingStatus}
             userData={{ name: userName, email: userEmail }}
           />
           
@@ -1165,19 +1357,32 @@ function MemberLayout() {
                   </svg>
                   {confirmationPopup.type} Recorded
                 </PopupTitle>
+                
                 <PopupContent>
                   <p>{confirmationPopup.message}</p>
-                  {confirmationPopup.nextTimeIn && confirmationPopup.type === 'OUT' && (
-                    <div className="next-time-in">
-                      <p>Next Time In:</p>
-                      <p>{confirmationPopup.nextTimeIn.shiftName} - {new Date(confirmationPopup.nextTimeIn.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                      {confirmationPopup.nextTimeIn.countdown && (
-                        <p>Countdown: {confirmationPopup.nextTimeIn.countdown}</p>
+                  {confirmationPopup.shiftInfo && confirmationPopup.type === 'OUT' && (
+                    <div className="shift-info">
+                      {confirmationPopup.shiftInfo.inShift ? (
+                        <>
+                          <p>Time Remaining in Shift:</p>
+                          <p>{confirmationPopup.shiftInfo.shiftName} - Ends at {new Date(confirmationPopup.shiftInfo.endTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                          {confirmationPopup.shiftInfo.countdown && (
+                            <p>Remaining: {confirmationPopup.shiftInfo.countdown}</p>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p>Next Time In:</p>
+                          <p>{confirmationPopup.shiftInfo.shiftName} - {new Date(confirmationPopup.shiftInfo.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                          {confirmationPopup.shiftInfo.countdown && (
+                            <p>Countdown: {confirmationPopup.shiftInfo.countdown}</p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
                 </PopupContent>
-                <PopupButton onClick={() => setConfirmationPopup({ show: false, message: '', nextTimeIn: null, type: '' })}>
+                <PopupButton onClick={() => setConfirmationPopup({ show: false, message: '', shiftInfo: null, type: '', status: '' })}>
                   OK
                 </PopupButton>
               </ConfirmationPopup>

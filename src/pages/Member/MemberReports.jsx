@@ -337,7 +337,17 @@ function MemberReports() {
             timestamp = new Date(); // Default to current date if no timestamp
           }
           
-          return {
+          // Debug log for time difference fields
+          console.log(`Record ${doc.id} time diff fields:`, {
+            hoursDiff: data.hoursDiff,
+            minutesDiff: data.minutesDiff,
+            timeDiffHours: data.timeDiffHours,
+            timeDiffMinutes: data.timeDiffMinutes,
+            totalMinutesDiff: data.totalMinutesDiff
+          });
+          
+          // Ensure time difference fields are available with consistent naming
+          const processedData = {
             id: doc.id,
             ...data,
             formattedDate: format(timestamp, 'yyyy-MM-dd'),
@@ -345,6 +355,23 @@ function MemberReports() {
             dayOfWeek: format(timestamp, 'EEEE'), // Add day of week
             timestamp
           };
+          
+          // Ensure we have consistent naming for time difference fields
+          if (data.hoursDiff !== undefined && data.minutesDiff !== undefined) {
+            processedData.timeDiffHours = data.hoursDiff;
+            processedData.timeDiffMinutes = data.minutesDiff;
+            if (data.totalMinutesDiff !== undefined) {
+              processedData.totalMinutesDiff = data.totalMinutesDiff;
+            }
+          } else if (data.timeDiffHours !== undefined && data.timeDiffMinutes !== undefined) {
+            processedData.hoursDiff = data.timeDiffHours;
+            processedData.minutesDiff = data.timeDiffMinutes;
+            if (data.totalMinutesDiff !== undefined) {
+              processedData.totalMinutesDiff = data.totalMinutesDiff;
+            }
+          }
+          
+          return processedData;
         });
         
         // Sort by timestamp, newest first (doing client-side sorting instead)
@@ -409,9 +436,33 @@ function MemberReports() {
     applyDateFilter();
   };
 
-  const formatTimeDiff = (hours, minutes) => {
-    if (hours === undefined || minutes === undefined) return 'N/A';
-    return `${hours}h ${minutes}m`;
+  const formatTimeDiff = (hours, minutes, totalMinutes) => {
+    if ((hours === undefined || hours === null) && (minutes === undefined || minutes === null)) {
+      return 'N/A';
+    }
+    
+    // Convert to numbers to ensure proper handling
+    hours = Number(hours) || 0;
+    minutes = Number(minutes) || 0;
+    
+    // Format the time difference
+    const formattedTime = [];
+    if (hours !== 0) {
+      formattedTime.push(`${Math.abs(hours)}h`);
+    }
+    if (minutes !== 0) {
+      formattedTime.push(`${Math.abs(minutes)}m`);
+    }
+    
+    if (formattedTime.length === 0) {
+      return '0m';
+    }
+    
+    // Determine if early or late based on the sign of hours/minutes
+    const isEarly = (hours < 0 || (hours === 0 && minutes < 0));
+    const suffix = isEarly ? ' early' : ' late';
+    
+    return `${formattedTime.join(' ')}${suffix}`;
   };
 
   return (
@@ -477,7 +528,11 @@ function MemberReports() {
                       {report.status || 'Unknown'}
                     </StatusBadge>
                   </Td>
-                  <Td>{formatTimeDiff(report.timeDiffHours, report.timeDiffMinutes)}</Td>
+                  <Td>{formatTimeDiff(
+                    report.hoursDiff || report.timeDiffHours, 
+                    report.minutesDiff || report.timeDiffMinutes,
+                    report.totalMinutesDiff
+                  )}</Td>
                   <Td>{report.notes || '-'}</Td>
                 </tr>
               ))}

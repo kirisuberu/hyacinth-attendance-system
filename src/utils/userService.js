@@ -16,53 +16,49 @@ export const WeeklySchedule = {
 };
 
 // Helper function to validate shift times
-export const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
+export const validateShiftTimes = (day, timeIn, duration, timeRegion) => {
   // Check if any of the parameters are null or undefined
-  if (!startDay || !startTime || !endDay || !endTime) {
-    console.warn('validateShiftTimes: Missing required parameters', { startDay, startTime, endDay, endTime });
+  if (!day || !timeIn || !duration || !timeRegion) {
+    console.warn('validateShiftTimes: Missing required parameters', { day, timeIn, duration, timeRegion });
     return false;
   }
 
   try {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     
-    // Normalize day names to lowercase
-    const startDayLower = startDay.toLowerCase();
-    const endDayLower = endDay.toLowerCase();
+    // Normalize day name to lowercase
+    const dayLower = day.toLowerCase();
     
-    const startDayIndex = days.indexOf(startDayLower);
-    const endDayIndex = days.indexOf(endDayLower);
+    const dayIndex = days.indexOf(dayLower);
     
-    if (startDayIndex === -1 || endDayIndex === -1) {
-      console.warn('validateShiftTimes: Invalid day provided', { startDay, endDay });
+    if (dayIndex === -1) {
+      console.warn('validateShiftTimes: Invalid day provided', { day });
       return false;
     }
 
-    // Convert times to minutes for comparison
-    const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
+    // Validate time format
+    const [hour, minute] = timeIn.split(':').map(Number);
     
-    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-      console.warn('validateShiftTimes: Invalid time format', { startTime, endTime });
+    if (isNaN(hour) || isNaN(minute)) {
+      console.warn('validateShiftTimes: Invalid time format', { timeIn });
       return false;
     }
     
-    const startTotalMinutes = startHour * 60 + startMinute;
-    const endTotalMinutes = endHour * 60 + endMinute;
-
-    // Calculate the total duration considering day change
-    let duration;
-    if (startDayIndex === endDayIndex) {
-      duration = endTotalMinutes - startTotalMinutes;
-      if (duration < 0) {
-        duration += 24 * 60; // Add 24 hours if end time is on next day
-      }
-    } else {
-      const daysDiff = (endDayIndex - startDayIndex + 7) % 7;
-      duration = (daysDiff * 24 * 60) + (endTotalMinutes - startTotalMinutes);
+    // Validate duration (should be a positive number)
+    const durationNum = Number(duration);
+    if (isNaN(durationNum) || durationNum <= 0) {
+      console.warn('validateShiftTimes: Invalid duration', { duration });
+      return false;
+    }
+    
+    // Validate time region
+    const validTimeRegions = ['PHT', 'CST', 'EST'];
+    if (!validTimeRegions.includes(timeRegion)) {
+      console.warn('validateShiftTimes: Invalid time region', { timeRegion });
+      return false;
     }
 
-    return duration > 0;
+    return true;
   } catch (error) {
     console.error('Error in validateShiftTimes:', error);
     return false;
@@ -227,10 +223,10 @@ export const createOrUpdateUser = async (userId, userData) => {
     const actualUserId = userId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     // Validate schedule if present and not empty
-    const schedule = userData.schedule || {};
-    if (Object.keys(schedule).length > 0) {
-      Object.entries(schedule).forEach(([shiftId, shift]) => {
-        if (shift && !validateShiftTimes(shift.startDay, shift.startTime, shift.endDay, shift.endTime)) {
+    const shifts = userData.shifts || {};
+    if (Object.keys(shifts).length > 0) {
+      Object.entries(shifts).forEach(([shiftId, shift]) => {
+        if (shift && !validateShiftTimes(shift.day, shift.timeIn, shift.duration, shift.timeRegion)) {
           throw new Error(`Invalid shift times for shift ${shiftId}`);
         }
       });
@@ -285,16 +281,22 @@ export const getAllUsers = async () => {
 };
 
 // Update user schedule
-export const updateUserSchedule = async (userId, schedule) => {
+export const updateUserSchedule = async (userId, shifts) => {
   try {
     const userRef = doc(db, 'users', userId);
-    await setDoc(userRef, {
-      schedule,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-    return true;
+    
+    // Get the current user data
+    const userDoc = await getDoc(userRef);
+    if (!userDoc.exists()) {
+      throw new Error('User not found');
+    }
+    
+    // Update just the shifts field
+    await updateDoc(userRef, { shifts });
+    
+    return userRef;
   } catch (error) {
-    console.error('Error updating user schedule:', error);
+    console.error('Error updating user shifts:', error);
     throw error;
   }
 };

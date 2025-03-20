@@ -1,11 +1,14 @@
 import React from 'react';
-import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { auth } from '../firebase';
-import { checkUserAccess, UserType } from '../utils/userService';
+import { UserType } from '../utils/userService';
 import { recordAttendance } from '../utils/attendanceService';
 import { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
+import { Calendar, Clock, ClockClockwise } from 'phosphor-react';
+import PropTypes from 'prop-types';
 
 const LayoutContainer = styled.div`
   display: flex;
@@ -149,65 +152,55 @@ const AttendanceButton = styled.button`
   }
 `;
 
-function AdminLayout() {
-  const [userAccess, setUserAccess] = useState({ hasAccess: null, userType: null });
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+`;
+
+function AdminLayout({ isMemberView = false }) {
+  const { currentUser, userAccess, loading, isAdmin, isAccountant } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingAttendanceType, setPendingAttendanceType] = useState(null);
-
-  useEffect(() => {
-    const checkAccess = async (user) => {
-      try {
-        if (!user) {
-          console.log('No user found in checkAccess');
-          setUserAccess({ hasAccess: false, userType: null });
-          setLoading(false);
-          return;
-        }
-
-        console.log('Checking access for user:', {
-          email: user.email,
-          uid: user.uid,
-          emailVerified: user.emailVerified
-        });
-
-        const { hasAccess, userType } = await checkUserAccess(user.uid);
-        console.log('Access check result:', { hasAccess, userType });
-        
-        setUserAccess({ hasAccess, userType });
-      } catch (error) {
-        console.error('Error checking access:', error);
-        console.error('Error details:', {
-          code: error.code,
-          message: error.message
-        });
-        setUserAccess({ hasAccess: false, userType: null });
-      }
-      setLoading(false);
-    };
-
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        console.log('Auth state changed - Current user:', {
-          email: user.email,
-          uid: user.uid
-        });
-        setCurrentUser(user);
-        checkAccess(user);
-      } else {
-        console.log('Auth state changed - No user logged in');
-        setCurrentUser(null);
-        setUserAccess({ hasAccess: false, userType: null });
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const [pendingStatus, setPendingStatus] = useState('');
 
   const handleAttendance = async (type) => {
+    const determineExpectedStatus = () => {
+      const now = new Date();
+      
+      const defaultStartTime = '09:00';
+      const defaultEndTime = '18:00';
+      
+      if (type === 'IN') {
+        const [scheduleHours, scheduleMinutes] = defaultStartTime.split(':').map(Number);
+        const scheduleDate = new Date();
+        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+        
+        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+        
+        if (diffMinutes <= -60) return 'Early';
+        if (diffMinutes > -60 && diffMinutes <= 5) return 'On Time';
+        if (diffMinutes > 5) return 'Late';
+      }
+      
+      if (type === 'OUT') {
+        const [scheduleHours, scheduleMinutes] = defaultEndTime.split(':').map(Number);
+        const scheduleDate = new Date();
+        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+        
+        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+        
+        if (diffMinutes < 0) return 'Early Out';
+        if (diffMinutes >= 0 && diffMinutes <= 5) return 'On Time';
+        if (diffMinutes > 5) return 'Overtime';
+      }
+      
+      return type === 'IN' ? 'On Time' : 'On Time';
+    };
+    
+    const expectedStatus = determineExpectedStatus();
+    setPendingStatus(expectedStatus);
     setPendingAttendanceType(type);
     setShowConfirmation(true);
   };
@@ -237,12 +230,14 @@ function AdminLayout() {
       setIsRecording(false);
       setShowConfirmation(false);
       setPendingAttendanceType(null);
+      setPendingStatus('');
     }
   };
 
   const handleCancelAttendance = () => {
     setShowConfirmation(false);
     setPendingAttendanceType(null);
+    setPendingStatus('');
   };
 
   const handleLogout = async () => {
@@ -270,25 +265,99 @@ function AdminLayout() {
     );
   }
 
-  // Redirect non-admin/accountant users to member dashboard
-  if (!userAccess.hasAccess || userAccess.userType === UserType.MEMBER) {
-    console.log('User does not have admin/accountant access, redirecting to member dashboard', userAccess);
-    return <Navigate to="/member/dashboard" replace />;
+  // For member view, we don't need to redirect
+  if (!isMemberView) {
+    // Redirect non-admin/accountant users to member dashboard
+    if (!userAccess.hasAccess || userAccess.userType === UserType.MEMBER) {
+      console.log('User does not have admin/accountant access, redirecting to member dashboard', userAccess);
+      return <Navigate to="/member/dashboard" replace />;
+    }
+  }
+
+  // Determine the title based on user type and view mode
+  let layoutTitle = 'Hyacinth';
+  if (isMemberView) {
+    layoutTitle += ' Member';
+  } else if (isAdmin) {
+    layoutTitle += ' Admin';
+  } else if (isAccountant) {
+    layoutTitle += ' Accountant';
   }
 
   return (
     <LayoutContainer>
       <Sidebar>
-        <Logo>Hyacinth {userAccess.userType === UserType.ADMIN ? 'Admin' : 'Accountant'}</Logo>
+        <Logo>{layoutTitle}</Logo>
         <nav>
-          {userAccess.userType === UserType.ADMIN && (
+          {/* Admin-only links - hidden for member view */}
+          {!isMemberView && isAdmin && (
             <NavLink to="/admin/users">User Management</NavLink>
           )}
-          <NavLink to="/admin/dashboard">Dashboard</NavLink>
-          <NavLink to="/admin/reports">Reports</NavLink>
-          <NavLink to="/admin/my-schedule">My Schedule</NavLink>
-          <NavLink to="/admin/all-schedules">All Schedules</NavLink>
-          <NavLink to="/admin/realtime-attendance">Real-Time Attendance</NavLink>
+          
+          {/* Admin Dashboard - hidden for member view */}
+          {!isMemberView && (
+            <NavLink to="/admin/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
+              Admin Dashboard
+            </NavLink>
+          )}
+          
+          {/* My Dashboard - available for all */}
+          <NavLink 
+            to={isMemberView ? "/member/dashboard" : "/admin/my-dashboard"} 
+            className={({ isActive }) => isActive ? 'active' : ''}
+          >
+            My Dashboard
+          </NavLink>
+          
+          {/* Schedule links - available for all */}
+          <NavLink 
+            to={isMemberView ? "/member/all-schedules" : "/admin/all-schedules"} 
+            className={({ isActive }) => isActive ? 'active' : ''}
+          >
+            All Schedules
+          </NavLink>
+          
+          {/* User Calendar - hidden for member view */}
+          {!isMemberView && (
+            <NavLink to="/admin/user-calendar" className={({ isActive }) => isActive ? 'active' : ''}>
+              <Icon><Calendar size={16} /></Icon>
+              User Calendar
+            </NavLink>
+          )}
+          
+          {/* My Schedule - available for all */}
+          <NavLink 
+            to={isMemberView ? "/member/my-schedule" : "/admin/my-schedule"} 
+            className={({ isActive }) => isActive ? 'active' : ''}
+          >
+            My Schedule
+          </NavLink>
+          
+          {/* Reports - available for all */}
+          <NavLink 
+            to={isMemberView ? "/member/reports" : "/admin/reports"} 
+            className={({ isActive }) => isActive ? 'active' : ''}
+          >
+            Reports
+          </NavLink>
+          
+          {/* Real-Time Attendance - available for all */}
+          <NavLink 
+            to={isMemberView ? "/member/realtime-attendance" : "/admin/realtime-attendance"} 
+            className={({ isActive }) => isActive ? 'active' : ''}
+          >
+            <Icon><Clock size={16} /></Icon>
+            Real-Time Attendance
+          </NavLink>
+          
+          {/* Attendance Logs - admin only */}
+          {!isMemberView && (
+            <NavLink to="/admin/attendance-logs" className={({ isActive }) => isActive ? 'active' : ''}>
+              <Icon><ClockClockwise size={16} /></Icon>
+              Attendance Logs
+            </NavLink>
+          )}
+          
           <LogoutButton onClick={handleLogout}>
             Sign Out
           </LogoutButton>
@@ -312,7 +381,7 @@ function AdminLayout() {
               </AttendanceButton>
             </AttendanceButtons>
             <UserInfo>
-              <div className="name">{currentUser.displayName || 'Admin User'}</div>
+              <div className="name">{currentUser.displayName || (isMemberView ? 'Member User' : 'Admin User')}</div>
               <div className="email">{currentUser.email}</div>
             </UserInfo>
           </>
@@ -328,12 +397,17 @@ function AdminLayout() {
         onConfirm={handleConfirmAttendance}
         type={pendingAttendanceType}
         userData={{
-          name: currentUser?.displayName || 'Admin User',
+          name: currentUser?.displayName || (isMemberView ? 'Member User' : 'Admin User'),
           email: currentUser?.email
         }}
+        status={pendingStatus}
       />
     </LayoutContainer>
   );
 }
+
+AdminLayout.propTypes = {
+  isMemberView: PropTypes.bool
+};
 
 export default AdminLayout;

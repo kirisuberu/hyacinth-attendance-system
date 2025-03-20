@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { auth, db } from '../../firebase';
 import styled from 'styled-components';
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from 'firebase/firestore';
-import { format, differenceInDays, parseISO, isToday, isThisWeek, isThisMonth } from 'date-fns';
+import { format, differenceInDays, parseISO, isToday, isThisWeek, isThisMonth, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isSameDay } from 'date-fns';
 
 const DashboardContainer = styled.div`
   width: 100%;
@@ -324,141 +324,363 @@ function MemberDashboard() {
     onTimePercentage: 0,
     weeklyAttendance: 0,
     monthlyAttendance: 0,
-    punctualityRate: 0
+    punctualityRate: 0,
+    absences: 0,
+    lates: 0,
+    earlies: 0,
+    overtimes: 0,
+    earlyOuts: 0,
+    onTimeIns: 0,
+    onTimeOuts: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [userSchedule, setUserSchedule] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) return;
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      console.log("Auth state changed:", currentUser ? currentUser.uid : "No user");
+      setUser(currentUser);
+      
+      // Reset loading state when auth changes
+      if (!currentUser) {
+        setLoading(false);
+      }
+    });
+    
+    return () => unsubscribe();
+  }, []);
 
-        setLoading(true);
+  useEffect(() => {
+    if (!user) {
+      console.log("No authenticated user, skipping data fetch");
+      return;
+    }
+    
+    console.log("Fetching data for user:", user.uid);
+    fetchUserData();
+  }, [user]);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      console.log("Current user:", user.uid, user.email);
+      
+      // Fetch user's schedule first
+      const userRef = collection(db, 'users');
+      
+      // Try different ways to find the user document
+      let userData = null;
+      let userSnapshot = null;
+      
+      // First try with userId
+      const userIdQuery = query(userRef, where('userId', '==', user.uid));
+      userSnapshot = await getDocs(userIdQuery);
+      
+      if (!userSnapshot.empty) {
+        userData = userSnapshot.docs[0].data();
+        console.log("Found user data by userId:", userData);
+      } else {
+        // Then try with uid field
+        const uidQuery = query(userRef, where('uid', '==', user.uid));
+        userSnapshot = await getDocs(uidQuery);
         
-        // Fetch user's attendance records
-        const attendanceRef = collection(db, 'attendance');
-        const userAttendanceQuery = query(
+        if (!userSnapshot.empty) {
+          userData = userSnapshot.docs[0].data();
+          console.log("Found user data by uid field:", userData);
+        } else {
+          // Finally try with email
+          const emailQuery = query(userRef, where('email', '==', user.email));
+          userSnapshot = await getDocs(emailQuery);
+          
+          if (!userSnapshot.empty) {
+            userData = userSnapshot.docs[0].data();
+            console.log("Found user data by email:", userData);
+          } else {
+            console.log("No user document found for this user");
+          }
+        }
+      }
+      
+      if (userData && userData.schedule) {
+        console.log("Setting user schedule:", userData.schedule);
+        setUserSchedule(userData.schedule);
+      } else {
+        console.log("No schedule found for user");
+      }
+      
+      // Fetch user's attendance records
+      const attendanceRef = collection(db, 'attendance');
+      let attendanceSnapshot = null;
+      
+      // Try different ways to find attendance records
+      // First try with userId
+      const userIdAttendanceQuery = query(
+        attendanceRef,
+        where('userId', '==', user.uid)
+      );
+      
+      console.log("Fetching attendance with userId:", user.uid);
+      attendanceSnapshot = await getDocs(userIdAttendanceQuery);
+      
+      if (attendanceSnapshot.empty) {
+        console.log("No attendance records found with userId");
+        
+        // Then try with uid field
+        const uidAttendanceQuery = query(
           attendanceRef,
-          where('userId', '==', user.uid)
+          where('uid', '==', user.uid)
         );
         
-        const querySnapshot = await getDocs(userAttendanceQuery);
+        console.log("Fetching attendance with uid field:", user.uid);
+        attendanceSnapshot = await getDocs(uidAttendanceQuery);
         
-        if (querySnapshot.empty) {
-          // If no records found with user ID, try with email as fallback
-          const emailQuery = query(
+        if (attendanceSnapshot.empty) {
+          console.log("No attendance records found with uid field");
+          
+          // Finally try with email
+          const emailAttendanceQuery = query(
             attendanceRef,
             where('email', '==', user.email)
           );
           
-          const emailSnapshot = await getDocs(emailQuery);
+          console.log("Fetching attendance with email:", user.email);
+          attendanceSnapshot = await getDocs(emailAttendanceQuery);
           
-          if (emailSnapshot.empty) {
+          if (attendanceSnapshot.empty) {
+            console.log("No attendance records found with any identifier");
             setStats({
               totalAttendance: 0,
               onTimePercentage: 0,
               weeklyAttendance: 0,
               monthlyAttendance: 0,
-              punctualityRate: 0
+              punctualityRate: 0,
+              absences: 0,
+              lates: 0,
+              earlies: 0,
+              overtimes: 0,
+              earlyOuts: 0,
+              onTimeIns: 0,
+              onTimeOuts: 0
             });
             setRecentActivity([]);
             setLoading(false);
             return;
           }
-          
-          processAttendanceData(emailSnapshot);
-        } else {
-          processAttendanceData(querySnapshot);
         }
-        
-        // Fetch user's schedule
-        const userRef = collection(db, 'users');
-        const userQuery = query(userRef, where('userId', '==', user.uid));
-        const userSnapshot = await getDocs(userQuery);
-        
-        if (!userSnapshot.empty) {
-          const userData = userSnapshot.docs[0].data();
-          if (userData.schedule) {
-            setUserSchedule(userData.schedule);
-          }
-        }
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setError('Failed to load dashboard data. Please try again later.');
-        setLoading(false);
       }
-    };
-    
-    const processAttendanceData = (snapshot) => {
-      try {
-        const attendanceData = snapshot.docs.map(doc => {
-          const data = doc.data();
-          
-          // Convert Firestore timestamp to JavaScript Date
-          let timestamp;
-          if (data.timestamp && data.timestamp.seconds) {
-            timestamp = new Date(data.timestamp.seconds * 1000);
-          } else if (data.date) {
-            timestamp = new Date(data.date);
-          } else {
-            timestamp = new Date();
-          }
-          
-          return {
-            id: doc.id,
-            ...data,
-            formattedDate: format(timestamp, 'yyyy-MM-dd'),
-            formattedTime: format(timestamp, 'hh:mm a'),
-            dayOfWeek: format(timestamp, 'EEEE'),
-            timestamp
-          };
-        });
-        
-        // Sort by timestamp, newest first
-        const sortedData = attendanceData.sort((a, b) => b.timestamp - a.timestamp);
-        
-        // Get recent activity (last 5 records)
-        const recent = sortedData.slice(0, 5);
-        setRecentActivity(recent);
-        
-        // Calculate statistics
-        const totalRecords = sortedData.length;
-        const onTimeRecords = sortedData.filter(record => 
-          record.status === 'On Time' || record.status === 'Early'
-        ).length;
-        
-        const weeklyRecords = sortedData.filter(record => 
-          isThisWeek(record.timestamp)
-        ).length;
-        
-        const monthlyRecords = sortedData.filter(record => 
-          isThisMonth(record.timestamp)
-        ).length;
-        
-        // Calculate punctuality rate (percentage of on-time or early records)
-        const punctualityRate = totalRecords > 0 ? Math.round((onTimeRecords / totalRecords) * 100) : 0;
-        
+      
+      console.log("Found attendance records:", attendanceSnapshot.size);
+      processAttendanceData(attendanceSnapshot, userData?.schedule || {});
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setError('Failed to load dashboard data. Please try again later.');
+      setLoading(false);
+    }
+  };
+  
+  const processAttendanceData = (snapshot, schedule) => {
+    try {
+      console.log("Processing attendance data, records:", snapshot.size);
+      if (snapshot.size === 0) {
+        console.log("No records to process");
         setStats({
-          totalAttendance: totalRecords,
-          onTimePercentage: punctualityRate,
-          weeklyAttendance: weeklyRecords,
-          monthlyAttendance: monthlyRecords,
-          punctualityRate
+          totalAttendance: 0,
+          onTimePercentage: 0,
+          weeklyAttendance: 0,
+          monthlyAttendance: 0,
+          punctualityRate: 0,
+          absences: 0,
+          lates: 0,
+          earlies: 0,
+          overtimes: 0,
+          earlyOuts: 0,
+          onTimeIns: 0,
+          onTimeOuts: 0
         });
-      } catch (err) {
-        console.error("Error processing attendance data:", err);
-        setError("Error processing data. Please try again later.");
+        setRecentActivity([]);
+        return;
       }
-    };
-
-    fetchUserData();
-  }, []);
+      
+      const attendanceData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log("Processing record:", doc.id, data);
+        
+        // Convert Firestore timestamp to JavaScript Date
+        let timestamp;
+        if (data.timestamp && data.timestamp.seconds) {
+          timestamp = new Date(data.timestamp.seconds * 1000);
+        } else if (data.date) {
+          timestamp = new Date(data.date);
+        } else {
+          timestamp = new Date();
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+          formattedDate: format(timestamp, 'yyyy-MM-dd'),
+          formattedTime: format(timestamp, 'hh:mm a'),
+          dayOfWeek: format(timestamp, 'EEEE'),
+          timestamp
+        };
+      });
+      
+      console.log("Processed attendance data:", attendanceData);
+      
+      // Sort by timestamp, newest first (since we're not using orderBy in the query)
+      const sortedData = attendanceData.sort((a, b) => b.timestamp - a.timestamp);
+      console.log("Sorted data:", sortedData);
+      
+      // Get recent activity (last 5 records)
+      const recent = sortedData.slice(0, 5);
+      setRecentActivity(recent);
+      
+      // Calculate statistics
+      const totalRecords = sortedData.length;
+      
+      // Get the current date and calculate the start of the week and month
+      const today = new Date();
+      const currentWeekStart = startOfWeek(today);
+      const currentWeekEnd = endOfWeek(today);
+      const currentMonthStart = startOfMonth(today);
+      const currentMonthEnd = endOfMonth(today);
+      
+      // Filter records for this week and month
+      const weeklyRecords = sortedData.filter(record => {
+        const recordDate = record.timestamp;
+        return recordDate >= currentWeekStart && recordDate <= currentWeekEnd;
+      }).length;
+      
+      const monthlyRecords = sortedData.filter(record => {
+        const recordDate = record.timestamp;
+        return recordDate >= currentMonthStart && recordDate <= currentMonthEnd;
+      }).length;
+      
+      // Calculate status-based statistics with improved filtering
+      const lateRecords = sortedData.filter(record => 
+        record.status && record.status.toLowerCase().includes('late')
+      ).length;
+      
+      const earlyRecords = sortedData.filter(record => 
+        record.status && 
+        record.status.toLowerCase().includes('early') && 
+        !record.status.toLowerCase().includes('out') &&
+        record.type === 'IN'
+      ).length;
+      
+      const overtimeRecords = sortedData.filter(record => 
+        record.status && record.status.toLowerCase().includes('overtime')
+      ).length;
+      
+      const earlyOutRecords = sortedData.filter(record => 
+        record.status && record.status.toLowerCase().includes('early out')
+      ).length;
+      
+      const onTimeInRecords = sortedData.filter(record => 
+        record.status === 'On Time' && record.type === 'IN'
+      ).length;
+      
+      const onTimeOutRecords = sortedData.filter(record => 
+        record.status === 'On Time' && record.type === 'OUT'
+      ).length;
+      
+      // Calculate punctuality rate only for time-in records
+      const timeInRecords = sortedData.filter(record => record.type === 'IN');
+      const onTimeOrEarlyIns = timeInRecords.filter(record => 
+        record.status === 'On Time' || record.status === 'Early'
+      ).length;
+      
+      const punctualityRate = timeInRecords.length > 0 
+        ? Math.round((onTimeOrEarlyIns / timeInRecords.length) * 100) 
+        : 0;
+      
+      // Calculate absences based on schedule
+      let absences = 0;
+      
+      // Only calculate absences if we have schedule data
+      if (Object.keys(schedule).length > 0) {
+        // Get the earliest attendance record date
+        const earliestRecord = sortedData.length > 0 
+          ? new Date(Math.min(...sortedData.map(record => record.timestamp.getTime())))
+          : new Date();
+        
+        // Calculate the number of days from the earliest record to today
+        const daysSinceFirstRecord = Math.max(1, differenceInDays(today, earliestRecord));
+        
+        // Limit the calculation to the last 30 days to avoid inflated numbers
+        const daysToCheck = Math.min(daysSinceFirstRecord, 30);
+        
+        // Create an array of dates to check
+        const datesToCheck = [];
+        for (let i = 0; i < daysToCheck; i++) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          datesToCheck.push(date);
+        }
+        
+        // Count days where the user was scheduled but didn't check in
+        absences = datesToCheck.reduce((count, date) => {
+          const dayOfWeek = format(date, 'EEEE').toLowerCase();
+          
+          // Check if user was scheduled for this day
+          const isScheduledDay = schedule[dayOfWeek] && 
+            schedule[dayOfWeek].startTime && 
+            schedule[dayOfWeek].endTime;
+          
+          if (isScheduledDay) {
+            // Check if there's any attendance record for this day
+            const hasAttendanceRecord = sortedData.some(record => 
+              isSameDay(record.timestamp, date) && record.type === 'IN'
+            );
+            
+            // If scheduled but no attendance, count as absence
+            if (!hasAttendanceRecord) {
+              return count + 1;
+            }
+          }
+          
+          return count;
+        }, 0);
+      }
+      
+      console.log("Calculated stats:", {
+        totalRecords,
+        punctualityRate,
+        weeklyRecords,
+        monthlyRecords,
+        absences,
+        lateRecords,
+        earlyRecords,
+        overtimeRecords,
+        earlyOutRecords,
+        onTimeInRecords,
+        onTimeOutRecords
+      });
+      
+      setStats({
+        totalAttendance: totalRecords,
+        onTimePercentage: punctualityRate,
+        weeklyAttendance: weeklyRecords,
+        monthlyAttendance: monthlyRecords,
+        punctualityRate,
+        absences,
+        lates: lateRecords,
+        earlies: earlyRecords,
+        overtimes: overtimeRecords,
+        earlyOuts: earlyOutRecords,
+        onTimeIns: onTimeInRecords,
+        onTimeOuts: onTimeOutRecords
+      });
+    } catch (err) {
+      console.error("Error processing attendance data:", err);
+      setError("Error processing data. Please try again later.");
+    }
+  };
 
   const formatScheduleTime = (timeString) => {
     if (!timeString) return '';
@@ -525,6 +747,59 @@ function MemberDashboard() {
         </StatCard>
       </StatsGrid>
       
+      <SectionTitle>Attendance Statistics</SectionTitle>
+      <StatsGrid>
+        <StatCard>
+          <h3>Absences</h3>
+          <p>{stats.absences}</p>
+          <div className={`trend ${stats.absences > 0 ? 'trend-down' : 'trend-up'}`}>
+            {stats.absences > 0 ? '↓ Missed days' : '↑ Perfect attendance'}
+          </div>
+        </StatCard>
+        <StatCard>
+          <h3>Lates</h3>
+          <p>{stats.lates}</p>
+          <div className={`trend ${stats.lates > 0 ? 'trend-down' : 'trend-up'}`}>
+            {stats.lates > 0 ? '↓ Late arrivals' : '↑ No late arrivals'}
+          </div>
+        </StatCard>
+        <StatCard>
+          <h3>Earlies</h3>
+          <p>{stats.earlies}</p>
+          <div className="trend trend-up">
+            Early arrivals
+          </div>
+        </StatCard>
+        <StatCard>
+          <h3>Overtimes</h3>
+          <p>{stats.overtimes}</p>
+          <div className="trend">
+            Extended hours
+          </div>
+        </StatCard>
+        <StatCard>
+          <h3>Early Outs</h3>
+          <p>{stats.earlyOuts}</p>
+          <div className={`trend ${stats.earlyOuts > 5 ? 'trend-down' : ''}`}>
+            Left before schedule
+          </div>
+        </StatCard>
+        <StatCard>
+          <h3>On Time (IN)</h3>
+          <p>{stats.onTimeIns}</p>
+          <div className="trend trend-up">
+            Punctual arrivals
+          </div>
+        </StatCard>
+        <StatCard>
+          <h3>On Time (OUT)</h3>
+          <p>{stats.onTimeOuts}</p>
+          <div className="trend trend-up">
+            Punctual departures
+          </div>
+        </StatCard>
+      </StatsGrid>
+      
       <SectionTitle>Recent Activity</SectionTitle>
       <RecentActivityCard>
         <ActivityHeader>
@@ -558,28 +833,6 @@ function MemberDashboard() {
           )}
         </ActivityList>
       </RecentActivityCard>
-      
-      <SectionTitle>My Schedule</SectionTitle>
-      <UpcomingScheduleCard>
-        <h3>Weekly Schedule</h3>
-        {Object.keys(userSchedule).length > 0 ? (
-          Object.entries(userSchedule).map(([id, schedule]) => (
-            <div className="schedule-item" key={id}>
-              <div className="day">
-                {schedule.startDay} {schedule.startDay !== schedule.endDay ? `- ${schedule.endDay}` : ''}
-              </div>
-              <div className="time">
-                {formatScheduleTime(schedule.startTime)} - {formatScheduleTime(schedule.endTime)}
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="schedule-item">
-            <div className="day">No schedule configured</div>
-            <div className="time">Default: 9:00 AM - 6:00 PM</div>
-          </div>
-        )}
-      </UpcomingScheduleCard>
     </DashboardContainer>
   );
 }

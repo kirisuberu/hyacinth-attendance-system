@@ -1,5 +1,22 @@
 {
   "projects": {
     "default": "hyacinthattendance"
-  }
+  },
+  "targets": {
+    "hyacinthattendance": {
+      "hosting": {
+        "hyacinthattendance": [
+          "hyacinthattendance"
+        ]
+      }
+    },
+    "hyattend": {
+      "hosting": {
+        "hyattend": [
+          "hyattend"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

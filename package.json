@@ -7,8 +7,10 @@
     "dev": "vite",
     "dev:emulator": "firebase emulators:start",
     "dev:full": "concurrently \"npm run dev\" \"npm run dev:emulator\"",
-    "build": "vite build",
+    "build": "concurrently \"vite build\" \"npm run build:hyacinthattendance\" \"npm run build:hyattend\"",
     "build:prod": "vite build --mode production",
+    "build:hyacinthattendance": "vite build --outDir dist-hyacinthattendance",
+    "build:hyattend": "vite build --outDir dist-hyattend",
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy": "npm run build:prod && firebase deploy"
