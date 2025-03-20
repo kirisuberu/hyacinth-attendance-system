@@ -205,7 +205,7 @@ function UserManagement() {
         name: newUser.name,
         email: newUser.email,
         userType: newUser.userType,
-        shifts: {}, // Empty object for shifts
+        schedule: {}, // Empty object for schedule
         createdAt: new Date().toISOString()
       });
 
@@ -246,7 +246,7 @@ function UserManagement() {
     }
   };
 
-  const handleScheduleUpdate = async (userId, shifts) => {
+  const handleScheduleUpdate = async (userId, schedule) => {
     try {
       const user = users.find(u => u.id === userId);
       if (!user) {
@@ -255,13 +255,13 @@ function UserManagement() {
       }
 
       // Use the dedicated updateUserSchedule function instead of createOrUpdateUser
-      await updateUserSchedule(userId, shifts);
+      await updateUserSchedule(userId, schedule);
       
       setShowScheduleModal(false);
       await loadUsers();
     } catch (error) {
-      console.error('Error updating shifts:', error);
-      alert('Error updating shifts: ' + error.message);
+      console.error('Error updating schedule:', error);
+      alert('Error updating schedule: ' + error.message);
     }
   };
 
@@ -276,7 +276,7 @@ function UserManagement() {
       await createOrUpdateUser(userId, {
         ...userData,
         userType: user.userType,
-        shifts: user.shifts,
+        schedule: user.schedule,
         createdAt: user.createdAt
       });
       
@@ -328,64 +328,62 @@ function UserManagement() {
     }
   };
 
-  const calculateTotalHours = (shifts) => {
-    if (!shifts || Object.keys(shifts).length === 0) {
+  const calculateTotalHours = (schedule) => {
+    if (!schedule || Object.keys(schedule).length === 0) {
       return 0;
     }
     
-    let totalHours = 0;
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    let totalMinutes = 0;
     
-    Object.values(shifts).forEach(shift => {
-      if (!shift.day || !shift.timeIn || !shift.duration) {
+    Object.values(schedule).forEach(shift => {
+      if (!shift.startDay || !shift.startTime || !shift.endDay || !shift.endTime) {
         return; // Skip invalid shifts
       }
       
       try {
-        // Add the shift duration directly
-        const duration = parseFloat(shift.duration);
-        if (!isNaN(duration)) {
-          totalHours += duration;
+        // Normalize day names to lowercase
+        const startDayLower = shift.startDay.toLowerCase();
+        const endDayLower = shift.endDay.toLowerCase();
+        
+        const startDayIndex = days.indexOf(startDayLower);
+        const endDayIndex = days.indexOf(endDayLower);
+        
+        if (startDayIndex === -1 || endDayIndex === -1) {
+          return; // Skip invalid days
         }
+        
+        // Convert times to minutes for calculation
+        const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+        const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+        
+        if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+          return; // Skip invalid time formats
+        }
+        
+        const startTotalMinutes = startHour * 60 + startMinute;
+        const endTotalMinutes = endHour * 60 + endMinute;
+        
+        // Calculate the duration considering day change
+        let duration;
+        if (startDayIndex === endDayIndex) {
+          duration = endTotalMinutes - startTotalMinutes;
+          if (duration < 0) {
+            duration += 24 * 60; // Add 24 hours if end time is on next day
+          }
+        } else {
+          const daysDiff = (endDayIndex - startDayIndex + 7) % 7;
+          duration = (daysDiff * 24 * 60) + (endTotalMinutes - startTotalMinutes);
+        }
+        
+        totalMinutes += duration;
       } catch (error) {
         console.error('Error calculating shift duration:', error);
       }
     });
     
-    // Return with one decimal place
-    return totalHours.toFixed(1);
-  };
-
-  const validateShiftTimes = (day, timeIn, duration, timeRegion) => {
-    // Check if any of the parameters are null or undefined
-    if (!day || !timeIn || !duration || !timeRegion) {
-      return false;
-    }
-
-    // Validate day
-    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    if (!days.includes(day.toLowerCase())) {
-      return false;
-    }
-
-    // Validate time format (HH:MM)
-    const timePattern = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timePattern.test(timeIn)) {
-      return false;
-    }
-
-    // Validate duration (positive number)
-    const durationNum = parseFloat(duration);
-    if (isNaN(durationNum) || durationNum <= 0) {
-      return false;
-    }
-
-    // Validate time region
-    const validTimeRegions = ['PHT', 'CST', 'EST'];
-    if (!validTimeRegions.includes(timeRegion)) {
-      return false;
-    }
-
-    return true;
+    // Convert total minutes to hours with one decimal place
+    return (totalMinutes / 60).toFixed(1);
   };
 
   const getSortedUsers = () => {
@@ -410,12 +408,12 @@ function UserManagement() {
           bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           break;
         case 'shiftCount':
-          aValue = a.shifts ? Object.keys(a.shifts).length : 0;
-          bValue = b.shifts ? Object.keys(b.shifts).length : 0;
+          aValue = a.schedule ? Object.keys(a.schedule).length : 0;
+          bValue = b.schedule ? Object.keys(b.schedule).length : 0;
           break;
         case 'totalHours':
-          aValue = parseFloat(calculateTotalHours(a.shifts));
-          bValue = parseFloat(calculateTotalHours(b.shifts));
+          aValue = parseFloat(calculateTotalHours(a.schedule));
+          bValue = parseFloat(calculateTotalHours(b.schedule));
           break;
         default:
           aValue = a.name.toLowerCase();
@@ -431,14 +429,50 @@ function UserManagement() {
     });
   };
 
-  const ScheduleModal = ({ userId, userName, currentShifts }) => {
-    const [shifts, setShifts] = useState(currentShifts || {});
+  const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
+    // Convert days to numerical values (0 = Monday, 6 = Sunday)
+    const dayToNumber = {
+      'monday': 0,
+      'tuesday': 1,
+      'wednesday': 2,
+      'thursday': 3,
+      'friday': 4,
+      'saturday': 5,
+      'sunday': 6
+    };
+
+    const startDayNum = dayToNumber[startDay.toLowerCase()];
+    const endDayNum = dayToNumber[endDay.toLowerCase()];
+
+    if (startDayNum === undefined || endDayNum === undefined) {
+      return false;
+    }
+
+    // Parse times (assuming format is HH:MM)
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+
+    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+      return false;
+    }
+
+    // Calculate total minutes for start and end
+    const startTotalMinutes = (startDayNum * 24 * 60) + (startHour * 60) + startMinute;
+    const endTotalMinutes = (endDayNum * 24 * 60) + (endHour * 60) + endMinute;
+
+    // End time should be after start time
+    return endTotalMinutes > startTotalMinutes;
+  };
+
+  const ScheduleModal = ({ userId, userName, currentSchedule }) => {
+    const [schedule, setSchedule] = useState(currentSchedule || {});
     const [showShiftForm, setShowShiftForm] = useState(false);
     const [selectedShift, setSelectedShift] = useState(null);
     const [shiftFormData, setShiftFormData] = useState({
-      day: 'monday',
-      timeIn: '',
-      duration: '',
+      startDay: 'monday',
+      startTime: '',
+      endDay: 'monday',
+      endTime: '',
       timeRegion: 'PHT'
     });
     const [showTemplateSelector, setShowTemplateSelector] = useState(false);
@@ -455,8 +489,8 @@ function UserManagement() {
     ];
 
     useEffect(() => {
-      setShifts(currentShifts || {});
-    }, [currentShifts]);
+      setSchedule(currentSchedule || {});
+    }, [currentSchedule]);
 
     const formatDayName = (day) => {
       if (!day || typeof day !== 'string') return '';
@@ -466,23 +500,25 @@ function UserManagement() {
     const handleAddShift = () => {
       setSelectedShift(null);
       setShiftFormData({
-        day: 'monday',
-        timeIn: '',
-        duration: '',
+        startDay: 'monday',
+        startTime: '',
+        endDay: 'monday',
+        endTime: '',
         timeRegion: 'PHT'
       });
       setShowShiftForm(true);
     };
 
     const handleEditShift = (shiftId) => {
-      const shift = shifts[shiftId];
+      const shift = schedule[shiftId];
       if (!shift) return;
 
       setSelectedShift(shiftId);
       setShiftFormData({
-        day: shift.day || 'monday',
-        timeIn: shift.timeIn || '',
-        duration: shift.duration || '',
+        startDay: shift.startDay || 'monday',
+        startTime: shift.startTime || '',
+        endDay: shift.endDay || 'monday',
+        endTime: shift.endTime || '',
         timeRegion: shift.timeRegion || 'PHT'
       });
       setShowShiftForm(true);
@@ -490,44 +526,46 @@ function UserManagement() {
 
     const handleDeleteShift = (shiftId) => {
       if (!shiftId) return;
-      const newShifts = { ...shifts };
-      delete newShifts[shiftId];
-      setShifts(newShifts);
+      const newSchedule = { ...schedule };
+      delete newSchedule[shiftId];
+      setSchedule(newSchedule);
     };
 
     const handleSaveShift = () => {
-      if (!shiftFormData.timeIn || !shiftFormData.duration) {
-        alert('Please fill in both time in and shift duration');
+      if (!shiftFormData.startTime || !shiftFormData.endTime) {
+        alert('Please fill in both start and end times');
         return;
       }
 
       try {
-        // Ensure we have valid day value
-        const day = shiftFormData.day || 'monday';
+        // Ensure we have valid day values
+        const startDay = shiftFormData.startDay || 'monday';
+        const endDay = shiftFormData.endDay || 'monday';
         
         // Validate the shift times
         const isValid = validateShiftTimes(
-          day,
-          shiftFormData.timeIn,
-          shiftFormData.duration,
-          shiftFormData.timeRegion
+          startDay,
+          shiftFormData.startTime,
+          endDay,
+          shiftFormData.endTime
         );
         
         if (!isValid) {
-          alert('Invalid shift data. Please check all fields.');
+          alert('Invalid shift times. End time must be after start time.');
           return;
         }
 
         // Create a unique shift ID if not editing an existing one
         const shiftId = selectedShift || `shift_${Date.now()}`;
         
-        // Update the shifts with the new/edited shift
-        setShifts(prev => ({
+        // Update the schedule with the new/edited shift
+        setSchedule(prev => ({
           ...prev,
           [shiftId]: {
-            day: day,
-            timeIn: shiftFormData.timeIn,
-            duration: shiftFormData.duration,
+            startDay: startDay,
+            startTime: shiftFormData.startTime,
+            endDay: endDay,
+            endTime: shiftFormData.endTime,
             timeRegion: shiftFormData.timeRegion || 'PHT'
           }
         }));
@@ -542,12 +580,12 @@ function UserManagement() {
 
     const handleSaveSchedule = async () => {
       try {
-        await updateUserSchedule(userId, shifts);
+        await updateUserSchedule(userId, schedule);
         setShowScheduleModal(false);
         await loadUsers();
       } catch (error) {
-        console.error('Error updating shifts:', error);
-        alert('Error updating shifts: ' + error.message);
+        console.error('Error updating schedule:', error);
+        alert('Error updating schedule: ' + error.message);
       }
     };
 
@@ -558,14 +596,14 @@ function UserManagement() {
           return;
         }
 
-        if (Object.keys(shifts).length === 0) {
+        if (Object.keys(schedule).length === 0) {
           alert('Please add at least one shift to the template');
           return;
         }
 
         await createScheduleTemplate({
           name: templateName,
-          shifts: shifts
+          schedule: schedule
         });
 
         setSaveAsTemplateMode(false);
@@ -584,14 +622,14 @@ function UserManagement() {
         return;
       }
 
-      // Confirm before overwriting existing shifts
-      if (Object.keys(shifts).length > 0) {
-        if (!confirm('This will replace the current shifts. Continue?')) {
+      // Confirm before overwriting existing schedule
+      if (Object.keys(schedule).length > 0) {
+        if (!confirm('This will replace the current schedule. Continue?')) {
           return;
         }
       }
 
-      setShifts(selectedTemplate.shifts || {});
+      setSchedule(selectedTemplate.schedule || {});
       setShowTemplateSelector(false);
       setSelectedTemplate(null);
     };
@@ -623,10 +661,10 @@ function UserManagement() {
             <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
               <h3>{selectedShift ? 'Edit Shift' : 'Add New Shift'}</h3>
               <FormGroup>
-                <Label>Day of Week</Label>
+                <Label>Start Day</Label>
                 <Select
-                  value={shiftFormData.day || 'monday'}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, day: e.target.value }))}
+                  value={shiftFormData.startDay || 'monday'}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
                 >
                   {daysOfWeek.map(day => (
                     <option key={day} value={day}>{formatDayName(day)}</option>
@@ -634,21 +672,28 @@ function UserManagement() {
                 </Select>
               </FormGroup>
               <FormGroup>
-                <Label>Expected Time In</Label>
+                <Label>Start Time</Label>
                 <TimeInput
-                  value={shiftFormData.timeIn || ''}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, timeIn: e.target.value }))}
+                  value={shiftFormData.startTime || ''}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
                 />
               </FormGroup>
               <FormGroup>
-                <Label>Shift Duration (hours)</Label>
-                <Input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={shiftFormData.duration || ''}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
-                  placeholder="Enter shift duration in hours"
+                <Label>End Day</Label>
+                <Select
+                  value={shiftFormData.endDay || 'monday'}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, endDay: e.target.value }))}
+                >
+                  {daysOfWeek.map(day => (
+                    <option key={day} value={day}>{formatDayName(day)}</option>
+                  ))}
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label>End Time</Label>
+                <TimeInput
+                  value={shiftFormData.endTime || ''}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, endTime: e.target.value }))}
                 />
               </FormGroup>
               <FormGroup>
@@ -700,14 +745,14 @@ function UserManagement() {
                   {selectedTemplate && (
                     <div style={{ marginTop: '1rem', maxHeight: '30vh', overflowY: 'auto' }}>
                       <h4>Template Preview</h4>
-                      {Object.entries(selectedTemplate.shifts || {}).map(([shiftId, shift]) => (
+                      {Object.entries(selectedTemplate.schedule || {}).map(([shiftId, shift]) => (
                         <div key={shiftId} style={{ 
                           marginBottom: '0.5rem',
                           padding: '0.5rem',
                           backgroundColor: '#F3F4F6',
                           borderRadius: '4px'
                         }}>
-                          {formatDayName(shift.day)} {shift.timeIn} - {shift.duration} hours ({shift.timeRegion || 'PHT'})
+                          {formatDayName(shift.startDay)} {shift.startTime} to {formatDayName(shift.endDay)} {shift.endTime} ({shift.timeRegion || 'PHT'})
                         </div>
                       ))}
                     </div>
@@ -758,12 +803,12 @@ function UserManagement() {
           )}
 
           <div style={{ marginTop: '1rem', maxHeight: '40vh', overflowY: 'auto' }}>
-            {Object.keys(shifts).length === 0 ? (
+            {Object.keys(schedule).length === 0 ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#6B7280' }}>
                 No shifts added yet. Add a shift or apply a template to get started.
               </div>
             ) : (
-              Object.entries(shifts).map(([shiftId, shift]) => {
+              Object.entries(schedule).map(([shiftId, shift]) => {
                 if (!shift) return null;
                 return (
                   <div key={shiftId} style={{ 
@@ -776,10 +821,11 @@ function UserManagement() {
                     alignItems: 'center'
                   }}>
                     <div>
-                      <strong>{formatDayName(shift.day)} {shift.timeIn}</strong>
+                      <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
                       <div style={{ fontSize: '0.9em', color: '#666' }}>
-                        - {shift.duration} hours
+                        to
                       </div>
+                      <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
                       <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
                         Time Region: {shift.timeRegion || 'PHT'}
                       </div>
@@ -946,16 +992,21 @@ function UserManagement() {
   });
 
   const ScheduleTemplatesModal = () => {
-    const [selectedTemplate, setSelectedTemplate] = useState(null);
-    const [editMode, setEditMode] = useState(false);
-    const [templateName, setTemplateName] = useState('');
-    const [templateShifts, setTemplateShifts] = useState({});
+    const [templates, setTemplates] = useState(scheduleTemplates);
+    const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+    const [showTemplateForm, setShowTemplateForm] = useState(false);
+    const [templateFormData, setTemplateFormData] = useState({
+      name: '',
+      schedule: {}
+    });
+    const [currentSchedule, setCurrentSchedule] = useState({});
     const [showShiftForm, setShowShiftForm] = useState(false);
     const [selectedShift, setSelectedShift] = useState(null);
     const [shiftFormData, setShiftFormData] = useState({
-      day: 'monday',
-      timeIn: '',
-      duration: '',
+      startDay: 'monday',
+      startTime: '',
+      endDay: 'monday',
+      endTime: '',
       timeRegion: 'PHT'
     });
 
@@ -967,67 +1018,37 @@ function UserManagement() {
       'PHT', 'CST', 'EST'
     ];
 
+    useEffect(() => {
+      setTemplates(scheduleTemplates);
+    }, [scheduleTemplates]);
+
     const formatDayName = (day) => {
       if (!day || typeof day !== 'string') return '';
       return day.charAt(0).toUpperCase() + day.slice(1);
     };
 
-    const handleSelectTemplate = (templateId) => {
-      const template = scheduleTemplates.find(t => t.id === templateId);
-      if (!template) return;
-      
-      setSelectedTemplate(templateId);
-      setTemplateName(template.name);
-      setTemplateShifts(template.shifts || {});
-      setEditMode(true);
-    };
-
-    const handleCreateTemplate = () => {
-      setSelectedTemplate(null);
-      setTemplateName('');
-      setTemplateShifts({});
-      setEditMode(true);
-    };
-
-    const handleDeleteTemplate = async (templateId) => {
-      if (!window.confirm('Are you sure you want to delete this template?')) return;
-      
-      try {
-        await deleteScheduleTemplate(templateId);
-        await loadScheduleTemplates();
-        
-        if (selectedTemplate === templateId) {
-          setSelectedTemplate(null);
-          setTemplateName('');
-          setTemplateShifts({});
-          setEditMode(false);
-        }
-      } catch (error) {
-        console.error('Error deleting template:', error);
-        alert('Error deleting template: ' + error.message);
-      }
-    };
-
     const handleAddShift = () => {
       setSelectedShift(null);
       setShiftFormData({
-        day: 'monday',
-        timeIn: '',
-        duration: '',
+        startDay: 'monday',
+        startTime: '',
+        endDay: 'monday',
+        endTime: '',
         timeRegion: 'PHT'
       });
       setShowShiftForm(true);
     };
 
     const handleEditShift = (shiftId) => {
-      const shift = templateShifts[shiftId];
+      const shift = currentSchedule[shiftId];
       if (!shift) return;
 
       setSelectedShift(shiftId);
       setShiftFormData({
-        day: shift.day || 'monday',
-        timeIn: shift.timeIn || '',
-        duration: shift.duration || '',
+        startDay: shift.startDay || 'monday',
+        startTime: shift.startTime || '',
+        endDay: shift.endDay || 'monday',
+        endTime: shift.endTime || '',
         timeRegion: shift.timeRegion || 'PHT'
       });
       setShowShiftForm(true);
@@ -1035,44 +1056,46 @@ function UserManagement() {
 
     const handleDeleteShift = (shiftId) => {
       if (!shiftId) return;
-      const newShifts = { ...templateShifts };
-      delete newShifts[shiftId];
-      setTemplateShifts(newShifts);
+      const newSchedule = { ...currentSchedule };
+      delete newSchedule[shiftId];
+      setCurrentSchedule(newSchedule);
     };
 
     const handleSaveShift = () => {
-      if (!shiftFormData.timeIn || !shiftFormData.duration) {
-        alert('Please fill in both time in and shift duration');
+      if (!shiftFormData.startTime || !shiftFormData.endTime) {
+        alert('Please fill in both start and end times');
         return;
       }
 
       try {
-        // Ensure we have valid day value
-        const day = shiftFormData.day || 'monday';
+        // Ensure we have valid day values
+        const startDay = shiftFormData.startDay || 'monday';
+        const endDay = shiftFormData.endDay || 'monday';
         
         // Validate the shift times
         const isValid = validateShiftTimes(
-          day,
-          shiftFormData.timeIn,
-          shiftFormData.duration,
-          shiftFormData.timeRegion
+          startDay,
+          shiftFormData.startTime,
+          endDay,
+          shiftFormData.endTime
         );
         
         if (!isValid) {
-          alert('Invalid shift data. Please check all fields.');
+          alert('Invalid shift times. End time must be after start time.');
           return;
         }
 
         // Create a unique shift ID if not editing an existing one
         const shiftId = selectedShift || `shift_${Date.now()}`;
         
-        // Update the shifts with the new/edited shift
-        setTemplateShifts(prev => ({
+        // Update the schedule with the new/edited shift
+        setCurrentSchedule(prev => ({
           ...prev,
           [shiftId]: {
-            day: day,
-            timeIn: shiftFormData.timeIn,
-            duration: shiftFormData.duration,
+            startDay: startDay,
+            startTime: shiftFormData.startTime,
+            endDay: endDay,
+            endTime: shiftFormData.endTime,
             timeRegion: shiftFormData.timeRegion || 'PHT'
           }
         }));
@@ -1085,206 +1108,297 @@ function UserManagement() {
       }
     };
 
-    const handleSaveTemplate = async () => {
+    const handleCreateTemplate = async () => {
       try {
-        if (!templateName.trim()) {
+        if (!templateFormData.name.trim()) {
           alert('Please enter a template name');
           return;
         }
 
-        if (Object.keys(templateShifts).length === 0) {
+        if (Object.keys(currentSchedule).length === 0) {
           alert('Please add at least one shift to the template');
           return;
         }
 
-        if (selectedTemplate) {
-          // Update existing template
-          await updateScheduleTemplate(selectedTemplate, {
-            name: templateName,
-            shifts: templateShifts
-          });
-        } else {
-          // Create new template
-          await createScheduleTemplate({
-            name: templateName,
-            shifts: templateShifts
-          });
+        await createScheduleTemplate({
+          name: templateFormData.name,
+          schedule: currentSchedule
+        });
+
+        setShowTemplateForm(false);
+        setTemplateFormData({
+          name: '',
+          schedule: {}
+        });
+        setCurrentSchedule({});
+        await loadScheduleTemplates();
+      } catch (error) {
+        console.error('Error creating template:', error);
+        alert('Error creating template: ' + error.message);
+      }
+    };
+
+    const handleEditTemplate = async () => {
+      try {
+        if (!templateFormData.name.trim()) {
+          alert('Please enter a template name');
+          return;
         }
 
+        if (Object.keys(currentSchedule).length === 0) {
+          alert('Please add at least one shift to the template');
+          return;
+        }
+
+        await updateScheduleTemplate(selectedTemplateId, {
+          name: templateFormData.name,
+          schedule: currentSchedule
+        });
+
+        setShowTemplateForm(false);
+        setSelectedTemplateId(null);
+        setTemplateFormData({
+          name: '',
+          schedule: {}
+        });
+        setCurrentSchedule({});
         await loadScheduleTemplates();
-        setEditMode(false);
       } catch (error) {
-        console.error('Error saving template:', error);
-        alert('Error saving template: ' + error.message);
+        console.error('Error updating template:', error);
+        alert('Error updating template: ' + error.message);
       }
+    };
+
+    const handleDeleteTemplate = async (templateId) => {
+      if (!confirm('Are you sure you want to delete this template?')) {
+        return;
+      }
+
+      try {
+        await deleteScheduleTemplate(templateId);
+        await loadScheduleTemplates();
+      } catch (error) {
+        console.error('Error deleting template:', error);
+        alert('Error deleting template: ' + error.message);
+      }
+    };
+
+    const handleEditTemplateClick = (template) => {
+      setSelectedTemplateId(template.id);
+      setTemplateFormData({
+        name: template.name,
+        schedule: template.schedule
+      });
+      setCurrentSchedule(template.schedule || {});
+      setShowTemplateForm(true);
+    };
+
+    const handleCreateNewTemplate = () => {
+      setSelectedTemplateId(null);
+      setTemplateFormData({
+        name: '',
+        schedule: {}
+      });
+      setCurrentSchedule({});
+      setShowTemplateForm(true);
     };
 
     return (
       <Modal>
-        <ModalContent style={{ maxWidth: '700px' }}>
-          <Title>
-            Schedule Templates
-            {!editMode && (
-              <Button onClick={handleCreateTemplate}>
-                Create New Template
-              </Button>
-            )}
-          </Title>
+        <ModalContent style={{ maxWidth: '800px', width: '90%' }}>
+          <h2>Schedule Templates</h2>
+          <div style={{ marginBottom: '1rem' }}>
+            <Button onClick={handleCreateNewTemplate}>Create New Template</Button>
+          </div>
 
-          {editMode ? (
-            showShiftForm ? (
-              <div>
-                <FormGroup>
-                  <Label>Day of Week</Label>
-                  <Select 
-                    value={shiftFormData.day} 
-                    onChange={(e) => setShiftFormData({...shiftFormData, day: e.target.value})}
-                  >
-                    {daysOfWeek.map(day => (
-                      <option key={day} value={day}>
-                        {formatDayName(day)}
-                      </option>
-                    ))}
-                  </Select>
-                </FormGroup>
-                <FormGroup>
-                  <Label>Expected Time In</Label>
-                  <TimeInput 
-                    value={shiftFormData.timeIn} 
-                    onChange={(e) => setShiftFormData({...shiftFormData, timeIn: e.target.value})}
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Shift Duration (hours)</Label>
-                  <Input 
-                    type="number" 
-                    min="0.5" 
-                    step="0.5" 
-                    value={shiftFormData.duration} 
-                    onChange={(e) => setShiftFormData({...shiftFormData, duration: e.target.value})}
-                    placeholder="Enter shift duration in hours"
-                  />
-                </FormGroup>
-                <FormGroup>
-                  <Label>Time Region</Label>
-                  <Select 
-                    value={shiftFormData.timeRegion} 
-                    onChange={(e) => setShiftFormData({...shiftFormData, timeRegion: e.target.value})}
-                  >
-                    {timeRegions.map(region => (
-                      <option key={region} value={region}>
-                        {region}
-                      </option>
-                    ))}
-                  </Select>
-                </FormGroup>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
-                  <Button onClick={() => setShowShiftForm(false)}>Cancel</Button>
-                  <Button onClick={handleSaveShift}>Save Shift</Button>
-                </div>
+          {showTemplateForm ? (
+            <div>
+              <h3>{selectedTemplateId ? 'Edit Template' : 'Create New Template'}</h3>
+              <FormGroup>
+                <Label>Template Name</Label>
+                <Input
+                  type="text"
+                  value={templateFormData.name}
+                  onChange={(e) => setTemplateFormData(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter template name"
+                />
+              </FormGroup>
+
+              <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                <h4>Shifts</h4>
+                <Button onClick={handleAddShift}>Add Shift</Button>
               </div>
-            ) : (
-              <>
-                <FormGroup>
-                  <Label>Template Name</Label>
-                  <Input 
-                    type="text" 
-                    value={templateName} 
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    placeholder="Enter template name"
-                  />
-                </FormGroup>
-                
-                <div style={{ marginBottom: '20px', marginTop: '20px' }}>
-                  <Button onClick={handleAddShift}>Add Shift</Button>
-                </div>
-                
-                {Object.keys(templateShifts).length > 0 ? (
-                  <Table>
-                    <thead>
-                      <tr>
-                        <Th>Day</Th>
-                        <Th>Time In</Th>
-                        <Th>Duration (hrs)</Th>
-                        <Th>Region</Th>
-                        <Th>Actions</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(templateShifts).map(([shiftId, shift]) => (
-                        <tr key={shiftId}>
-                          <Td>{formatDayName(shift.day)}</Td>
-                          <Td>{shift.timeIn}</Td>
-                          <Td>{shift.duration}</Td>
-                          <Td>{shift.timeRegion}</Td>
-                          <Td>
-                            <Button onClick={() => handleEditShift(shiftId)}>
-                              <Icon><PencilSimpleLine size={16} /></Icon>
-                              Edit
-                            </Button>
-                            <Button onClick={() => handleDeleteShift(shiftId)}>
-                              <Icon><Trash size={16} /></Icon>
-                              Delete
-                            </Button>
-                          </Td>
-                        </tr>
+
+              {showShiftForm && (
+                <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+                  <h4>{selectedShift ? 'Edit Shift' : 'Add New Shift'}</h4>
+                  <FormGroup>
+                    <Label>Start Day</Label>
+                    <Select
+                      value={shiftFormData.startDay || 'monday'}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
+                    >
+                      {daysOfWeek.map(day => (
+                        <option key={day} value={day}>{formatDayName(day)}</option>
                       ))}
-                    </tbody>
-                  </Table>
-                ) : (
-                  <p>No shifts added. Click "Add Shift" to create a new shift.</p>
-                )}
-                
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-                  <Button onClick={() => setEditMode(false)} style={{ marginRight: '10px' }}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleSaveTemplate}>
-                    Save Template
-                  </Button>
+                    </Select>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>Start Time</Label>
+                    <TimeInput
+                      value={shiftFormData.startTime || ''}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>End Day</Label>
+                    <Select
+                      value={shiftFormData.endDay || 'monday'}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, endDay: e.target.value }))}
+                    >
+                      {daysOfWeek.map(day => (
+                        <option key={day} value={day}>{formatDayName(day)}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>End Time</Label>
+                    <TimeInput
+                      value={shiftFormData.endTime || ''}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>Time Region</Label>
+                    <Select
+                      value={shiftFormData.timeRegion || 'PHT'}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, timeRegion: e.target.value }))}
+                    >
+                      {timeRegions.map(region => (
+                        <option key={region} value={region}>{region}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                    <Button onClick={() => setShowShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSaveShift}>
+                      Save Shift
+                    </Button>
+                  </div>
                 </div>
-              </>
-            )
-          ) : (
-            <>
-              {scheduleTemplates.length > 0 ? (
-                <Table>
-                  <thead>
-                    <tr>
-                      <Th>Name</Th>
-                      <Th>Shifts</Th>
-                      <Th>Actions</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {scheduleTemplates.map(template => (
-                      <tr key={template.id}>
-                        <Td>{template.name}</Td>
-                        <Td>{template.shifts ? Object.keys(template.shifts).length : 0} shifts</Td>
-                        <Td>
-                          <Button onClick={() => handleSelectTemplate(template.id)}>
-                            <Icon><PencilSimpleLine size={16} /></Icon>
-                            Edit
-                          </Button>
-                          <Button onClick={() => handleDeleteTemplate(template.id)}>
-                            <Icon><Trash size={16} /></Icon>
-                            Delete
-                          </Button>
-                        </Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </Table>
-              ) : (
-                <p>No templates found. Click "Create New Template" to create one.</p>
               )}
-              
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-                <Button onClick={() => setShowTemplatesModal(false)}>
-                  Close
+
+              <div style={{ marginTop: '1rem', maxHeight: '30vh', overflowY: 'auto' }}>
+                {Object.entries(currentSchedule || {}).map(([shiftId, shift]) => {
+                  if (!shift) return null;
+                  return (
+                    <div key={shiftId} style={{ 
+                      marginBottom: '1rem', 
+                      padding: '1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}>
+                      <div>
+                        <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
+                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                          to
+                        </div>
+                        <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
+                        <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                          Time Region: {shift.timeRegion || 'PHT'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button onClick={() => handleEditShift(shiftId)}>
+                          Edit
+                        </Button>
+                        <Button 
+                          onClick={() => handleDeleteShift(shiftId)}
+                          style={{ backgroundColor: '#DC2626' }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <Button onClick={() => {
+                  setShowTemplateForm(false);
+                  setSelectedTemplateId(null);
+                }} style={{ backgroundColor: '#6B7280' }}>
+                  Cancel
+                </Button>
+                <Button onClick={selectedTemplateId ? handleEditTemplate : handleCreateTemplate}>
+                  {selectedTemplateId ? 'Update Template' : 'Create Template'}
                 </Button>
               </div>
-            </>
+            </div>
+          ) : (
+            <div style={{ marginTop: '1rem', maxHeight: '60vh', overflowY: 'auto' }}>
+              {templates.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6B7280' }}>
+                  No templates found. Create your first template to get started.
+                </div>
+              ) : (
+                templates.map(template => (
+                  <div key={template.id} style={{ 
+                    marginBottom: '1rem', 
+                    padding: '1rem',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '4px'
+                  }}>
+                    <div style={{ 
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '0.5rem'
+                    }}>
+                      <h3 style={{ margin: 0 }}>{template.name}</h3>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button onClick={() => handleEditTemplateClick(template)}>
+                          Edit
+                        </Button>
+                        <Button 
+                          onClick={() => handleDeleteTemplate(template.id)}
+                          style={{ backgroundColor: '#DC2626' }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div style={{ fontSize: '0.9em', color: '#4B5563' }}>
+                      {Object.entries(template.schedule || {}).map(([shiftId, shift]) => (
+                        <div key={shiftId} style={{ 
+                          marginBottom: '0.5rem',
+                          padding: '0.5rem',
+                          backgroundColor: '#F3F4F6',
+                          borderRadius: '4px'
+                        }}>
+                          {formatDayName(shift.startDay)} {shift.startTime} to {formatDayName(shift.endDay)} {shift.endTime} ({shift.timeRegion || 'PHT'})
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {!showTemplateForm && (
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+              <Button onClick={() => setShowTemplatesModal(false)} style={{ backgroundColor: '#6B7280' }}>
+                Close
+              </Button>
+            </div>
           )}
         </ModalContent>
       </Modal>
@@ -1361,11 +1475,11 @@ function UserManagement() {
                   display: 'inline-block',
                   padding: '0.25rem 0.5rem',
                   borderRadius: '0.25rem',
-                  backgroundColor: user.shifts && Object.keys(user.shifts).length > 0 ? '#10B981' : '#EF4444',
+                  backgroundColor: user.schedule && Object.keys(user.schedule).length > 0 ? '#10B981' : '#EF4444',
                   color: 'white',
                   fontWeight: 'bold'
                 }}>
-                  {user.shifts ? Object.keys(user.shifts).length : 0}
+                  {user.schedule ? Object.keys(user.schedule).length : 0}
                 </span>
               </Td>
               <Td>
@@ -1373,11 +1487,11 @@ function UserManagement() {
                   display: 'inline-block',
                   padding: '0.25rem 0.5rem',
                   borderRadius: '0.25rem',
-                  backgroundColor: calculateTotalHours(user.shifts) > 0 ? '#3B82F6' : '#9CA3AF',
+                  backgroundColor: calculateTotalHours(user.schedule) > 0 ? '#3B82F6' : '#9CA3AF',
                   color: 'white',
                   fontWeight: 'bold'
                 }}>
-                  {calculateTotalHours(user.shifts)} hrs
+                  {calculateTotalHours(user.schedule)} hrs
                 </span>
               </Td>
               <Td>
@@ -1465,7 +1579,7 @@ function UserManagement() {
       )}
 
       {showScheduleModal && selectedUser && (
-        <ScheduleModal userId={selectedUser.id} userName={selectedUser.name} currentShifts={selectedUser.shifts} />
+        <ScheduleModal userId={selectedUser.id} userName={selectedUser.name} currentSchedule={selectedUser.schedule} />
       )}
 
       {/* Delete Confirmation Modal */}

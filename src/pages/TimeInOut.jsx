@@ -389,8 +389,8 @@ function TimeInOut() {
         setTodayRecord({
           ...latestRecord,
           // Extract time difference values from the record
-          timeDiffHours: latestRecord.timeDiff?.hours || 0,
-          timeDiffMinutes: latestRecord.timeDiff?.minutes || 0,
+          timeDiffHours: latestRecord.hoursDiff || 0,
+          timeDiffMinutes: latestRecord.minutesDiff || 0,
           // Set status from the record
           status: latestRecord.status || ''
         })
@@ -517,6 +517,8 @@ function TimeInOut() {
       // Set loading state in parent component if needed
       const result = await recordAttendance(
         auth.currentUser.uid,
+        auth.currentUser.email,
+        userName,
         type.toUpperCase(),
         notes
       );
