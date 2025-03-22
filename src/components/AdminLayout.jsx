@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, Outlet, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { auth } from '../firebase';
 import { UserType } from '../utils/userService';
-import { recordAttendance } from '../utils/attendanceService';
-import { useEffect, useState } from 'react';
+import { recordAttendance, getUserAttendanceStatus } from '../utils/attendanceService';
 import { useAuth } from '../contexts/AuthContext';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
-import { Calendar, Clock, ClockClockwise } from 'phosphor-react';
+import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut } from 'phosphor-react';
 import PropTypes from 'prop-types';
 
 const LayoutContainer = styled.div`
@@ -123,12 +122,17 @@ const AttendanceButtons = styled.div`
 
 const AttendanceButton = styled.button`
   flex: 1;
-  padding: 0.5rem;
+  padding: 0.75rem 1rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 1rem;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 
   &.time-in {
     background-color: #10B981;
@@ -164,6 +168,29 @@ function AdminLayout({ isMemberView = false }) {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingAttendanceType, setPendingAttendanceType] = useState(null);
   const [pendingStatus, setPendingStatus] = useState('');
+  const [canTimeIn, setCanTimeIn] = useState(true);
+  const [canTimeOut, setCanTimeOut] = useState(false);
+
+  useEffect(() => {
+    // Fetch the user's attendance status when the component mounts or when currentUser changes
+    const fetchAttendanceStatus = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const result = await getUserAttendanceStatus(currentUser.uid);
+        if (result.success) {
+          setCanTimeIn(result.canTimeIn);
+          setCanTimeOut(result.canTimeOut);
+        } else {
+          console.error('Error fetching attendance status:', result.error);
+        }
+      } catch (error) {
+        console.error('Error in fetchAttendanceStatus:', error);
+      }
+    };
+    
+    fetchAttendanceStatus();
+  }, [currentUser]);
 
   const handleAttendance = async (type) => {
     const determineExpectedStatus = () => {
@@ -212,14 +239,16 @@ function AdminLayout({ isMemberView = false }) {
     try {
       const result = await recordAttendance(
         currentUser.uid,
-        currentUser.email,
-        currentUser.displayName || 'Admin User',
         pendingAttendanceType,
         notes
       );
       
       if (result.success) {
         alert(`${pendingAttendanceType} recorded successfully!`);
+        
+        // Update the time in/out button states
+        setCanTimeIn(pendingAttendanceType === 'OUT');
+        setCanTimeOut(pendingAttendanceType === 'IN');
       } else {
         alert('Failed to record attendance. Please try again.');
       }
@@ -291,12 +320,13 @@ function AdminLayout({ isMemberView = false }) {
         <nav>
           {/* Admin-only links - hidden for member view */}
           {!isMemberView && isAdmin && (
-            <NavLink to="/admin/users">User Management</NavLink>
+            <NavLink to="/admin/users"><Icon><Users size={16} /></Icon>User Management</NavLink>
           )}
           
           {/* Admin Dashboard - hidden for member view */}
           {!isMemberView && (
             <NavLink to="/admin/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
+              <Icon><House size={16} /></Icon>
               Admin Dashboard
             </NavLink>
           )}
@@ -306,6 +336,7 @@ function AdminLayout({ isMemberView = false }) {
             to={isMemberView ? "/member/dashboard" : "/admin/my-dashboard"} 
             className={({ isActive }) => isActive ? 'active' : ''}
           >
+            <Icon><House size={16} /></Icon>
             My Dashboard
           </NavLink>
           
@@ -314,6 +345,7 @@ function AdminLayout({ isMemberView = false }) {
             to={isMemberView ? "/member/all-schedules" : "/admin/all-schedules"} 
             className={({ isActive }) => isActive ? 'active' : ''}
           >
+            <Icon><ListChecks size={16} /></Icon>
             All Schedules
           </NavLink>
           
@@ -330,6 +362,7 @@ function AdminLayout({ isMemberView = false }) {
             to={isMemberView ? "/member/my-schedule" : "/admin/my-schedule"} 
             className={({ isActive }) => isActive ? 'active' : ''}
           >
+            <Icon><Calendar size={16} /></Icon>
             My Schedule
           </NavLink>
           
@@ -338,6 +371,7 @@ function AdminLayout({ isMemberView = false }) {
             to={isMemberView ? "/member/reports" : "/admin/reports"} 
             className={({ isActive }) => isActive ? 'active' : ''}
           >
+            <Icon><ChartBar size={16} /></Icon>
             Reports
           </NavLink>
           
@@ -359,6 +393,7 @@ function AdminLayout({ isMemberView = false }) {
           )}
           
           <LogoutButton onClick={handleLogout}>
+            <Icon><SignOut size={16} /></Icon>
             Sign Out
           </LogoutButton>
         </nav>
@@ -368,15 +403,17 @@ function AdminLayout({ isMemberView = false }) {
               <AttendanceButton
                 className="time-in"
                 onClick={() => handleAttendance('IN')}
-                disabled={isRecording}
+                disabled={isRecording || !canTimeIn}
               >
+                <Icon><Clock size={18} /></Icon>
                 Time In
               </AttendanceButton>
               <AttendanceButton
                 className="time-out"
                 onClick={() => handleAttendance('OUT')}
-                disabled={isRecording}
+                disabled={isRecording || !canTimeOut}
               >
+                <Icon><Clock size={18} /></Icon>
                 Time Out
               </AttendanceButton>
             </AttendanceButtons>

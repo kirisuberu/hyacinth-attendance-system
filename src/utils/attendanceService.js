@@ -128,31 +128,6 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRegion = 
         console.log('Using next day comparison:', diffMinutes);
       }
     }
-    
-    // Apply time-in status rules
-    const timeDiff = formatTimeDiff(diffMinutes);
-    
-    // Early: 60 mins or more before schedule time
-    if (diffMinutes <= -60) {
-      return {
-        status: 'Early',
-        timeDiff
-      };
-    }
-    
-    // On Time: Between 60 mins before and up to 5 minutes after schedule time (inclusive)
-    if (diffMinutes > -60 && diffMinutes <= 5) {
-      return {
-        status: 'On Time',
-        timeDiff
-      };
-    }
-    
-    // Late: Any time after 5 minutes past schedule time
-    return {
-      status: 'Late',
-      timeDiff
-    };
   } 
   else { // Time-out logic
     // Handle overnight shifts (ending between midnight and 8 AM)
@@ -199,35 +174,41 @@ const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRegion = 
         console.log('Falling back to same day comparison for time-out:', diffMinutes);
       }
     }
-    
-    const timeDiff = formatTimeDiff(diffMinutes);
-    
-    // Early Out: More than 15 minutes before schedule time
-    if (diffMinutes < -15) {
-      return {
-        status: 'Early Out',
-        timeDiff
-      };
-    }
-    
-    // On Time: Between 15 minutes before and up to 60 minutes after schedule time (inclusive)
-    if (diffMinutes >= -15 && diffMinutes <= 60) {
-      return {
-        status: 'On Time',
-        timeDiff
-      };
-    }
-    
-    // Overtime: More than 60 minutes after schedule time
-    return {
-      status: 'Overtime',
-      timeDiff
-    };
   }
+  
+  const timeDiff = formatTimeDiff(diffMinutes);
+  
+  // Determine status based on the time difference
+  let status;
+  
+  if (type === 'IN') {
+    // For time-in:
+    if (diffMinutes <= -60) {
+      status = 'Early';
+    } else if (diffMinutes > -60 && diffMinutes <= 5) {
+      status = 'On Time';
+    } else {
+      status = 'Late';
+    }
+  } else {
+    // For time-out:
+    if (diffMinutes < -15) {
+      status = 'Early Out';
+    } else if (diffMinutes >= -15 && diffMinutes <= 60) {
+      status = 'On Time';
+    } else {
+      status = 'Overtime';
+    }
+  }
+  
+  return {
+    status,
+    timeDiff
+  };
 };
 
-export const recordAttendance = async (userId, email, name, type, notes = '') => {
-  console.log('Recording attendance with type:', type, 'for user:', { userId, email, name });
+export const recordAttendance = async (userId, type, notes = '') => {
+  console.log('Recording attendance with type:', type, 'for user:', { userId });
   try {
     // Get the current date and time
     const now = new Date();
@@ -245,11 +226,15 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
     let userType = null;
     let currentShift = null;
     let timeRegion = null;
+    let email = '';
+    let name = 'Unknown User';
 
     if (userSnapshot.exists()) {
       const userData = userSnapshot.data();
       userType = userData.userType;
       timeRegion = userData.timeRegion;
+      email = userData.email || '';
+      name = userData.name || userData.displayName || 'Unknown User';
       
       // For other users, use their custom schedule
       const userSchedule = userData.schedule || {};
@@ -607,9 +592,61 @@ export const recordAttendance = async (userId, email, name, type, notes = '') =>
 
 export const updateAttendance = async (recordId, updateData) => {
   try {
+    // First get the current record to check if we need to recalculate status
     const attendanceRef = doc(db, 'attendance', recordId);
+    const recordSnapshot = await getDoc(attendanceRef);
+    
+    if (!recordSnapshot.exists()) {
+      throw new Error('Attendance record not found');
+    }
+    
+    const recordData = recordSnapshot.data();
+    let finalUpdateData = { ...updateData };
+    
+    // If actualTime is being updated, recalculate the status
+    if (updateData.actualTime && recordData.scheduleTime) {
+      // Convert actualTime string to Date object
+      const actualTimeDate = new Date();
+      const [time, period] = updateData.actualTime.split(' ');
+      if (time && period) {
+        // 12-hour format with AM/PM
+        const [hours, minutes] = time.split(':').map(Number);
+        let hour = hours;
+        
+        if (period === 'PM' && hours < 12) {
+          hour += 12;
+        } else if (period === 'AM' && hours === 12) {
+          hour = 0;
+        }
+        
+        actualTimeDate.setHours(hour, minutes, 0, 0);
+      } else {
+        // 24-hour format
+        const [hours, minutes] = updateData.actualTime.split(':').map(Number);
+        actualTimeDate.setHours(hours, minutes, 0, 0);
+      }
+      
+      // Recalculate status based on the new time
+      const { status, timeDiff } = calculateAttendanceStatus(
+        recordData.scheduleTime, 
+        actualTimeDate, 
+        recordData.type, 
+        recordData.timeRegion || 'PHT'
+      );
+      
+      // Update with new status and time difference
+      finalUpdateData = {
+        ...finalUpdateData,
+        status,
+        hoursDiff: timeDiff.hours,
+        minutesDiff: timeDiff.minutes,
+        totalMinutesDiff: timeDiff.totalMinutes
+      };
+    }
+    
+    // Update the record
     await updateDoc(attendanceRef, {
-      ...updateData,
+      ...finalUpdateData,
       updatedAt: new Date().toISOString(),
       updatedBy: updateData.updatedBy || 'admin'
     });
@@ -874,6 +911,72 @@ export const getScheduledUsersByDate = async (date) => {
       success: false,
       error: error.message,
       users: []
+    };
+  }
+};
+
+export const getUserAttendanceStatus = async (userId) => {
+  try {
+    // Get the attendance collection reference
+    const attendanceRef = collection(db, 'attendance');
+    
+    // Query for the user's records
+    const userRecordsQuery = query(
+      attendanceRef,
+      where('userId', '==', userId)
+    );
+    
+    const userRecordsSnapshot = await getDocs(userRecordsQuery);
+    
+    if (userRecordsSnapshot.empty) {
+      // No records found, user can time in but not time out
+      return {
+        success: true,
+        canTimeIn: true,
+        canTimeOut: false,
+        lastRecordType: null,
+        lastRecord: null
+      };
+    }
+    
+    // Get all records and sort them client-side by timestamp
+    const records = userRecordsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Sort by timestamp in descending order (newest first)
+    records.sort((a, b) => {
+      const timestampA = a.timestamp?.seconds || 0;
+      const timestampB = b.timestamp?.seconds || 0;
+      return timestampB - timestampA;
+    });
+    
+    // Get the most recent record
+    const lastRecord = records[0];
+    const lastRecordType = lastRecord?.type;
+    
+    // If the last record is a time in, user can time out but not time in again
+    // If the last record is a time out, user can time in but not time out again
+    const canTimeIn = !lastRecordType || lastRecordType === 'OUT';
+    const canTimeOut = lastRecordType === 'IN';
+    
+    return {
+      success: true,
+      canTimeIn,
+      canTimeOut,
+      lastRecordType,
+      lastRecord
+    };
+  } catch (error) {
+    console.error('Error getting user attendance status:', error);
+    return {
+      success: false,
+      error: error.message,
+      canTimeIn: false,
+      canTimeOut: false,
+      lastRecordType: null,
+      lastRecord: null
     };
   }
 };

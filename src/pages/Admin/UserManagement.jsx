@@ -4,7 +4,7 @@ import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, 
 import { auth } from '../../firebase';
 
 //icons
-import { PencilSimpleLine, Calendar, Trash, Copy, FloppyDisk } from 'phosphor-react'; 
+import { PencilSimpleLine, Calendar, Trash, Copy, FloppyDisk, CalendarBlank } from 'phosphor-react'; 
 
 const Container = styled.div`
   padding: 2rem;
@@ -273,6 +273,18 @@ function UserManagement() {
         return;
       }
 
+      // Check if email is being changed
+      const isEmailChanged = user.email !== userData.email;
+      
+      // If email is being changed, check if it's already approved
+      if (isEmailChanged) {
+        const isApproved = approvedEmails.some(entry => entry.email === userData.email);
+        if (!isApproved) {
+          // Add the new email to approved emails first
+          await addApprovedEmail(userData.email);
+        }
+      }
+
       await createOrUpdateUser(userId, {
         ...userData,
         userType: user.userType,
@@ -281,9 +293,16 @@ function UserManagement() {
       });
       
       setShowEditModal(false);
-      await loadUsers();
+      
+      // Reload users and approved emails if email was changed
+      if (isEmailChanged) {
+        await Promise.all([loadUsers(), loadApprovedEmails()]);
+      } else {
+        await loadUsers();
+      }
     } catch (error) {
       console.error('Error updating user:', error);
+      throw error;
     }
   };
 
@@ -337,14 +356,14 @@ function UserManagement() {
     let totalMinutes = 0;
     
     Object.values(schedule).forEach(shift => {
-      if (!shift.startDay || !shift.startTime || !shift.endDay || !shift.endTime) {
+      if (!shift.startDay || !shift.startTime || !shift.endTime) {
         return; // Skip invalid shifts
       }
       
       try {
         // Normalize day names to lowercase
         const startDayLower = shift.startDay.toLowerCase();
-        const endDayLower = shift.endDay.toLowerCase();
+        const endDayLower = shift.isNextDay ? days[(days.indexOf(startDayLower) + 1) % 7] : startDayLower;
         
         const startDayIndex = days.indexOf(startDayLower);
         const endDayIndex = days.indexOf(endDayLower);
@@ -429,7 +448,7 @@ function UserManagement() {
     });
   };
 
-  const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
+  const validateShiftTimes = (startDay, startTime, endTime, isNextDay) => {
     // Convert days to numerical values (0 = Monday, 6 = Sunday)
     const dayToNumber = {
       'monday': 0,
@@ -442,9 +461,8 @@ function UserManagement() {
     };
 
     const startDayNum = dayToNumber[startDay.toLowerCase()];
-    const endDayNum = dayToNumber[endDay.toLowerCase()];
 
-    if (startDayNum === undefined || endDayNum === undefined) {
+    if (startDayNum === undefined) {
       return false;
     }
 
@@ -471,9 +489,11 @@ function UserManagement() {
     const [shiftFormData, setShiftFormData] = useState({
       startDay: 'monday',
       startTime: '',
-      endDay: 'monday',
       endTime: '',
-      timeRegion: 'PHT'
+      timeRegion: 'PHT',
+      isSpecificDate: false,
+      specificDate: new Date().toISOString().split('T')[0],
+      isNextDay: false
     });
     const [showTemplateSelector, setShowTemplateSelector] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -497,14 +517,41 @@ function UserManagement() {
       return day.charAt(0).toUpperCase() + day.slice(1);
     };
 
+    const formatDate = (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    };
+
     const handleAddShift = () => {
       setSelectedShift(null);
       setShiftFormData({
         startDay: 'monday',
         startTime: '',
-        endDay: 'monday',
         endTime: '',
-        timeRegion: 'PHT'
+        timeRegion: 'PHT',
+        isSpecificDate: false,
+        specificDate: new Date().toISOString().split('T')[0],
+        isNextDay: false
+      });
+      setShowShiftForm(true);
+    };
+
+    const handleAddSpecificDateShift = () => {
+      setSelectedShift(null);
+      setShiftFormData({
+        startDay: 'monday',
+        startTime: '',
+        endTime: '',
+        timeRegion: 'PHT',
+        isSpecificDate: true,
+        specificDate: new Date().toISOString().split('T')[0],
+        isNextDay: false
       });
       setShowShiftForm(true);
     };
@@ -513,14 +560,29 @@ function UserManagement() {
       const shift = schedule[shiftId];
       if (!shift) return;
 
-      setSelectedShift(shiftId);
-      setShiftFormData({
-        startDay: shift.startDay || 'monday',
-        startTime: shift.startTime || '',
-        endDay: shift.endDay || 'monday',
-        endTime: shift.endTime || '',
-        timeRegion: shift.timeRegion || 'PHT'
-      });
+      if (shift.isSpecificDate) {
+        setSelectedShift(shiftId);
+        setShiftFormData({
+          startDay: 'monday',
+          startTime: shift.startTime || '',
+          endTime: shift.endTime || '',
+          timeRegion: shift.timeRegion || 'PHT',
+          isSpecificDate: true,
+          specificDate: shift.specificDate || new Date().toISOString().split('T')[0],
+          isNextDay: shift.isNextDay || false
+        });
+      } else {
+        setSelectedShift(shiftId);
+        setShiftFormData({
+          startDay: shift.startDay || 'monday',
+          startTime: shift.startTime || '',
+          endTime: shift.endTime || '',
+          timeRegion: shift.timeRegion || 'PHT',
+          isSpecificDate: false,
+          specificDate: new Date().toISOString().split('T')[0],
+          isNextDay: shift.isNextDay || false
+        });
+      }
       setShowShiftForm(true);
     };
 
@@ -538,36 +600,72 @@ function UserManagement() {
       }
 
       try {
-        // Ensure we have valid day values
-        const startDay = shiftFormData.startDay || 'monday';
-        const endDay = shiftFormData.endDay || 'monday';
+        let isValid = false;
         
-        // Validate the shift times
-        const isValid = validateShiftTimes(
-          startDay,
-          shiftFormData.startTime,
-          endDay,
-          shiftFormData.endTime
-        );
-        
-        if (!isValid) {
-          alert('Invalid shift times. End time must be after start time.');
-          return;
+        if (shiftFormData.isSpecificDate) {
+          // For specific date shifts, just validate that the times make sense
+          const [startHour, startMinute] = shiftFormData.startTime.split(':').map(Number);
+          const [endHour, endMinute] = shiftFormData.endTime.split(':').map(Number);
+          
+          if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+            alert('Invalid time format');
+            return;
+          }
+          
+          const startTotalMinutes = startHour * 60 + startMinute;
+          const endTotalMinutes = endHour * 60 + endMinute;
+          
+          // For specific date, if isNextDay is true, we don't need to validate that end time is after start time
+          if (shiftFormData.isNextDay) {
+            isValid = true;
+          } else {
+            // If same day, end time should be after start time
+            isValid = endTotalMinutes > startTotalMinutes;
+          }
+          
+          if (!isValid) {
+            alert('For same day shifts, end time must be after start time.');
+            return;
+          }
+        } else {
+          // For weekly schedule, use the existing validation
+          isValid = validateShiftTimes(
+            shiftFormData.startDay,
+            shiftFormData.startTime,
+            shiftFormData.endTime,
+            shiftFormData.isNextDay
+          );
+          
+          if (!isValid) {
+            alert('Invalid shift times. End time must be after start time.');
+            return;
+          }
         }
 
         // Create a unique shift ID if not editing an existing one
         const shiftId = selectedShift || `shift_${Date.now()}`;
         
         // Update the schedule with the new/edited shift
+        const shiftData = shiftFormData.isSpecificDate
+          ? {
+              isSpecificDate: true,
+              specificDate: shiftFormData.specificDate,
+              startTime: shiftFormData.startTime,
+              endTime: shiftFormData.endTime,
+              timeRegion: shiftFormData.timeRegion || 'PHT',
+              isNextDay: shiftFormData.isNextDay
+            }
+          : {
+              startDay: shiftFormData.startDay,
+              startTime: shiftFormData.startTime,
+              endTime: shiftFormData.endTime,
+              timeRegion: shiftFormData.timeRegion || 'PHT',
+              isNextDay: shiftFormData.isNextDay
+            };
+        
         setSchedule(prev => ({
           ...prev,
-          [shiftId]: {
-            startDay: startDay,
-            startTime: shiftFormData.startTime,
-            endDay: endDay,
-            endTime: shiftFormData.endTime,
-            timeRegion: shiftFormData.timeRegion || 'PHT'
-          }
+          [shiftId]: shiftData
         }));
         
         // Close the shift form
@@ -640,7 +738,14 @@ function UserManagement() {
           <h2>Schedule for {userName}</h2>
           
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-            <Button onClick={handleAddShift}>Add Shift</Button>
+            <Button onClick={handleAddShift}>
+              <Icon><Calendar size={16} /></Icon>
+              Add Weekly Shift
+            </Button>
+            <Button onClick={handleAddSpecificDateShift} style={{ backgroundColor: '#8B5CF6' }}>
+              <Icon><CalendarBlank size={16} /></Icon>
+              Add Specific Date Shift
+            </Button>
             <Button 
               onClick={() => setShowTemplateSelector(true)}
               style={{ backgroundColor: '#4F46E5' }}
@@ -660,34 +765,110 @@ function UserManagement() {
           {showShiftForm && (
             <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
               <h3>{selectedShift ? 'Edit Shift' : 'Add New Shift'}</h3>
+              
               <FormGroup>
-                <Label>Start Day</Label>
-                <Select
-                  value={shiftFormData.startDay || 'monday'}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
-                >
-                  {daysOfWeek.map(day => (
-                    <option key={day} value={day}>{formatDayName(day)}</option>
-                  ))}
-                </Select>
+                <Label>Shift Type</Label>
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      checked={!shiftFormData.isSpecificDate} 
+                      onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: false }))}
+                      style={{ marginRight: '0.5rem' }}
+                    />
+                    Weekly Schedule
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                    <input 
+                      type="radio" 
+                      checked={shiftFormData.isSpecificDate} 
+                      onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: true }))}
+                      style={{ marginRight: '0.5rem' }}
+                    />
+                    Specific Date
+                  </label>
+                </div>
               </FormGroup>
+              
+              {shiftFormData.isSpecificDate ? (
+                <>
+                  <FormGroup>
+                    <Label>Date</Label>
+                    <Input
+                      type="date"
+                      value={shiftFormData.specificDate}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, specificDate: e.target.value }))}
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>End Time Is On</Label>
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          checked={!shiftFormData.isNextDay} 
+                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
+                          style={{ marginRight: '0.5rem' }}
+                        />
+                        Same Day
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          checked={shiftFormData.isNextDay} 
+                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
+                          style={{ marginRight: '0.5rem' }}
+                        />
+                        Next Day
+                      </label>
+                    </div>
+                  </FormGroup>
+                </>
+              ) : (
+                <>
+                  <FormGroup>
+                    <Label>Start Day</Label>
+                    <Select
+                      value={shiftFormData.startDay || 'monday'}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
+                    >
+                      {daysOfWeek.map(day => (
+                        <option key={day} value={day}>{formatDayName(day)}</option>
+                      ))}
+                    </Select>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label>End Time Is On</Label>
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          checked={!shiftFormData.isNextDay} 
+                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
+                          style={{ marginRight: '0.5rem' }}
+                        />
+                        Same Day
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          checked={shiftFormData.isNextDay} 
+                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
+                          style={{ marginRight: '0.5rem' }}
+                        />
+                        Next Day
+                      </label>
+                    </div>
+                  </FormGroup>
+                </>
+              )}
+              
               <FormGroup>
                 <Label>Start Time</Label>
                 <TimeInput
                   value={shiftFormData.startTime || ''}
                   onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
                 />
-              </FormGroup>
-              <FormGroup>
-                <Label>End Day</Label>
-                <Select
-                  value={shiftFormData.endDay || 'monday'}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, endDay: e.target.value }))}
-                >
-                  {daysOfWeek.map(day => (
-                    <option key={day} value={day}>{formatDayName(day)}</option>
-                  ))}
-                </Select>
               </FormGroup>
               <FormGroup>
                 <Label>End Time</Label>
@@ -752,7 +933,7 @@ function UserManagement() {
                           backgroundColor: '#F3F4F6',
                           borderRadius: '4px'
                         }}>
-                          {formatDayName(shift.startDay)} {shift.startTime} to {formatDayName(shift.endDay)} {shift.endTime} ({shift.timeRegion || 'PHT'})
+                          {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} ({shift.timeRegion || 'PHT'})
                         </div>
                       ))}
                     </div>
@@ -810,6 +991,55 @@ function UserManagement() {
             ) : (
               Object.entries(schedule).map(([shiftId, shift]) => {
                 if (!shift) return null;
+                
+                // Different display for specific date shifts
+                if (shift.isSpecificDate) {
+                  return (
+                    <div key={shiftId} style={{ 
+                      marginBottom: '1rem', 
+                      padding: '1rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      backgroundColor: '#F0F9FF' // Light blue background for specific date shifts
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#3B82F6' }}>
+                          <Icon><CalendarBlank size={16} /></Icon>
+                          {formatDate(shift.specificDate)}
+                        </div>
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <strong>{shift.startTime || ''}</strong>
+                          <span style={{ margin: '0 0.5rem', color: '#666' }}>to</span>
+                          <strong>{shift.endTime || ''}</strong>
+                          {shift.isNextDay && (
+                            <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
+                              (Next Day)
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                          Time Region: {shift.timeRegion || 'PHT'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <Button onClick={() => handleEditShift(shiftId)}>
+                          Edit
+                        </Button>
+                        <Button 
+                          onClick={() => handleDeleteShift(shiftId)}
+                          style={{ backgroundColor: '#DC2626' }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                // Regular weekly shift display
                 return (
                   <div key={shiftId} style={{ 
                     marginBottom: '1rem', 
@@ -821,11 +1051,19 @@ function UserManagement() {
                     alignItems: 'center'
                   }}>
                     <div>
-                      <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
-                      <div style={{ fontSize: '0.9em', color: '#666' }}>
-                        to
+                      <div>
+                        <Icon><Calendar size={16} /></Icon>
+                        <strong> {formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
+                        <div style={{ fontSize: '0.9em', color: '#666', display: 'inline-block', margin: '0 0.5rem' }}>
+                          to
+                        </div>
+                        <strong>{shift.endTime || ''}</strong>
+                        {shift.isNextDay && (
+                          <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
+                            (Next Day)
+                          </span>
+                        )}
                       </div>
-                      <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
                       <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
                         Time Region: {shift.timeRegion || 'PHT'}
                       </div>
@@ -866,6 +1104,7 @@ function UserManagement() {
       email: selectedUser?.email || ''
     });
     const [error, setError] = useState('');
+    const [originalEmail] = useState(selectedUser?.email || '');
 
     const handleSave = async () => {
       try {
@@ -877,6 +1116,19 @@ function UserManagement() {
         if (!editData.email.includes('@')) {
           setError('Please enter a valid email address');
           return;
+        }
+
+        // Check if email is being changed
+        if (originalEmail !== editData.email) {
+          // Check if the new email already exists for a different user
+          const emailExists = users.some(u => 
+            u.email === editData.email && u.id !== selectedUser.id
+          );
+
+          if (emailExists) {
+            setError('This email is already in use by another user');
+            return;
+          }
         }
 
         await handleEditUser(selectedUser.id, editData);
@@ -993,21 +1245,22 @@ function UserManagement() {
 
   const ScheduleTemplatesModal = () => {
     const [templates, setTemplates] = useState(scheduleTemplates);
-    const [selectedTemplateId, setSelectedTemplateId] = useState(null);
-    const [showTemplateForm, setShowTemplateForm] = useState(false);
-    const [templateFormData, setTemplateFormData] = useState({
+    const [selectedTemplate, setSelectedTemplate] = useState(null);
+    const [showEditForm, setShowEditForm] = useState(false);
+    const [editFormData, setEditFormData] = useState({
       name: '',
       schedule: {}
     });
-    const [currentSchedule, setCurrentSchedule] = useState({});
     const [showShiftForm, setShowShiftForm] = useState(false);
     const [selectedShift, setSelectedShift] = useState(null);
     const [shiftFormData, setShiftFormData] = useState({
       startDay: 'monday',
       startTime: '',
-      endDay: 'monday',
       endTime: '',
-      timeRegion: 'PHT'
+      timeRegion: 'PHT',
+      isSpecificDate: false,
+      specificDate: new Date().toISOString().split('T')[0],
+      isNextDay: false
     });
 
     const daysOfWeek = [
@@ -1027,38 +1280,80 @@ function UserManagement() {
       return day.charAt(0).toUpperCase() + day.slice(1);
     };
 
+    const formatDate = (dateString) => {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    };
+
     const handleAddShift = () => {
       setSelectedShift(null);
       setShiftFormData({
         startDay: 'monday',
         startTime: '',
-        endDay: 'monday',
         endTime: '',
-        timeRegion: 'PHT'
+        timeRegion: 'PHT',
+        isSpecificDate: false,
+        specificDate: new Date().toISOString().split('T')[0],
+        isNextDay: false
+      });
+      setShowShiftForm(true);
+    };
+
+    const handleAddSpecificDateShift = () => {
+      setSelectedShift(null);
+      setShiftFormData({
+        startDay: 'monday',
+        startTime: '',
+        endTime: '',
+        timeRegion: 'PHT',
+        isSpecificDate: true,
+        specificDate: new Date().toISOString().split('T')[0],
+        isNextDay: false
       });
       setShowShiftForm(true);
     };
 
     const handleEditShift = (shiftId) => {
-      const shift = currentSchedule[shiftId];
+      const shift = editFormData.schedule[shiftId];
       if (!shift) return;
 
-      setSelectedShift(shiftId);
-      setShiftFormData({
-        startDay: shift.startDay || 'monday',
-        startTime: shift.startTime || '',
-        endDay: shift.endDay || 'monday',
-        endTime: shift.endTime || '',
-        timeRegion: shift.timeRegion || 'PHT'
-      });
+      if (shift.isSpecificDate) {
+        setSelectedShift(shiftId);
+        setShiftFormData({
+          startDay: 'monday',
+          startTime: shift.startTime || '',
+          endTime: shift.endTime || '',
+          timeRegion: shift.timeRegion || 'PHT',
+          isSpecificDate: true,
+          specificDate: shift.specificDate || new Date().toISOString().split('T')[0],
+          isNextDay: shift.isNextDay || false
+        });
+      } else {
+        setSelectedShift(shiftId);
+        setShiftFormData({
+          startDay: shift.startDay || 'monday',
+          startTime: shift.startTime || '',
+          endTime: shift.endTime || '',
+          timeRegion: shift.timeRegion || 'PHT',
+          isSpecificDate: false,
+          specificDate: new Date().toISOString().split('T')[0],
+          isNextDay: shift.isNextDay || false
+        });
+      }
       setShowShiftForm(true);
     };
 
     const handleDeleteShift = (shiftId) => {
       if (!shiftId) return;
-      const newSchedule = { ...currentSchedule };
+      const newSchedule = { ...editFormData.schedule };
       delete newSchedule[shiftId];
-      setCurrentSchedule(newSchedule);
+      setEditFormData(prev => ({ ...prev, schedule: newSchedule }));
     };
 
     const handleSaveShift = () => {
@@ -1068,35 +1363,74 @@ function UserManagement() {
       }
 
       try {
-        // Ensure we have valid day values
-        const startDay = shiftFormData.startDay || 'monday';
-        const endDay = shiftFormData.endDay || 'monday';
+        let isValid = false;
         
-        // Validate the shift times
-        const isValid = validateShiftTimes(
-          startDay,
-          shiftFormData.startTime,
-          endDay,
-          shiftFormData.endTime
-        );
-        
-        if (!isValid) {
-          alert('Invalid shift times. End time must be after start time.');
-          return;
+        if (shiftFormData.isSpecificDate) {
+          // For specific date shifts, just validate that the times make sense
+          const [startHour, startMinute] = shiftFormData.startTime.split(':').map(Number);
+          const [endHour, endMinute] = shiftFormData.endTime.split(':').map(Number);
+          
+          if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+            alert('Invalid time format');
+            return;
+          }
+          
+          const startTotalMinutes = startHour * 60 + startMinute;
+          const endTotalMinutes = endHour * 60 + endMinute;
+          
+          // For specific date, if isNextDay is true, we don't need to validate that end time is after start time
+          if (shiftFormData.isNextDay) {
+            isValid = true;
+          } else {
+            // If same day, end time should be after start time
+            isValid = endTotalMinutes > startTotalMinutes;
+          }
+          
+          if (!isValid) {
+            alert('For same day shifts, end time must be after start time.');
+            return;
+          }
+        } else {
+          // For weekly schedule, use the existing validation
+          isValid = validateShiftTimes(
+            shiftFormData.startDay,
+            shiftFormData.startTime,
+            shiftFormData.endTime,
+            shiftFormData.isNextDay
+          );
+          
+          if (!isValid) {
+            alert('Invalid shift times. End time must be after start time.');
+            return;
+          }
         }
 
         // Create a unique shift ID if not editing an existing one
         const shiftId = selectedShift || `shift_${Date.now()}`;
         
         // Update the schedule with the new/edited shift
-        setCurrentSchedule(prev => ({
+        const shiftData = shiftFormData.isSpecificDate
+          ? {
+              isSpecificDate: true,
+              specificDate: shiftFormData.specificDate,
+              startTime: shiftFormData.startTime,
+              endTime: shiftFormData.endTime,
+              timeRegion: shiftFormData.timeRegion || 'PHT',
+              isNextDay: shiftFormData.isNextDay
+            }
+          : {
+              startDay: shiftFormData.startDay,
+              startTime: shiftFormData.startTime,
+              endTime: shiftFormData.endTime,
+              timeRegion: shiftFormData.timeRegion || 'PHT',
+              isNextDay: shiftFormData.isNextDay
+            };
+        
+        setEditFormData(prev => ({
           ...prev,
-          [shiftId]: {
-            startDay: startDay,
-            startTime: shiftFormData.startTime,
-            endDay: endDay,
-            endTime: shiftFormData.endTime,
-            timeRegion: shiftFormData.timeRegion || 'PHT'
+          schedule: {
+            ...prev.schedule,
+            [shiftId]: shiftData
           }
         }));
         
@@ -1110,27 +1444,26 @@ function UserManagement() {
 
     const handleCreateTemplate = async () => {
       try {
-        if (!templateFormData.name.trim()) {
+        if (!editFormData.name.trim()) {
           alert('Please enter a template name');
           return;
         }
 
-        if (Object.keys(currentSchedule).length === 0) {
+        if (Object.keys(editFormData.schedule).length === 0) {
           alert('Please add at least one shift to the template');
           return;
         }
 
         await createScheduleTemplate({
-          name: templateFormData.name,
-          schedule: currentSchedule
+          name: editFormData.name,
+          schedule: editFormData.schedule
         });
 
-        setShowTemplateForm(false);
-        setTemplateFormData({
+        setShowEditForm(false);
+        setEditFormData({
           name: '',
           schedule: {}
         });
-        setCurrentSchedule({});
         await loadScheduleTemplates();
       } catch (error) {
         console.error('Error creating template:', error);
@@ -1140,28 +1473,27 @@ function UserManagement() {
 
     const handleEditTemplate = async () => {
       try {
-        if (!templateFormData.name.trim()) {
+        if (!editFormData.name.trim()) {
           alert('Please enter a template name');
           return;
         }
 
-        if (Object.keys(currentSchedule).length === 0) {
+        if (Object.keys(editFormData.schedule).length === 0) {
           alert('Please add at least one shift to the template');
           return;
         }
 
-        await updateScheduleTemplate(selectedTemplateId, {
-          name: templateFormData.name,
-          schedule: currentSchedule
+        await updateScheduleTemplate(selectedTemplate.id, {
+          name: editFormData.name,
+          schedule: editFormData.schedule
         });
 
-        setShowTemplateForm(false);
-        setSelectedTemplateId(null);
-        setTemplateFormData({
+        setShowEditForm(false);
+        setSelectedTemplate(null);
+        setEditFormData({
           name: '',
           schedule: {}
         });
-        setCurrentSchedule({});
         await loadScheduleTemplates();
       } catch (error) {
         console.error('Error updating template:', error);
@@ -1184,23 +1516,21 @@ function UserManagement() {
     };
 
     const handleEditTemplateClick = (template) => {
-      setSelectedTemplateId(template.id);
-      setTemplateFormData({
+      setSelectedTemplate(template);
+      setEditFormData({
         name: template.name,
         schedule: template.schedule
       });
-      setCurrentSchedule(template.schedule || {});
-      setShowTemplateForm(true);
+      setShowEditForm(true);
     };
 
     const handleCreateNewTemplate = () => {
-      setSelectedTemplateId(null);
-      setTemplateFormData({
+      setSelectedTemplate(null);
+      setEditFormData({
         name: '',
         schedule: {}
       });
-      setCurrentSchedule({});
-      setShowTemplateForm(true);
+      setShowEditForm(true);
     };
 
     return (
@@ -1211,15 +1541,15 @@ function UserManagement() {
             <Button onClick={handleCreateNewTemplate}>Create New Template</Button>
           </div>
 
-          {showTemplateForm ? (
+          {showEditForm ? (
             <div>
-              <h3>{selectedTemplateId ? 'Edit Template' : 'Create New Template'}</h3>
+              <h3>{selectedTemplate ? 'Edit Template' : 'Create New Template'}</h3>
               <FormGroup>
                 <Label>Template Name</Label>
                 <Input
                   type="text"
-                  value={templateFormData.name}
-                  onChange={(e) => setTemplateFormData(prev => ({ ...prev, name: e.target.value }))}
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="Enter template name"
                 />
               </FormGroup>
@@ -1227,39 +1557,118 @@ function UserManagement() {
               <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
                 <h4>Shifts</h4>
                 <Button onClick={handleAddShift}>Add Shift</Button>
+                <Button onClick={handleAddSpecificDateShift} style={{ backgroundColor: '#8B5CF6' }}>
+                  <Icon><CalendarBlank size={16} /></Icon>
+                  Add Specific Date Shift
+                </Button>
               </div>
 
               {showShiftForm && (
                 <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
                   <h4>{selectedShift ? 'Edit Shift' : 'Add New Shift'}</h4>
                   <FormGroup>
-                    <Label>Start Day</Label>
-                    <Select
-                      value={shiftFormData.startDay || 'monday'}
-                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
-                    >
-                      {daysOfWeek.map(day => (
-                        <option key={day} value={day}>{formatDayName(day)}</option>
-                      ))}
-                    </Select>
+                    <Label>Shift Type</Label>
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          checked={!shiftFormData.isSpecificDate} 
+                          onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: false }))}
+                          style={{ marginRight: '0.5rem' }}
+                        />
+                        Weekly Schedule
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          checked={shiftFormData.isSpecificDate} 
+                          onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: true }))}
+                          style={{ marginRight: '0.5rem' }}
+                        />
+                        Specific Date
+                      </label>
+                    </div>
                   </FormGroup>
+                  
+                  {shiftFormData.isSpecificDate ? (
+                    <>
+                      <FormGroup>
+                        <Label>Date</Label>
+                        <Input
+                          type="date"
+                          value={shiftFormData.specificDate}
+                          onChange={(e) => setShiftFormData(prev => ({ ...prev, specificDate: e.target.value }))}
+                        />
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>End Time Is On</Label>
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              checked={!shiftFormData.isNextDay} 
+                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
+                              style={{ marginRight: '0.5rem' }}
+                            />
+                            Same Day
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              checked={shiftFormData.isNextDay} 
+                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
+                              style={{ marginRight: '0.5rem' }}
+                            />
+                            Next Day
+                          </label>
+                        </div>
+                      </FormGroup>
+                    </>
+                  ) : (
+                    <>
+                      <FormGroup>
+                        <Label>Start Day</Label>
+                        <Select
+                          value={shiftFormData.startDay || 'monday'}
+                          onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
+                        >
+                          {daysOfWeek.map(day => (
+                            <option key={day} value={day}>{formatDayName(day)}</option>
+                          ))}
+                        </Select>
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>End Time Is On</Label>
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              checked={!shiftFormData.isNextDay} 
+                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
+                              style={{ marginRight: '0.5rem' }}
+                            />
+                            Same Day
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                            <input 
+                              type="radio" 
+                              checked={shiftFormData.isNextDay} 
+                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
+                              style={{ marginRight: '0.5rem' }}
+                            />
+                            Next Day
+                          </label>
+                        </div>
+                      </FormGroup>
+                    </>
+                  )}
+                  
                   <FormGroup>
                     <Label>Start Time</Label>
                     <TimeInput
                       value={shiftFormData.startTime || ''}
                       onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
                     />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label>End Day</Label>
-                    <Select
-                      value={shiftFormData.endDay || 'monday'}
-                      onChange={(e) => setShiftFormData(prev => ({ ...prev, endDay: e.target.value }))}
-                    >
-                      {daysOfWeek.map(day => (
-                        <option key={day} value={day}>{formatDayName(day)}</option>
-                      ))}
-                    </Select>
                   </FormGroup>
                   <FormGroup>
                     <Label>End Time</Label>
@@ -1291,8 +1700,57 @@ function UserManagement() {
               )}
 
               <div style={{ marginTop: '1rem', maxHeight: '30vh', overflowY: 'auto' }}>
-                {Object.entries(currentSchedule || {}).map(([shiftId, shift]) => {
+                {Object.entries(editFormData.schedule || {}).map(([shiftId, shift]) => {
                   if (!shift) return null;
+                  
+                  // Different display for specific date shifts
+                  if (shift.isSpecificDate) {
+                    return (
+                      <div key={shiftId} style={{ 
+                        marginBottom: '1rem', 
+                        padding: '1rem',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        backgroundColor: '#F0F9FF' // Light blue background for specific date shifts
+                      }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', color: '#3B82F6' }}>
+                            <Icon><CalendarBlank size={16} /></Icon>
+                            {formatDate(shift.specificDate)}
+                          </div>
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <strong>{shift.startTime || ''}</strong>
+                            <span style={{ margin: '0 0.5rem', color: '#666' }}>to</span>
+                            <strong>{shift.endTime || ''}</strong>
+                            {shift.isNextDay && (
+                              <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
+                                (Next Day)
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                            Time Region: {shift.timeRegion || 'PHT'}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <Button onClick={() => handleEditShift(shiftId)}>
+                            Edit
+                          </Button>
+                          <Button 
+                            onClick={() => handleDeleteShift(shiftId)}
+                            style={{ backgroundColor: '#DC2626' }}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Regular weekly shift display
                   return (
                     <div key={shiftId} style={{ 
                       marginBottom: '1rem', 
@@ -1304,11 +1762,19 @@ function UserManagement() {
                       alignItems: 'center'
                     }}>
                       <div>
-                        <strong>{formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
-                        <div style={{ fontSize: '0.9em', color: '#666' }}>
-                          to
+                        <div>
+                          <Icon><Calendar size={16} /></Icon>
+                          <strong> {formatDayName(shift.startDay)} {shift.startTime || ''}</strong>
+                          <div style={{ fontSize: '0.9em', color: '#666', display: 'inline-block', margin: '0 0.5rem' }}>
+                            to
+                          </div>
+                          <strong>{shift.endTime || ''}</strong>
+                          {shift.isNextDay && (
+                            <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
+                              (Next Day)
+                            </span>
+                          )}
                         </div>
-                        <strong>{formatDayName(shift.endDay)} {shift.endTime || ''}</strong>
                         <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
                           Time Region: {shift.timeRegion || 'PHT'}
                         </div>
@@ -1331,13 +1797,13 @@ function UserManagement() {
 
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <Button onClick={() => {
-                  setShowTemplateForm(false);
-                  setSelectedTemplateId(null);
+                  setShowEditForm(false);
+                  setSelectedTemplate(null);
                 }} style={{ backgroundColor: '#6B7280' }}>
                   Cancel
                 </Button>
-                <Button onClick={selectedTemplateId ? handleEditTemplate : handleCreateTemplate}>
-                  {selectedTemplateId ? 'Update Template' : 'Create Template'}
+                <Button onClick={selectedTemplate ? handleEditTemplate : handleCreateTemplate}>
+                  {selectedTemplate ? 'Update Template' : 'Create Template'}
                 </Button>
               </div>
             </div>
@@ -1383,7 +1849,7 @@ function UserManagement() {
                           backgroundColor: '#F3F4F6',
                           borderRadius: '4px'
                         }}>
-                          {formatDayName(shift.startDay)} {shift.startTime} to {formatDayName(shift.endDay)} {shift.endTime} ({shift.timeRegion || 'PHT'})
+                          {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} ({shift.timeRegion || 'PHT'})
                         </div>
                       ))}
                     </div>
@@ -1393,7 +1859,7 @@ function UserManagement() {
             </div>
           )}
 
-          {!showTemplateForm && (
+          {!showEditForm && (
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <Button onClick={() => setShowTemplatesModal(false)} style={{ backgroundColor: '#6B7280' }}>
                 Close

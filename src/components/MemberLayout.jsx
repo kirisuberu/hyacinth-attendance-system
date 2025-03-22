@@ -4,8 +4,9 @@ import styled, { createGlobalStyle, keyframes } from 'styled-components';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { recordAttendance } from '../utils/attendanceService';
+import { recordAttendance, getUserAttendanceStatus } from '../utils/attendanceService';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
+import { House, Calendar, Clock, ChartBar, ListChecks, SignOut } from 'phosphor-react';
 import EarlyINGif from '../assets/gif/TimeInOut/EarlyIN.gif';
 import EarlyOUTGif from '../assets/gif/TimeInOut/EarlyOUT.gif';
 import LateINGif from '../assets/gif/TimeInOut/LateIN.gif';
@@ -218,6 +219,12 @@ const NavLink = styled(Link)`
   @media (min-width: 768px) {
     padding: 1rem 2rem;
   }
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
 `;
 
 const Logo = styled.div`
@@ -767,6 +774,7 @@ function MemberLayout() {
   const [pendingAction, setPendingAction] = useState(null);
   const [pendingStatus, setPendingStatus] = useState('');
   const [canTimeIn, setCanTimeIn] = useState(true);
+  const [canTimeOut, setCanTimeOut] = useState(false);
   const [confirmationPopup, setConfirmationPopup] = useState({ 
     show: false, 
     message: '', 
@@ -815,8 +823,48 @@ function MemberLayout() {
   }, [sidebarOpen]);
 
   useEffect(() => {
+    // Fetch user info when the component mounts
+    const fetchUserInfo = async () => {
+      if (!auth.currentUser) return;
+      
+      try {
+        const userInfo = await getUserInfo(auth.currentUser.uid);
+        if (userInfo) {
+          setUserName(userInfo.name || auth.currentUser.displayName || 'Member User');
+          setUserSchedule(userInfo.schedule || {});
+        }
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+      }
+    };
+    
+    fetchUserInfo();
+  }, []);
+
+  useEffect(() => {
+    // Fetch the user's attendance status when the component mounts or when auth.currentUser changes
+    const fetchAttendanceStatus = async () => {
+      if (!auth.currentUser) return;
+      
+      try {
+        const result = await getUserAttendanceStatus(auth.currentUser.uid);
+        if (result.success) {
+          setCanTimeIn(result.canTimeIn);
+          setCanTimeOut(result.canTimeOut);
+        } else {
+          console.error('Error fetching attendance status:', result.error);
+        }
+      } catch (error) {
+        console.error('Error in fetchAttendanceStatus:', error);
+      }
+    };
+    
+    fetchAttendanceStatus();
+  }, [auth.currentUser]);
+
+  useEffect(() => {
+    // Calculate the expected end time based on the schedule
     if (todayRecord && todayRecord.type === 'IN' && todayRecord.scheduleTime) {
-      // Calculate the expected end time based on the schedule
       const [startHours, startMinutes] = todayRecord.scheduleTime.split(':').map(Number);
       const timestampDate = new Date(todayRecord.timestamp.seconds * 1000);
       
@@ -969,16 +1017,11 @@ function MemberLayout() {
             ...latestRecord,
             formattedStatus: statusText
           });
-          
-          // Check if the latest record is a time-in and disable the time-in button
-          setCanTimeIn(latestRecord.type !== 'IN');
         } else {
           setTodayRecord(null);
-          setCanTimeIn(true);
         }
       } else {
         setTodayRecord(null);
-        setCanTimeIn(true);
       }
     } catch (error) {
       console.error('Error checking attendance:', error);
@@ -1054,8 +1097,6 @@ function MemberLayout() {
       
       const result = await recordAttendance(
         auth.currentUser.uid,
-        auth.currentUser.email,
-        userName || auth.currentUser.displayName || 'Member User',
         type,
         notes
       );
@@ -1065,6 +1106,10 @@ function MemberLayout() {
       }
 
       setShowModal(false);
+      
+      // Update the time in/out button states
+      setCanTimeIn(type === 'OUT');
+      setCanTimeOut(type === 'IN');
       
       // Add a small delay to ensure the Firestore record is fully processed
       setTimeout(() => {
@@ -1216,21 +1261,27 @@ function MemberLayout() {
         >
           <Logo>Hyacinth Attendance</Logo>
           <NavLink to="/member/dashboard" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            <Icon><House size={16} /></Icon>
             Dashboard
           </NavLink>
           <NavLink to="/member/my-schedule" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            <Icon><Calendar size={16} /></Icon>
             My Schedule
           </NavLink>
           <NavLink to="/member/all-schedules" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            <Icon><ListChecks size={16} /></Icon>
             All Schedules
           </NavLink>
           <NavLink to="/member/realtime-attendance" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            <Icon><Clock size={16} /></Icon>
             Real-Time Attendance
           </NavLink>
           <NavLink to="/member/reports" className={({ isActive }) => isActive ? 'active' : ''} onClick={isMobile ? closeSidebar : undefined}>
+            <Icon><ChartBar size={16} /></Icon>
             Reports
           </NavLink>
           <LogoutButton onClick={handleLogout}>
+            <Icon><SignOut size={16} /></Icon>
             Logout
           </LogoutButton>
         </Sidebar>
@@ -1265,7 +1316,7 @@ function MemberLayout() {
               
               <TimeOutButton 
                 onClick={() => handleTimeButtonClick('out')} 
-                disabled={!todayRecord || todayRecord.type !== 'IN'}
+                disabled={!canTimeOut}
               >
                 Time Out
               </TimeOutButton>

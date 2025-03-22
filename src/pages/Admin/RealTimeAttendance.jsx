@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, getDoc, getDocs, where, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import styled from 'styled-components';
 import { PencilSimple, Check, X, Trash, CalendarBlank } from 'phosphor-react';
@@ -293,17 +293,13 @@ function RealTimeAttendance() {
     }
   };
 
-  // Fetch data when the selected date changes
+  // Fetch scheduled users when the selected date changes
   useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-
+    async function fetchScheduledUsers() {
       try {
         // Don't fetch data for future dates
         if (isFutureDate) {
           setScheduledUsers([]);
-          setAttendanceData([]);
-          setLoading(false);
           return;
         }
 
@@ -323,24 +319,98 @@ function RealTimeAttendance() {
           console.error('Error fetching scheduled users:', scheduledUsersResult.error);
           setScheduledUsers([]);
         }
-
-        // Fetch attendance records for the selected date
-        const attendanceResult = await getAttendanceByDate(selectedDate);
-
-        if (attendanceResult.success) {
-          setAttendanceData(attendanceResult.records);
-        } else {
-          console.error('Error fetching attendance records:', attendanceResult.error);
-          setAttendanceData([]);
-        }
       } catch (error) {
-        console.error('Error in fetchData:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error in fetchScheduledUsers:', error);
       }
     }
 
-    fetchData();
+    fetchScheduledUsers();
+  }, [selectedDate, isFutureDate]);
+
+  // Set up real-time listener for attendance records
+  useEffect(() => {
+    setLoading(true);
+    
+    // Don't fetch data for future dates
+    if (isFutureDate) {
+      setAttendanceData([]);
+      setLoading(false);
+      return;
+    }
+    
+    // Create start and end timestamps for the selected date
+    const selectedDateObj = new Date(selectedDate);
+    const startOfDay = new Date(selectedDateObj);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(selectedDateObj);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const startTimestamp = Timestamp.fromDate(startOfDay);
+    const endTimestamp = Timestamp.fromDate(endOfDay);
+    
+    // Create a query for attendance records for the selected date
+    const attendanceRef = collection(db, 'attendance');
+    const attendanceQuery = query(
+      attendanceRef,
+      where('timestamp', '>=', startTimestamp),
+      where('timestamp', '<=', endTimestamp),
+      orderBy('timestamp', 'desc')
+    );
+    
+    // Set up the real-time listener
+    const unsubscribe = onSnapshot(
+      attendanceQuery,
+      (snapshot) => {
+        const records = {};
+        
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const userId = data.userId;
+          
+          if (!records[userId]) {
+            records[userId] = {
+              userId,
+              name: data.name || 'Unknown',
+              email: data.email || '',
+              timeIn: null,
+              timeOut: null
+            };
+          }
+          
+          if (data.type === 'IN') {
+            records[userId].timeIn = {
+              time: data.timestamp ? data.timestamp.toDate().toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              }) : 'N/A',
+              status: data.status,
+              id: doc.id
+            };
+          } else if (data.type === 'OUT') {
+            records[userId].timeOut = {
+              time: data.timestamp ? data.timestamp.toDate().toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              }) : 'N/A',
+              status: data.status,
+              id: doc.id
+            };
+          }
+        });
+        
+        setAttendanceData(Object.values(records));
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error in attendance listener:', error);
+        setLoading(false);
+      }
+    );
+    
+    // Clean up the listener when the component unmounts or when the date changes
+    return () => unsubscribe();
   }, [selectedDate, isFutureDate]);
 
   // Handle date change

@@ -517,8 +517,6 @@ function TimeInOut() {
       // Set loading state in parent component if needed
       const result = await recordAttendance(
         auth.currentUser.uid,
-        auth.currentUser.email,
-        userName,
         type.toUpperCase(),
         notes
       );
