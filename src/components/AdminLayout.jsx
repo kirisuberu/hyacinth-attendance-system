@@ -3,7 +3,7 @@ import { Navigate, Outlet, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { auth } from '../firebase';
 import { UserType } from '../utils/userService';
-import { recordAttendance, getUserAttendanceStatus } from '../utils/attendanceService';
+import { recordAttendance, getUserAttendanceStatus, calculateAttendanceStatus } from '../utils/attendanceService';
 import { useAuth } from '../contexts/AuthContext';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut } from 'phosphor-react';
@@ -168,6 +168,7 @@ function AdminLayout({ isMemberView = false }) {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [pendingAttendanceType, setPendingAttendanceType] = useState(null);
   const [pendingStatus, setPendingStatus] = useState('');
+  const [pendingTimeDiff, setPendingTimeDiff] = useState('');
   const [canTimeIn, setCanTimeIn] = useState(true);
   const [canTimeOut, setCanTimeOut] = useState(false);
 
@@ -196,34 +197,18 @@ function AdminLayout({ isMemberView = false }) {
     const determineExpectedStatus = () => {
       const now = new Date();
       
+      // Default schedule times
       const defaultStartTime = '09:00';
       const defaultEndTime = '18:00';
       
-      if (type === 'IN') {
-        const [scheduleHours, scheduleMinutes] = defaultStartTime.split(':').map(Number);
-        const scheduleDate = new Date();
-        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-        
-        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
-        
-        if (diffMinutes <= -60) return 'Early';
-        if (diffMinutes > -60 && diffMinutes <= 5) return 'On Time';
-        if (diffMinutes > 5) return 'Late';
-      }
+      // Use the same calculation as in AttendanceLogs.jsx via attendanceService.js
+      const scheduleTime = type === 'IN' ? defaultStartTime : defaultEndTime;
+      const { status, timeDiff } = calculateAttendanceStatus(scheduleTime, now, type, 'PHT');
       
-      if (type === 'OUT') {
-        const [scheduleHours, scheduleMinutes] = defaultEndTime.split(':').map(Number);
-        const scheduleDate = new Date();
-        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-        
-        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
-        
-        if (diffMinutes < 0) return 'Early Out';
-        if (diffMinutes >= 0 && diffMinutes <= 5) return 'On Time';
-        if (diffMinutes > 5) return 'Overtime';
-      }
+      // Store the time difference for display in the confirmation modal
+      setPendingTimeDiff(timeDiff);
       
-      return type === 'IN' ? 'On Time' : 'On Time';
+      return status;
     };
     
     const expectedStatus = determineExpectedStatus();
@@ -260,6 +245,7 @@ function AdminLayout({ isMemberView = false }) {
       setShowConfirmation(false);
       setPendingAttendanceType(null);
       setPendingStatus('');
+      setPendingTimeDiff('');
     }
   };
 
@@ -267,6 +253,7 @@ function AdminLayout({ isMemberView = false }) {
     setShowConfirmation(false);
     setPendingAttendanceType(null);
     setPendingStatus('');
+    setPendingTimeDiff('');
   };
 
   const handleLogout = async () => {
@@ -438,6 +425,7 @@ function AdminLayout({ isMemberView = false }) {
           email: currentUser?.email
         }}
         status={pendingStatus}
+        timeDiff={pendingTimeDiff}
       />
     </LayoutContainer>
   );

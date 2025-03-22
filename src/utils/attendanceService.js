@@ -28,7 +28,8 @@ const convertTimeRegion = (time, fromRegion, toRegion) => {
   return `${newHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 };
 
-const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRegion = 'PHT') => {
+// Export the calculateAttendanceStatus function so it can be imported in other files
+export const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRegion = 'PHT') => {
   console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString(), timeRegion });
   
   // Validate timeRegion parameter

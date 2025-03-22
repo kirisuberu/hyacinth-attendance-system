@@ -261,7 +261,8 @@ const AttendanceConfirmationModal = ({
   onConfirm, 
   type,
   userData,
-  status
+  status,
+  timeDiff
 }) => {
   const [notes, setNotes] = useState('');
   const [calculatedStatus, setCalculatedStatus] = useState('');
@@ -355,11 +356,20 @@ const AttendanceConfirmationModal = ({
     e.stopPropagation();
   };
 
+  const formatTimeDifference = (timeDiff, type) => {
+    const hours = Math.floor(Math.abs(timeDiff.totalMinutes) / 60);
+    const minutes = Math.abs(timeDiff.totalMinutes) % 60;
+    const formattedTime = `${hours}h ${minutes}m`;
+    return type === 'IN' 
+      ? (timeDiff.totalMinutes < 0 ? `Early by ${formattedTime}` : timeDiff.totalMinutes > 5 ? `Late by ${formattedTime}` : `On time`)
+      : (timeDiff.totalMinutes < 0 ? `Early out by ${formattedTime}` : timeDiff.totalMinutes > 5 ? `Overtime by ${formattedTime}` : `On time`);
+  };
+
   return (
     <ModalOverlay onClick={handleOverlayClick}>
       <ModalContent onClick={e => e.stopPropagation()}>
         <Title type={type}>Confirm <span>{type === 'IN' ? 'Time In' : 'Time Out'}</span></Title>
-        {/* Display calculated status 
+        {/* Display calculated status */}
         {calculatedStatus && (
           <StatusBadge status={calculatedStatus}>
             {calculatedStatus}
@@ -370,7 +380,7 @@ const AttendanceConfirmationModal = ({
           <GifContainer>
             <img src={gifSource} alt={`${calculatedStatus} animation`} />
           </GifContainer>
-        )}*/}
+        )}
         
         <InfoSection>
           <div className="label">Name</div>
@@ -381,6 +391,20 @@ const AttendanceConfirmationModal = ({
           <div className="label">Email</div>
           <div className="value">{userData?.email}</div>
         </InfoSection>
+
+        {/* Display time difference if available */}
+        {timeDiff && (
+          <InfoSection>
+            <div className="label">Time Difference</div>
+            <div className="value" style={{ 
+              color: type === 'IN' 
+                ? (timeDiff.totalMinutes < 0 ? '#1E40AF' : timeDiff.totalMinutes > 5 ? '#991B1B' : '#166534')
+                : (timeDiff.totalMinutes < 0 ? '#991B1B' : timeDiff.totalMinutes > 5 ? '#92400E' : '#166534')
+            }}>
+              {formatTimeDifference(timeDiff, type)}
+            </div>
+          </InfoSection>
+        )}
 
         <TimeSection>
           <div className="title">Current Time</div>
