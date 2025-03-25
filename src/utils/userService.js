@@ -16,7 +16,7 @@ export const WeeklySchedule = {
 };
 
 // Helper function to validate shift times
-export const validateShiftTimes = (startDay, startTime, duration, isNextDay) => {
+export const validateShiftTimes = (startDay, startTime, duration) => {
   // Check if any of the parameters are null or undefined
   if (!startDay || !startTime || !duration) {
     console.warn('validateShiftTimes: Missing required parameters', { startDay, startTime, duration });
@@ -225,7 +225,7 @@ export const createOrUpdateUser = async (userId, userData) => {
     const schedule = userData.schedule || {};
     if (Object.keys(schedule).length > 0) {
       Object.entries(schedule).forEach(([shiftId, shift]) => {
-        if (shift && !validateShiftTimes(shift.startDay, shift.startTime, shift.duration, shift.isNextDay)) {
+        if (shift && !validateShiftTimes(shift.startDay, shift.startTime, shift.duration)) {
           throw new Error(`Invalid shift times for shift ${shiftId}`);
         }
       });

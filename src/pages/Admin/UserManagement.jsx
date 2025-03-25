@@ -524,8 +524,7 @@ function UserManagement() {
       duration: '8',
       timeRegion: 'PHT',
       isSpecificDate: false,
-      specificDate: new Date().toISOString().split('T')[0],
-      isNextDay: false
+      specificDate: new Date().toISOString().split('T')[0]
     });
     const [showTemplateSelector, setShowTemplateSelector] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -568,8 +567,7 @@ function UserManagement() {
         duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: false,
-        specificDate: new Date().toISOString().split('T')[0],
-        isNextDay: false
+        specificDate: new Date().toISOString().split('T')[0]
       });
       setShowShiftForm(true);
     };
@@ -582,8 +580,7 @@ function UserManagement() {
         duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: true,
-        specificDate: new Date().toISOString().split('T')[0],
-        isNextDay: false
+        specificDate: new Date().toISOString().split('T')[0]
       });
       setShowShiftForm(true);
     };
@@ -617,8 +614,7 @@ function UserManagement() {
           duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: true,
-          specificDate: shift.specificDate || new Date().toISOString().split('T')[0],
-          isNextDay: shift.isNextDay || false
+          specificDate: shift.specificDate || new Date().toISOString().split('T')[0]
         });
       } else {
         setSelectedShift(shiftId);
@@ -628,8 +624,7 @@ function UserManagement() {
           duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: false,
-          specificDate: new Date().toISOString().split('T')[0],
-          isNextDay: shift.isNextDay || false
+          specificDate: new Date().toISOString().split('T')[0]
         });
       }
       setShowShiftForm(true);
@@ -669,7 +664,7 @@ function UserManagement() {
         let endTotalMinutes = startTotalMinutes + durationMinutes;
         
         // Check if the shift extends to the next day
-        let isNextDay = shiftFormData.isNextDay;
+        let isNextDay = false;
         if (endTotalMinutes >= 24 * 60) {
           isNextDay = true;
           endTotalMinutes = endTotalMinutes % (24 * 60);
@@ -840,29 +835,6 @@ function UserManagement() {
                       onChange={(e) => setShiftFormData(prev => ({ ...prev, specificDate: e.target.value }))}
                     />
                   </FormGroup>
-                  <FormGroup>
-                    <Label>End Time Is On</Label>
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                        <input 
-                          type="radio" 
-                          checked={!shiftFormData.isNextDay} 
-                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
-                          style={{ marginRight: '0.5rem' }}
-                        />
-                        Same Day
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                        <input 
-                          type="radio" 
-                          checked={shiftFormData.isNextDay} 
-                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
-                          style={{ marginRight: '0.5rem' }}
-                        />
-                        Next Day
-                      </label>
-                    </div>
-                  </FormGroup>
                 </>
               ) : (
                 <>
@@ -876,29 +848,6 @@ function UserManagement() {
                         <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
                       ))}
                     </Select>
-                  </FormGroup>
-                  <FormGroup>
-                    <Label>End Time Is On</Label>
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                        <input 
-                          type="radio" 
-                          checked={!shiftFormData.isNextDay} 
-                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
-                          style={{ marginRight: '0.5rem' }}
-                        />
-                        Same Day
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                        <input 
-                          type="radio" 
-                          checked={shiftFormData.isNextDay} 
-                          onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
-                          style={{ marginRight: '0.5rem' }}
-                        />
-                        Next Day
-                      </label>
-                    </div>
                   </FormGroup>
                 </>
               )}
@@ -980,7 +929,6 @@ function UserManagement() {
                           {shift.isSpecificDate ? (
                             <>
                               {formatDate(shift.specificDate)} {shift.startTime} to {shift.endTime} 
-                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                               <div style={{ fontSize: '0.85em', color: '#666' }}>
                                 Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
                               </div>
@@ -988,7 +936,6 @@ function UserManagement() {
                           ) : (
                             <>
                               {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} 
-                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                               <div style={{ fontSize: '0.85em', color: '#666' }}>
                                 Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
                               </div>
@@ -1007,10 +954,7 @@ function UserManagement() {
                 }} style={{ backgroundColor: '#6B7280' }}>
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleApplyTemplate}
-                  disabled={!selectedTemplate}
-                >
+                <Button onClick={handleApplyTemplate}>
                   Apply Template
                 </Button>
               </div>
@@ -1074,15 +1018,10 @@ function UserManagement() {
                           <strong>{shift.startTime || ''}</strong>
                           <span style={{ margin: '0 0.5rem', color: '#666' }}>to</span>
                           <strong>{shift.endTime || ''}</strong>
-                          {shift.isNextDay && (
-                            <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                              (Next Day)
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                          <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
-                          <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                          <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                            <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                            <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                          </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1119,15 +1058,10 @@ function UserManagement() {
                           to
                         </div>
                         <strong>{shift.endTime || ''}</strong>
-                        {shift.isNextDay && (
-                          <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                            (Next Day)
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                        <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
-                        <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                        <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                          <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                          <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                        </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1348,8 +1282,7 @@ function UserManagement() {
       duration: '8',
       timeRegion: 'PHT',
       isSpecificDate: false,
-      specificDate: new Date().toISOString().split('T')[0],
-      isNextDay: false
+      specificDate: new Date().toISOString().split('T')[0]
     });
 
     const daysOfWeek = [
@@ -1388,8 +1321,7 @@ function UserManagement() {
         duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: false,
-        specificDate: new Date().toISOString().split('T')[0],
-        isNextDay: false
+        specificDate: new Date().toISOString().split('T')[0]
       });
       setShowShiftForm(true);
     };
@@ -1402,8 +1334,7 @@ function UserManagement() {
         duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: true,
-        specificDate: new Date().toISOString().split('T')[0],
-        isNextDay: false
+        specificDate: new Date().toISOString().split('T')[0]
       });
       setShowShiftForm(true);
     };
@@ -1437,8 +1368,7 @@ function UserManagement() {
           duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: true,
-          specificDate: shift.specificDate || new Date().toISOString().split('T')[0],
-          isNextDay: shift.isNextDay || false
+          specificDate: shift.specificDate || new Date().toISOString().split('T')[0]
         });
       } else {
         setSelectedShift(shiftId);
@@ -1448,8 +1378,7 @@ function UserManagement() {
           duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: false,
-          specificDate: new Date().toISOString().split('T')[0],
-          isNextDay: shift.isNextDay || false
+          specificDate: new Date().toISOString().split('T')[0]
         });
       }
       setShowShiftForm(true);
@@ -1489,7 +1418,7 @@ function UserManagement() {
         let endTotalMinutes = startTotalMinutes + durationMinutes;
         
         // Check if the shift extends to the next day
-        let isNextDay = shiftFormData.isNextDay;
+        let isNextDay = false;
         if (endTotalMinutes >= 24 * 60) {
           isNextDay = true;
           endTotalMinutes = endTotalMinutes % (24 * 60);
@@ -1697,29 +1626,6 @@ function UserManagement() {
                           onChange={(e) => setShiftFormData(prev => ({ ...prev, specificDate: e.target.value }))}
                         />
                       </FormGroup>
-                      <FormGroup>
-                        <Label>End Time Is On</Label>
-                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input 
-                              type="radio" 
-                              checked={!shiftFormData.isNextDay} 
-                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
-                              style={{ marginRight: '0.5rem' }}
-                            />
-                            Same Day
-                          </label>
-                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input 
-                              type="radio" 
-                              checked={shiftFormData.isNextDay} 
-                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
-                              style={{ marginRight: '0.5rem' }}
-                            />
-                            Next Day
-                          </label>
-                        </div>
-                      </FormGroup>
                     </>
                   ) : (
                     <>
@@ -1733,29 +1639,6 @@ function UserManagement() {
                             <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
                           ))}
                         </Select>
-                      </FormGroup>
-                      <FormGroup>
-                        <Label>End Time Is On</Label>
-                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input 
-                              type="radio" 
-                              checked={!shiftFormData.isNextDay} 
-                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: false }))}
-                              style={{ marginRight: '0.5rem' }}
-                            />
-                            Same Day
-                          </label>
-                          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                            <input 
-                              type="radio" 
-                              checked={shiftFormData.isNextDay} 
-                              onChange={() => setShiftFormData(prev => ({ ...prev, isNextDay: true }))}
-                              style={{ marginRight: '0.5rem' }}
-                            />
-                            Next Day
-                          </label>
-                        </div>
                       </FormGroup>
                     </>
                   )}
@@ -1826,15 +1709,10 @@ function UserManagement() {
                             <strong>{shift.startTime || ''}</strong>
                             <span style={{ margin: '0 0.5rem', color: '#666' }}>to</span>
                             <strong>{shift.endTime || ''}</strong>
-                            {shift.isNextDay && (
-                              <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                                (Next Day)
-                              </span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                            <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
-                            <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                            <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                              <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                              <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                            </div>
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1871,15 +1749,10 @@ function UserManagement() {
                             to
                           </div>
                           <strong>{shift.endTime || ''}</strong>
-                          {shift.isNextDay && (
-                            <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                              (Next Day)
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                          <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
-                          <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                          <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
+                            <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                            <span>Time Region: {shift.timeRegion || 'PHT'}</span>
+                          </div>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1955,7 +1828,6 @@ function UserManagement() {
                           {shift.isSpecificDate ? (
                             <>
                               {formatDate(shift.specificDate)} {shift.startTime} to {shift.endTime} 
-                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                               <div style={{ fontSize: '0.85em', color: '#666' }}>
                                 Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
                               </div>
@@ -1963,7 +1835,6 @@ function UserManagement() {
                           ) : (
                             <>
                               {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} 
-                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                               <div style={{ fontSize: '0.85em', color: '#666' }}>
                                 Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
                               </div>
@@ -2226,7 +2097,7 @@ function UserManagement() {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    backgroundColor: '#F0F9FF'
+                    backgroundColor: '#F0F9FF' // Light blue background for specific date shifts
                   }}>
                     <div>
                       <div style={{ fontWeight: 'bold', color: '#3B82F6' }}>
