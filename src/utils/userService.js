@@ -659,6 +659,9 @@ export const updateUserWithDocumentRename = async (userId, userData) => {
       throw new Error(`User with ID ${userId} not found`);
     }
 
+    // Ensure userID is preserved from the current user data
+    const preservedUserID = currentUser.userID || `uid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
     // Check if name or userType has changed
     const nameChanged = currentUser.name !== userData.name;
     const userTypeChanged = currentUser.userType !== userData.userType;
@@ -668,7 +671,7 @@ export const updateUserWithDocumentRename = async (userId, userData) => {
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
         ...userData,
-        userID: currentUser.userID, // Preserve the permanent userID
+        userID: preservedUserID, // Use the preserved userID
         updatedAt: new Date().toISOString()
       });
       return userId;
@@ -689,7 +692,7 @@ export const updateUserWithDocumentRename = async (userId, userData) => {
     const mergedData = {
       ...currentUser,
       ...userData,
-      userID: currentUser.userID, // Preserve the permanent userID
+      userID: preservedUserID, // Use the preserved userID
       updatedAt: new Date().toISOString()
     };
     
