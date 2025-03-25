@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { 
   getAllUsers, 
@@ -15,7 +15,8 @@ import {
   getScheduleTemplates, 
   createScheduleTemplate, 
   updateScheduleTemplate, 
-  deleteScheduleTemplate 
+  deleteScheduleTemplate,
+  refreshUserAccessAfterRename
 } from '../../utils/userService';
 import { auth } from '../../firebase';
 
@@ -346,6 +347,13 @@ function UserManagement() {
           email: userData.email,
           userType: userData.userType
         }));
+        
+        // If this is the current admin user, refresh their access to maintain admin view
+        const currentAuthUser = JSON.parse(localStorage.getItem('authUser'));
+        if (currentAuthUser && currentAuthUser.email === 'info@rahyo.com' && userData.userType === UserType.ADMIN) {
+          await refreshUserAccessAfterRename(currentAuthUser, updatedUserId);
+          alert('Your admin account has been updated. You may need to refresh the page to see all changes.');
+        }
       }
       
       setShowEditModal(false);

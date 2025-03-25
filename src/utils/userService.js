@@ -273,14 +273,23 @@ const generateCustomUserId = (userType, name) => {
     return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
   
+  // Special case for admin users - use a more stable ID format
+  if (userType.toLowerCase() === UserType.ADMIN.toLowerCase()) {
+    // For admin users, create a stable ID without timestamp
+    const formattedName = name.toLowerCase().replace(/\s+/g, '_');
+    return `admin_${formattedName}`;
+  }
+  
+  // For non-admin users, use the original format with timestamp
   // Convert name to lowercase and replace spaces with underscores
   const formattedName = name.toLowerCase().replace(/\s+/g, '_');
   
   // Create ID in the format "usertype_name"
-  const customId = `${userType}_${formattedName}`;
+  const customId = `${userType.toLowerCase()}_${formattedName}`;
   
   // Add a timestamp to ensure uniqueness in case of duplicate names
-  return `${customId}_${Date.now().toString().slice(-6)}`;
+  // Only use the last 4 digits of timestamp for readability
+  return `${customId}_${Date.now().toString().slice(-4)}`;
 };
 
 // Get user by ID
@@ -711,5 +720,34 @@ export const updateUserWithDocumentRename = async (userId, userData) => {
   } catch (error) {
     console.error('Error updating user with document rename:', error);
     throw error;
+  }
+};
+
+// Refresh the current user's access after document rename
+export const refreshUserAccessAfterRename = async (authUser, newDocumentId) => {
+  try {
+    if (!authUser) {
+      console.log('No auth user provided for refresh');
+      return false;
+    }
+    
+    console.log('Refreshing user access after rename:', { 
+      uid: authUser.uid, 
+      email: authUser.email,
+      newDocumentId 
+    });
+    
+    // Get the updated user data with the new document ID
+    const userDoc = await getDoc(doc(db, 'users', newDocumentId));
+    
+    if (!userDoc.exists()) {
+      console.error('User document not found after rename');
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error refreshing user access after rename:', error);
+    return false;
   }
 };

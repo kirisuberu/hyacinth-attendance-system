@@ -46,10 +46,19 @@ export function AuthProvider({ children }) {
           email: user.email,
           uid: user.uid
         });
+        
+        // Store the auth user in localStorage for reference
+        localStorage.setItem('authUser', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          emailVerified: user.emailVerified
+        }));
+        
         setCurrentUser(user);
         checkAccess(user);
       } else {
         console.log('Auth state changed - No user logged in');
+        localStorage.removeItem('authUser');
         setCurrentUser(null);
         setUserAccess({ hasAccess: false, userType: null });
         setLoading(false);
