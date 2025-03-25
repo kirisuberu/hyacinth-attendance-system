@@ -521,7 +521,7 @@ function UserManagement() {
     const [shiftFormData, setShiftFormData] = useState({
       startDay: 'monday',
       startTime: '',
-      endTime: '',
+      duration: '8',
       timeRegion: 'PHT',
       isSpecificDate: false,
       specificDate: new Date().toISOString().split('T')[0],
@@ -565,7 +565,7 @@ function UserManagement() {
       setShiftFormData({
         startDay: 'monday',
         startTime: '',
-        endTime: '',
+        duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: false,
         specificDate: new Date().toISOString().split('T')[0],
@@ -579,7 +579,7 @@ function UserManagement() {
       setShiftFormData({
         startDay: 'monday',
         startTime: '',
-        endTime: '',
+        duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: true,
         specificDate: new Date().toISOString().split('T')[0],
@@ -592,12 +592,29 @@ function UserManagement() {
       const shift = schedule[shiftId];
       if (!shift) return;
 
+      // Calculate duration from start and end times
+      let duration = '';
+      if (shift.startTime && shift.endTime) {
+        const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+        const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+        
+        let durationMinutes = 0;
+        if (shift.isNextDay) {
+          durationMinutes = (endHour + 24) * 60 + endMinute - (startHour * 60 + startMinute);
+        } else {
+          durationMinutes = endHour * 60 + endMinute - (startHour * 60 + startMinute);
+        }
+        
+        // Convert to hours and minutes format (e.g., "8.5" for 8 hours and 30 minutes)
+        duration = (durationMinutes / 60).toString();
+      }
+
       if (shift.isSpecificDate) {
         setSelectedShift(shiftId);
         setShiftFormData({
           startDay: 'monday',
           startTime: shift.startTime || '',
-          endTime: shift.endTime || '',
+          duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: true,
           specificDate: shift.specificDate || new Date().toISOString().split('T')[0],
@@ -608,7 +625,7 @@ function UserManagement() {
         setShiftFormData({
           startDay: shift.startDay || 'monday',
           startTime: shift.startTime || '',
-          endTime: shift.endTime || '',
+          duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: false,
           specificDate: new Date().toISOString().split('T')[0],
@@ -626,53 +643,42 @@ function UserManagement() {
     };
 
     const handleSaveShift = () => {
-      if (!shiftFormData.startTime || !shiftFormData.endTime) {
-        alert('Please fill in both start and end times');
+      if (!shiftFormData.startTime || !shiftFormData.duration) {
+        alert('Please fill in both start time and shift duration');
         return;
       }
 
       try {
-        let isValid = false;
-        
-        if (shiftFormData.isSpecificDate) {
-          // For specific date shifts, just validate that the times make sense
-          const [startHour, startMinute] = shiftFormData.startTime.split(':').map(Number);
-          const [endHour, endMinute] = shiftFormData.endTime.split(':').map(Number);
-          
-          if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-            alert('Invalid time format');
-            return;
-          }
-          
-          const startTotalMinutes = startHour * 60 + startMinute;
-          const endTotalMinutes = endHour * 60 + endMinute;
-          
-          // For specific date, if isNextDay is true, we don't need to validate that end time is after start time
-          if (shiftFormData.isNextDay) {
-            isValid = true;
-          } else {
-            // If same day, end time should be after start time
-            isValid = endTotalMinutes > startTotalMinutes;
-          }
-          
-          if (!isValid) {
-            alert('For same day shifts, end time must be after start time.');
-            return;
-          }
-        } else {
-          // For weekly schedule, use the existing validation
-          isValid = validateShiftTimes(
-            shiftFormData.startDay,
-            shiftFormData.startTime,
-            shiftFormData.endTime,
-            shiftFormData.isNextDay
-          );
-          
-          if (!isValid) {
-            alert('Invalid shift times. End time must be after start time.');
-            return;
-          }
+        // Parse the start time
+        const [startHour, startMinute] = shiftFormData.startTime.split(':').map(Number);
+        if (isNaN(startHour) || isNaN(startMinute)) {
+          alert('Invalid start time format');
+          return;
         }
+        
+        // Parse the duration (can be decimal like "8.5" for 8 hours and 30 minutes)
+        const durationHours = parseFloat(shiftFormData.duration);
+        if (isNaN(durationHours) || durationHours <= 0) {
+          alert('Invalid duration. Please enter a positive number.');
+          return;
+        }
+        
+        // Calculate end time
+        const startTotalMinutes = startHour * 60 + startMinute;
+        const durationMinutes = Math.round(durationHours * 60);
+        let endTotalMinutes = startTotalMinutes + durationMinutes;
+        
+        // Check if the shift extends to the next day
+        let isNextDay = shiftFormData.isNextDay;
+        if (endTotalMinutes >= 24 * 60) {
+          isNextDay = true;
+          endTotalMinutes = endTotalMinutes % (24 * 60);
+        }
+        
+        // Format the end time
+        const endHour = Math.floor(endTotalMinutes / 60);
+        const endMinute = endTotalMinutes % 60;
+        const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
         // Create a unique shift ID if not editing an existing one
         const shiftId = selectedShift || `shift_${Date.now()}`;
@@ -683,16 +689,18 @@ function UserManagement() {
               isSpecificDate: true,
               specificDate: shiftFormData.specificDate,
               startTime: shiftFormData.startTime,
-              endTime: shiftFormData.endTime,
+              endTime: endTime,
+              duration: shiftFormData.duration,
               timeRegion: shiftFormData.timeRegion || 'PHT',
-              isNextDay: shiftFormData.isNextDay
+              isNextDay: isNextDay
             }
           : {
               startDay: shiftFormData.startDay,
               startTime: shiftFormData.startTime,
-              endTime: shiftFormData.endTime,
+              endTime: endTime,
+              duration: shiftFormData.duration,
               timeRegion: shiftFormData.timeRegion || 'PHT',
-              isNextDay: shiftFormData.isNextDay
+              isNextDay: isNextDay
             };
         
         setSchedule(prev => ({
@@ -903,10 +911,14 @@ function UserManagement() {
                 />
               </FormGroup>
               <FormGroup>
-                <Label>End Time</Label>
-                <TimeInput
-                  value={shiftFormData.endTime || ''}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                <Label>Shift Duration (hours)</Label>
+                <Input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={shiftFormData.duration || ''}
+                  onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
+                  placeholder="e.g., 8 for 8 hours, 8.5 for 8 hours 30 minutes"
                 />
               </FormGroup>
               <FormGroup>
@@ -935,7 +947,7 @@ function UserManagement() {
             <div style={{ marginBottom: '2rem', padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
               <h3>Apply Template</h3>
               {scheduleTemplates.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '1rem', color: '#6B7280' }}>
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6B7280' }}>
                   No templates available. Create a template first.
                 </div>
               ) : (
@@ -965,7 +977,23 @@ function UserManagement() {
                           backgroundColor: '#F3F4F6',
                           borderRadius: '4px'
                         }}>
-                          {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} ({shift.timeRegion || 'PHT'})
+                          {shift.isSpecificDate ? (
+                            <>
+                              {formatDate(shift.specificDate)} {shift.startTime} to {shift.endTime} 
+                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
+                              <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} 
+                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
+                              <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1053,7 +1081,8 @@ function UserManagement() {
                           )}
                         </div>
                         <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                          Time Region: {shift.timeRegion || 'PHT'}
+                          <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                          <span>Time Region: {shift.timeRegion || 'PHT'}</span>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1097,7 +1126,8 @@ function UserManagement() {
                         )}
                       </div>
                       <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                        Time Region: {shift.timeRegion || 'PHT'}
+                        <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                        <span>Time Region: {shift.timeRegion || 'PHT'}</span>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1315,7 +1345,7 @@ function UserManagement() {
     const [shiftFormData, setShiftFormData] = useState({
       startDay: 'monday',
       startTime: '',
-      endTime: '',
+      duration: '8',
       timeRegion: 'PHT',
       isSpecificDate: false,
       specificDate: new Date().toISOString().split('T')[0],
@@ -1355,7 +1385,7 @@ function UserManagement() {
       setShiftFormData({
         startDay: 'monday',
         startTime: '',
-        endTime: '',
+        duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: false,
         specificDate: new Date().toISOString().split('T')[0],
@@ -1369,7 +1399,7 @@ function UserManagement() {
       setShiftFormData({
         startDay: 'monday',
         startTime: '',
-        endTime: '',
+        duration: '8',
         timeRegion: 'PHT',
         isSpecificDate: true,
         specificDate: new Date().toISOString().split('T')[0],
@@ -1382,12 +1412,29 @@ function UserManagement() {
       const shift = editFormData.schedule[shiftId];
       if (!shift) return;
 
+      // Calculate duration from start and end times
+      let duration = '';
+      if (shift.startTime && shift.endTime) {
+        const [startHour, startMinute] = shift.startTime.split(':').map(Number);
+        const [endHour, endMinute] = shift.endTime.split(':').map(Number);
+        
+        let durationMinutes = 0;
+        if (shift.isNextDay) {
+          durationMinutes = (endHour + 24) * 60 + endMinute - (startHour * 60 + startMinute);
+        } else {
+          durationMinutes = endHour * 60 + endMinute - (startHour * 60 + startMinute);
+        }
+        
+        // Convert to hours and minutes format (e.g., "8.5" for 8 hours and 30 minutes)
+        duration = (durationMinutes / 60).toString();
+      }
+
       if (shift.isSpecificDate) {
         setSelectedShift(shiftId);
         setShiftFormData({
           startDay: 'monday',
           startTime: shift.startTime || '',
-          endTime: shift.endTime || '',
+          duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: true,
           specificDate: shift.specificDate || new Date().toISOString().split('T')[0],
@@ -1398,7 +1445,7 @@ function UserManagement() {
         setShiftFormData({
           startDay: shift.startDay || 'monday',
           startTime: shift.startTime || '',
-          endTime: shift.endTime || '',
+          duration: duration,
           timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: false,
           specificDate: new Date().toISOString().split('T')[0],
@@ -1416,53 +1463,42 @@ function UserManagement() {
     };
 
     const handleSaveShift = () => {
-      if (!shiftFormData.startTime || !shiftFormData.endTime) {
-        alert('Please fill in both start and end times');
+      if (!shiftFormData.startTime || !shiftFormData.duration) {
+        alert('Please fill in both start time and shift duration');
         return;
       }
 
       try {
-        let isValid = false;
-        
-        if (shiftFormData.isSpecificDate) {
-          // For specific date shifts, just validate that the times make sense
-          const [startHour, startMinute] = shiftFormData.startTime.split(':').map(Number);
-          const [endHour, endMinute] = shiftFormData.endTime.split(':').map(Number);
-          
-          if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-            alert('Invalid time format');
-            return;
-          }
-          
-          const startTotalMinutes = startHour * 60 + startMinute;
-          const endTotalMinutes = endHour * 60 + endMinute;
-          
-          // For specific date, if isNextDay is true, we don't need to validate that end time is after start time
-          if (shiftFormData.isNextDay) {
-            isValid = true;
-          } else {
-            // If same day, end time should be after start time
-            isValid = endTotalMinutes > startTotalMinutes;
-          }
-          
-          if (!isValid) {
-            alert('For same day shifts, end time must be after start time.');
-            return;
-          }
-        } else {
-          // For weekly schedule, use the existing validation
-          isValid = validateShiftTimes(
-            shiftFormData.startDay,
-            shiftFormData.startTime,
-            shiftFormData.endTime,
-            shiftFormData.isNextDay
-          );
-          
-          if (!isValid) {
-            alert('Invalid shift times. End time must be after start time.');
-            return;
-          }
+        // Parse the start time
+        const [startHour, startMinute] = shiftFormData.startTime.split(':').map(Number);
+        if (isNaN(startHour) || isNaN(startMinute)) {
+          alert('Invalid start time format');
+          return;
         }
+        
+        // Parse the duration (can be decimal like "8.5" for 8 hours and 30 minutes)
+        const durationHours = parseFloat(shiftFormData.duration);
+        if (isNaN(durationHours) || durationHours <= 0) {
+          alert('Invalid duration. Please enter a positive number.');
+          return;
+        }
+        
+        // Calculate end time
+        const startTotalMinutes = startHour * 60 + startMinute;
+        const durationMinutes = Math.round(durationHours * 60);
+        let endTotalMinutes = startTotalMinutes + durationMinutes;
+        
+        // Check if the shift extends to the next day
+        let isNextDay = shiftFormData.isNextDay;
+        if (endTotalMinutes >= 24 * 60) {
+          isNextDay = true;
+          endTotalMinutes = endTotalMinutes % (24 * 60);
+        }
+        
+        // Format the end time
+        const endHour = Math.floor(endTotalMinutes / 60);
+        const endMinute = endTotalMinutes % 60;
+        const endTime = `${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}`;
 
         // Create a unique shift ID if not editing an existing one
         const shiftId = selectedShift || `shift_${Date.now()}`;
@@ -1473,16 +1509,18 @@ function UserManagement() {
               isSpecificDate: true,
               specificDate: shiftFormData.specificDate,
               startTime: shiftFormData.startTime,
-              endTime: shiftFormData.endTime,
+              endTime: endTime,
+              duration: shiftFormData.duration,
               timeRegion: shiftFormData.timeRegion || 'PHT',
-              isNextDay: shiftFormData.isNextDay
+              isNextDay: isNextDay
             }
           : {
               startDay: shiftFormData.startDay,
               startTime: shiftFormData.startTime,
-              endTime: shiftFormData.endTime,
+              endTime: endTime,
+              duration: shiftFormData.duration,
               timeRegion: shiftFormData.timeRegion || 'PHT',
-              isNextDay: shiftFormData.isNextDay
+              isNextDay: isNextDay
             };
         
         setEditFormData(prev => ({
@@ -1730,10 +1768,14 @@ function UserManagement() {
                     />
                   </FormGroup>
                   <FormGroup>
-                    <Label>End Time</Label>
-                    <TimeInput
-                      value={shiftFormData.endTime || ''}
-                      onChange={(e) => setShiftFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                    <Label>Shift Duration (hours)</Label>
+                    <Input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={shiftFormData.duration || ''}
+                      onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
+                      placeholder="e.g., 8 for 8 hours, 8.5 for 8 hours 30 minutes"
                     />
                   </FormGroup>
                   <FormGroup>
@@ -1791,7 +1833,8 @@ function UserManagement() {
                             )}
                           </div>
                           <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                            Time Region: {shift.timeRegion || 'PHT'}
+                            <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                            <span>Time Region: {shift.timeRegion || 'PHT'}</span>
                           </div>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1835,7 +1878,8 @@ function UserManagement() {
                           )}
                         </div>
                         <div style={{ fontSize: '0.9em', color: '#666', marginTop: '0.5rem' }}>
-                          Time Region: {shift.timeRegion || 'PHT'}
+                          <span style={{ marginRight: '1rem' }}>Duration: {shift.duration || '0'} hours</span>
+                          <span>Time Region: {shift.timeRegion || 'PHT'}</span>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -1908,7 +1952,23 @@ function UserManagement() {
                           backgroundColor: '#F3F4F6',
                           borderRadius: '4px'
                         }}>
-                          {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} ({shift.timeRegion || 'PHT'})
+                          {shift.isSpecificDate ? (
+                            <>
+                              {formatDate(shift.specificDate)} {shift.startTime} to {shift.endTime} 
+                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
+                              <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {formatDayName(shift.startDay)} {shift.startTime} to {shift.endTime} 
+                              {shift.isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
+                              <div style={{ fontSize: '0.85em', color: '#666' }}>
+                                Duration: {shift.duration || '0'} hours | Region: {shift.timeRegion || 'PHT'}
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>

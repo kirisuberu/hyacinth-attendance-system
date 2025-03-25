@@ -16,10 +16,10 @@ export const WeeklySchedule = {
 };
 
 // Helper function to validate shift times
-export const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
+export const validateShiftTimes = (startDay, startTime, duration, isNextDay) => {
   // Check if any of the parameters are null or undefined
-  if (!startDay || !startTime || !endDay || !endTime) {
-    console.warn('validateShiftTimes: Missing required parameters', { startDay, startTime, endDay, endTime });
+  if (!startDay || !startTime || !duration) {
+    console.warn('validateShiftTimes: Missing required parameters', { startDay, startTime, duration });
     return false;
   }
 
@@ -28,41 +28,31 @@ export const validateShiftTimes = (startDay, startTime, endDay, endTime) => {
     
     // Normalize day names to lowercase
     const startDayLower = startDay.toLowerCase();
-    const endDayLower = endDay.toLowerCase();
     
     const startDayIndex = days.indexOf(startDayLower);
-    const endDayIndex = days.indexOf(endDayLower);
     
-    if (startDayIndex === -1 || endDayIndex === -1) {
-      console.warn('validateShiftTimes: Invalid day provided', { startDay, endDay });
+    if (startDayIndex === -1) {
+      console.warn('validateShiftTimes: Invalid day provided', { startDay });
       return false;
     }
 
-    // Convert times to minutes for comparison
+    // Convert time to minutes for comparison
     const [startHour, startMinute] = startTime.split(':').map(Number);
-    const [endHour, endMinute] = endTime.split(':').map(Number);
     
-    if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
-      console.warn('validateShiftTimes: Invalid time format', { startTime, endTime });
+    if (isNaN(startHour) || isNaN(startMinute)) {
+      console.warn('validateShiftTimes: Invalid time format', { startTime });
       return false;
     }
     
-    const startTotalMinutes = startHour * 60 + startMinute;
-    const endTotalMinutes = endHour * 60 + endMinute;
-
-    // Calculate the total duration considering day change
-    let duration;
-    if (startDayIndex === endDayIndex) {
-      duration = endTotalMinutes - startTotalMinutes;
-      if (duration < 0) {
-        duration += 24 * 60; // Add 24 hours if end time is on next day
-      }
-    } else {
-      const daysDiff = (endDayIndex - startDayIndex + 7) % 7;
-      duration = (daysDiff * 24 * 60) + (endTotalMinutes - startTotalMinutes);
+    // Parse the duration (can be decimal like "8.5" for 8 hours and 30 minutes)
+    const durationHours = parseFloat(duration);
+    if (isNaN(durationHours) || durationHours <= 0) {
+      console.warn('validateShiftTimes: Invalid duration', { duration });
+      return false;
     }
 
-    return duration > 0;
+    // Duration is valid if it's a positive number
+    return durationHours > 0;
   } catch (error) {
     console.error('Error in validateShiftTimes:', error);
     return false;
@@ -235,7 +225,7 @@ export const createOrUpdateUser = async (userId, userData) => {
     const schedule = userData.schedule || {};
     if (Object.keys(schedule).length > 0) {
       Object.entries(schedule).forEach(([shiftId, shift]) => {
-        if (shift && !validateShiftTimes(shift.startDay, shift.startTime, shift.endDay, shift.endTime)) {
+        if (shift && !validateShiftTimes(shift.startDay, shift.startTime, shift.duration, shift.isNextDay)) {
           throw new Error(`Invalid shift times for shift ${shiftId}`);
         }
       });
