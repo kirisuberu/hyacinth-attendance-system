@@ -2372,6 +2372,82 @@ function UserManagement() {
                 </Select>
               </FormGroup>
 
+              {/* Schedule Template Selection */}
+              <FormGroup>
+                <Label>Apply Schedule Template</Label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <Select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const template = scheduleTemplates.find(t => t.id === e.target.value);
+                        if (template && template.schedule) {
+                          // Convert template schedule format to user shifts format
+                          const weeklyShifts = [];
+                          const specificDateShifts = [];
+                          
+                          // Process weekly shifts
+                          Object.entries(template.schedule).forEach(([shiftId, shift]) => {
+                            if (!shift.isSpecificDate) {
+                              weeklyShifts.push({
+                                dayOfWeek: shift.startDay.toLowerCase(),
+                                timeIn: shift.startTime,
+                                shiftDuration: shift.duration
+                              });
+                            } else if (shift.specificDate) {
+                              specificDateShifts.push({
+                                date: shift.specificDate,
+                                timeIn: shift.startTime,
+                                shiftDuration: shift.duration
+                              });
+                            }
+                          });
+                          
+                          setNewUser({
+                            ...newUser,
+                            shifts: {
+                              weekly: weeklyShifts,
+                              specificDates: specificDateShifts
+                            }
+                          });
+                        }
+                      }
+                    }}
+                    style={{ 
+                      flex: 1,
+                      padding: '0.5rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #D1D5DB',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                    }}
+                  >
+                    <option value="">Select a template...</option>
+                    {scheduleTemplates.map(template => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <Button 
+                    type="button"
+                    onClick={() => setShowTemplatesModal(true)}
+                    style={{ 
+                      backgroundColor: '#4F46E5',
+                      padding: '0.5rem',
+                      borderRadius: '0.375rem',
+                      border: 'none',
+                      color: 'white',
+                      fontWeight: '500'
+                    }}
+                  >
+                    <Icon><Plus size={20} /></Icon>
+                  </Button>
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                  Select a schedule template to apply to this user or create a new one
+                </div>
+              </FormGroup>
+
               {/* Weekly Shifts Section */}
               <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', border: '1px solid #e5e7eb', padding: '1rem', borderRadius: '0.5rem' }}>
                 <h3 style={{ marginBottom: '1rem' }}>Weekly Shifts</h3>
