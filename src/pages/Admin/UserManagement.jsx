@@ -521,12 +521,21 @@ function UserManagement() {
     const [showShiftForm, setShowShiftForm] = useState(false);
     const [selectedShift, setSelectedShift] = useState(null);
     const [shiftFormData, setShiftFormData] = useState({
-      startDay: 'monday',
-      startTime: '',
-      duration: '8',
-      timeRegion: 'PHT',
       isSpecificDate: false,
-      specificDate: new Date().toISOString().split('T')[0]
+      specificDate: new Date().toISOString().split('T')[0],
+      startDay: 'Monday',
+      startTime: '',
+      duration: '',
+      timeRegion: 'PHT',
+      selectedDays: {
+        Monday: false,
+        Tuesday: false,
+        Wednesday: false,
+        Thursday: false,
+        Friday: false,
+        Saturday: false,
+        Sunday: false
+      }
     });
     const [showTemplateSelector, setShowTemplateSelector] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -564,12 +573,21 @@ function UserManagement() {
     const handleAddShift = () => {
       setSelectedShift(null);
       setShiftFormData({
-        startDay: 'monday',
-        startTime: '',
-        duration: '8',
-        timeRegion: 'PHT',
         isSpecificDate: false,
-        specificDate: new Date().toISOString().split('T')[0]
+        specificDate: new Date().toISOString().split('T')[0],
+        startDay: 'Monday',
+        startTime: '',
+        duration: '',
+        timeRegion: 'PHT',
+        selectedDays: {
+          Monday: false,
+          Tuesday: false,
+          Wednesday: false,
+          Thursday: false,
+          Friday: false,
+          Saturday: false,
+          Sunday: false
+        }
       });
       setShowShiftForm(true);
     };
@@ -577,47 +595,66 @@ function UserManagement() {
     const handleAddSpecificDateShift = () => {
       setSelectedShift(null);
       setShiftFormData({
-        startDay: 'monday',
-        startTime: '',
-        duration: '8',
-        timeRegion: 'PHT',
         isSpecificDate: true,
-        specificDate: new Date().toISOString().split('T')[0]
+        specificDate: new Date().toISOString().split('T')[0],
+        startDay: 'Monday',
+        startTime: '',
+        duration: '',
+        timeRegion: 'PHT',
+        selectedDays: {
+          Monday: false,
+          Tuesday: false,
+          Wednesday: false,
+          Thursday: false,
+          Friday: false,
+          Saturday: false,
+          Sunday: false
+        }
       });
       setShowShiftForm(true);
     };
 
     const handleEditShift = (shiftId) => {
       const shift = schedule[shiftId];
+      
       if (!shift) return;
 
-      // Calculate duration from start and end times
-      let duration = '';
-      if (shift.startTime) {
-        duration = shift.duration;
-      }
-
+      // Reset selected days
+      const resetSelectedDays = {
+        Monday: false,
+        Tuesday: false,
+        Wednesday: false,
+        Thursday: false,
+        Friday: false,
+        Saturday: false,
+        Sunday: false
+      };
+      
+      // Set form data based on the shift type
       if (shift.isSpecificDate) {
-        setSelectedShift(shiftId);
         setShiftFormData({
-          startDay: 'monday',
-          startTime: shift.startTime || '',
-          duration: duration,
-          timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: true,
-          specificDate: shift.specificDate || new Date().toISOString().split('T')[0]
+          specificDate: shift.specificDate,
+          startTime: shift.startTime,
+          duration: shift.duration,
+          timeRegion: shift.timeRegion || 'PHT',
+          selectedDays: resetSelectedDays
         });
       } else {
-        setSelectedShift(shiftId);
+        const updatedSelectedDays = { ...resetSelectedDays };
+        updatedSelectedDays[shift.startDay] = true;
+        
         setShiftFormData({
-          startDay: shift.startDay || 'monday',
-          startTime: shift.startTime || '',
-          duration: duration,
-          timeRegion: shift.timeRegion || 'PHT',
           isSpecificDate: false,
-          specificDate: new Date().toISOString().split('T')[0]
+          startDay: shift.startDay,
+          startTime: shift.startTime,
+          duration: shift.duration,
+          timeRegion: shift.timeRegion || 'PHT',
+          selectedDays: updatedSelectedDays
         });
       }
+      
+      setSelectedShift(shiftId);
       setShowShiftForm(true);
     };
 
@@ -649,32 +686,56 @@ function UserManagement() {
           return;
         }
 
-        // Create a unique shift ID if not editing an existing one
-        const shiftId = selectedShift || `shift_${Date.now()}`;
-        
-        // Update the schedule with the new/edited shift
-        const shiftData = shiftFormData.isSpecificDate
-          ? {
-              isSpecificDate: true,
-              specificDate: shiftFormData.specificDate,
-              startTime: shiftFormData.startTime,
-              duration: shiftFormData.duration,
-              timeRegion: shiftFormData.timeRegion || 'PHT'
-            }
-          : {
-              startDay: shiftFormData.startDay,
+        if (shiftFormData.isSpecificDate) {
+          // For specific date shifts, create a single shift
+          const shiftId = selectedShift || `shift_${Date.now()}`;
+          
+          const shiftData = {
+            isSpecificDate: true,
+            specificDate: shiftFormData.specificDate,
+            startTime: shiftFormData.startTime,
+            duration: shiftFormData.duration,
+            timeRegion: shiftFormData.timeRegion || 'PHT'
+          };
+          
+          setSchedule(prev => ({
+            ...prev,
+            [shiftId]: shiftData
+          }));
+        } else {
+          // For weekly shifts, create a shift for each selected day
+          const selectedDays = Object.entries(shiftFormData.selectedDays)
+            .filter(([_, isSelected]) => isSelected)
+            .map(([day]) => day);
+          
+          if (selectedDays.length === 0) {
+            alert('Please select at least one day of the week');
+            return;
+          }
+          
+          // Create a new schedule object with all existing shifts
+          const newSchedule = { ...schedule };
+          
+          // Add a shift for each selected day
+          selectedDays.forEach(day => {
+            const shiftId = selectedShift && selectedDays.length === 1 
+              ? selectedShift 
+              : `shift_${day}_${Date.now()}`;
+            
+            newSchedule[shiftId] = {
+              startDay: day,
               startTime: shiftFormData.startTime,
               duration: shiftFormData.duration,
               timeRegion: shiftFormData.timeRegion || 'PHT'
             };
-        
-        setSchedule(prev => ({
-          ...prev,
-          [shiftId]: shiftData
-        }));
+          });
+          
+          setSchedule(newSchedule);
+        }
         
         // Close the shift form
         setShowShiftForm(false);
+        setSelectedShift(null);
       } catch (error) {
         console.error('Error saving shift:', error);
         alert(error.message || 'Error saving shift. Please check your input.');
@@ -737,6 +798,31 @@ function UserManagement() {
       setSelectedTemplate(null);
     };
 
+    const handleInputChange = (e) => {
+      const { name, value, type, checked } = e.target;
+      
+      if (name.startsWith('day-')) {
+        const day = name.replace('day-', '');
+        setShiftFormData(prev => ({
+          ...prev,
+          selectedDays: {
+            ...prev.selectedDays,
+            [day]: checked
+          }
+        }));
+      } else if (type === 'checkbox') {
+        setShiftFormData(prev => ({
+          ...prev,
+          [name]: checked
+        }));
+      } else {
+        setShiftFormData(prev => ({
+          ...prev,
+          [name]: value
+        }));
+      }
+    };
+
     return (
       <Modal>
         <ModalContent style={{ maxWidth: '800px', width: '90%' }}>
@@ -789,7 +875,8 @@ function UserManagement() {
                     <input 
                       type="radio" 
                       checked={!shiftFormData.isSpecificDate} 
-                      onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: false }))}
+                      onChange={handleInputChange}
+                      name="isSpecificDate"
                       style={{ marginRight: '0.5rem' }}
                     />
                     Weekly Shift
@@ -809,7 +896,8 @@ function UserManagement() {
                     <input 
                       type="radio" 
                       checked={shiftFormData.isSpecificDate} 
-                      onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: true }))}
+                      onChange={handleInputChange}
+                      name="isSpecificDate"
                       style={{ marginRight: '0.5rem' }}
                     />
                     Specific Date
@@ -824,7 +912,8 @@ function UserManagement() {
                     <Input
                       type="date"
                       value={shiftFormData.specificDate}
-                      onChange={(e) => setShiftFormData(prev => ({ ...prev, specificDate: e.target.value }))}
+                      onChange={handleInputChange}
+                      name="specificDate"
                       style={{ 
                         width: '100%', 
                         padding: '0.5rem',
@@ -838,22 +927,34 @@ function UserManagement() {
               ) : (
                 <>
                   <FormGroup>
-                    <Label>Start Day</Label>
-                    <Select
-                      value={shiftFormData.startDay || 'monday'}
-                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
-                      style={{ 
-                        width: '100%', 
-                        padding: '0.5rem',
-                        borderRadius: '0.375rem',
-                        border: '1px solid #D1D5DB',
-                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
-                      }}
-                    >
-                      {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
-                        <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                    <Label>Select Days:</Label>
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      gap: '0.5rem',
+                      marginBottom: '1rem'
+                    }}>
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                        <label key={day} style={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          padding: '0.5rem',
+                          backgroundColor: shiftFormData.selectedDays[day] ? '#EBF5FF' : '#F9FAFB',
+                          border: `1px solid ${shiftFormData.selectedDays[day] ? '#93C5FD' : '#D1D5DB'}`,
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer'
+                        }}>
+                          <input
+                            type="checkbox"
+                            name={`day-${day}`}
+                            checked={shiftFormData.selectedDays[day]}
+                            onChange={handleInputChange}
+                            style={{ marginRight: '0.5rem' }}
+                          />
+                          {day}
+                        </label>
                       ))}
-                    </Select>
+                    </div>
                   </FormGroup>
                 </>
               )}
@@ -862,8 +963,9 @@ function UserManagement() {
                 <FormGroup style={{ flex: 1 }}>
                   <Label>Start Time</Label>
                   <TimeInput
-                    value={shiftFormData.startTime || ''}
-                    onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                    value={shiftFormData.startTime}
+                    onChange={handleInputChange}
+                    name="startTime"
                     style={{ 
                       width: '100%', 
                       padding: '0.5rem',
@@ -879,8 +981,9 @@ function UserManagement() {
                     type="number"
                     min="0.5"
                     step="0.5"
-                    value={shiftFormData.duration || ''}
-                    onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
+                    value={shiftFormData.duration}
+                    onChange={handleInputChange}
+                    name="duration"
                     placeholder="e.g., 8 for 8 hours"
                     style={{ 
                       width: '100%', 
@@ -895,8 +998,9 @@ function UserManagement() {
               <FormGroup>
                 <Label>Time Region</Label>
                 <Select
-                  value={shiftFormData.timeRegion || 'PHT'}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, timeRegion: e.target.value }))}
+                  value={shiftFormData.timeRegion}
+                  onChange={handleInputChange}
+                  name="timeRegion"
                   style={{ 
                     width: '100%', 
                     padding: '0.5rem',
@@ -1694,7 +1798,7 @@ function UserManagement() {
                         <input 
                           type="radio" 
                           checked={!shiftFormData.isSpecificDate} 
-                          onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: false }))}
+                          onChange={(e) => setShiftFormData(prev => ({ ...prev, isSpecificDate: false }))}
                           style={{ marginRight: '0.5rem' }}
                         />
                         Weekly Shift
@@ -1714,7 +1818,7 @@ function UserManagement() {
                         <input 
                           type="radio" 
                           checked={shiftFormData.isSpecificDate} 
-                          onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: true }))}
+                          onChange={(e) => setShiftFormData(prev => ({ ...prev, isSpecificDate: true }))}
                           style={{ marginRight: '0.5rem' }}
                         />
                         Specific Date
@@ -1886,11 +1990,7 @@ function UserManagement() {
                               return (
                                 <>
                                   <strong>{endTime}</strong>
-                                  {isNextDay && (
-                                    <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                                      (Next Day)
-                                    </span>
-                                  )}
+                                  {isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                                 </>
                               );
                             })()}
@@ -1938,11 +2038,7 @@ function UserManagement() {
                             return (
                               <>
                                 <strong>{endTime}</strong>
-                                {isNextDay && (
-                                  <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                                    (Next Day)
-                                  </span>
-                                )}
+                                {isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                               </>
                             );
                           })()}
