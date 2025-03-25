@@ -239,23 +239,6 @@ function RealTimeAttendance() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [editFormData, setEditFormData] = useState({});
 
-  // Check if selected date is in the future (strictly after today)
-  const isFutureDate = React.useMemo(() => {
-    // Get current date in YYYY-MM-DD format
-    const today = new Date().toISOString().split('T')[0];
-    
-    // If selected date is today, it's not a future date
-    if (selectedDate === today) {
-      console.log('Selected date is today, not future:', { today, selectedDate });
-      return false;
-    }
-    
-    // For any other date, compare strings (this works because YYYY-MM-DD format sorts chronologically)
-    const isFuture = selectedDate > today;
-    console.log('Date comparison:', { today, selectedDate, isFuture });
-    return isFuture;
-  }, [selectedDate]);
-
   // Get day of week for the selected date
   const dayOfWeek = React.useMemo(() => {
     try {
@@ -297,12 +280,6 @@ function RealTimeAttendance() {
   useEffect(() => {
     async function fetchScheduledUsers() {
       try {
-        // Don't fetch data for future dates
-        if (isFutureDate) {
-          setScheduledUsers([]);
-          return;
-        }
-
         // Fetch scheduled users for the selected date
         const scheduledUsersResult = await getScheduledUsersByDate(selectedDate);
 
@@ -325,18 +302,11 @@ function RealTimeAttendance() {
     }
 
     fetchScheduledUsers();
-  }, [selectedDate, isFutureDate]);
+  }, [selectedDate]);
 
   // Set up real-time listener for attendance records
   useEffect(() => {
     setLoading(true);
-    
-    // Don't fetch data for future dates
-    if (isFutureDate) {
-      setAttendanceData([]);
-      setLoading(false);
-      return;
-    }
     
     // Create start and end timestamps for the selected date
     const selectedDateObj = new Date(selectedDate);
@@ -411,7 +381,7 @@ function RealTimeAttendance() {
     
     // Clean up the listener when the component unmounts or when the date changes
     return () => unsubscribe();
-  }, [selectedDate, isFutureDate]);
+  }, [selectedDate]);
 
   // Handle date change
   const handleDateChange = (e) => {
@@ -594,13 +564,7 @@ function RealTimeAttendance() {
             </Tr>
           </Thead>
           <Tbody>
-            {isFutureDate ? (
-              <Tr>
-                <Td colSpan={isAdmin ? 7 : 6}>
-                  <NoDataMessage>Future date selected. No attendance data available.</NoDataMessage>
-                </Td>
-              </Tr>
-            ) : combinedData.length > 0 ? (
+            {combinedData.length > 0 ? (
               combinedData.map(user => (
                 <Tr key={user.userId}>
                   <Td>{user.name}</Td>

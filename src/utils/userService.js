@@ -223,10 +223,15 @@ export const createOrUpdateUser = async (userId, userData) => {
       throw new Error('Email is not approved. Please contact an administrator.');
     }
 
-    // Generate new ID if none provided
-    const actualUserId = userId || `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Generate custom document ID in the format "usertype_name" if no ID is provided
+    const actualUserId = userId || generateCustomUserId(userData.userType, userData.name);
     
-    // Validate schedule if present and not empty
+    // Generate a permanent userID if not provided
+    if (!userData.userID) {
+      userData.userID = `uid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+    
+    // Validate schedule if present and not empty (for backward compatibility)
     const schedule = userData.schedule || {};
     if (Object.keys(schedule).length > 0) {
       Object.entries(schedule).forEach(([shiftId, shift]) => {
@@ -234,6 +239,27 @@ export const createOrUpdateUser = async (userId, userData) => {
           throw new Error(`Invalid shift times for shift ${shiftId}`);
         }
       });
+    }
+    
+    // Validate shifts if present
+    if (userData.shifts) {
+      // Validate weekly shifts
+      if (userData.shifts.weekly && userData.shifts.weekly.length > 0) {
+        userData.shifts.weekly.forEach((shift, index) => {
+          if (!shift.dayOfWeek || !shift.timeIn || !shift.shiftDuration) {
+            throw new Error(`Invalid weekly shift at index ${index}`);
+          }
+        });
+      }
+      
+      // Validate specific date shifts
+      if (userData.shifts.specificDates && userData.shifts.specificDates.length > 0) {
+        userData.shifts.specificDates.forEach((shift, index) => {
+          if (!shift.date || !shift.timeIn || !shift.shiftDuration) {
+            throw new Error(`Invalid specific date shift at index ${index}`);
+          }
+        });
+      }
     }
 
     // Create new user document
@@ -249,6 +275,22 @@ export const createOrUpdateUser = async (userId, userData) => {
     console.error('Error creating/updating user:', error);
     throw error;
   }
+};
+
+// Helper function to generate a custom user ID in the format "usertype_name"
+const generateCustomUserId = (userType, name) => {
+  if (!userType || !name) {
+    return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+  
+  // Convert name to lowercase and replace spaces with underscores
+  const formattedName = name.toLowerCase().replace(/\s+/g, '_');
+  
+  // Create ID in the format "usertype_name"
+  const customId = `${userType}_${formattedName}`;
+  
+  // Add a timestamp to ensure uniqueness in case of duplicate names
+  return `${customId}_${Date.now().toString().slice(-6)}`;
 };
 
 // Get user by ID
@@ -615,5 +657,66 @@ export const deleteScheduleTemplate = async (templateId) => {
   } catch (error) {
     console.error('Error deleting schedule template:', error);
     throw new Error('Failed to delete schedule template: ' + error.message);
+  }
+};
+
+// Update user data and document ID if name changes
+export const updateUserWithDocumentRename = async (userId, userData) => {
+  try {
+    // Get the current user data
+    const currentUser = await getUserById(userId);
+    if (!currentUser) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+
+    // Check if name or userType has changed
+    const nameChanged = currentUser.name !== userData.name;
+    const userTypeChanged = currentUser.userType !== userData.userType;
+
+    // If neither name nor userType changed, just update the user data normally
+    if (!nameChanged && !userTypeChanged) {
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        ...userData,
+        userID: currentUser.userID, // Preserve the permanent userID
+        updatedAt: new Date().toISOString()
+      });
+      return userId;
+    }
+
+    // Generate a new document ID based on the updated information
+    const newUserId = generateCustomUserId(
+      userData.userType || currentUser.userType,
+      userData.name || currentUser.name
+    );
+
+    console.log(`Updating user document ID from ${userId} to ${newUserId}`);
+
+    // Create a new document with the new ID
+    const newUserRef = doc(db, 'users', newUserId);
+    
+    // Merge the current user data with the updated data
+    const mergedData = {
+      ...currentUser,
+      ...userData,
+      userID: currentUser.userID, // Preserve the permanent userID
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Remove the id field as it's stored as the document ID
+    delete mergedData.id;
+    
+    // Create the new document
+    await setDoc(newUserRef, mergedData);
+    
+    // Delete the old document
+    await deleteDoc(doc(db, 'users', userId));
+    
+    console.log(`User document successfully renamed from ${userId} to ${newUserId}`);
+    
+    return newUserId;
+  } catch (error) {
+    console.error('Error updating user with document rename:', error);
+    throw error;
   }
 };

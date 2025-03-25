@@ -1,10 +1,10 @@
 import React, { useState, useEffect, memo } from 'react';
 import styled from 'styled-components';
-import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes, updateUserSchedule, getScheduleTemplates, createScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate } from '../../utils/userService';
+import { getAllUsers, createOrUpdateUser, deleteUser, UserType, WeeklySchedule, addApprovedEmail, removeApprovedEmail, getApprovedEmails, validateShiftTimes, updateUserSchedule, updateUserWithDocumentRename, getScheduleTemplates, createScheduleTemplate, updateScheduleTemplate, deleteScheduleTemplate } from '../../utils/userService';
 import { auth } from '../../firebase';
 
 //icons
-import { PencilSimpleLine, Calendar, Trash, Copy, FloppyDisk, CalendarBlank } from 'phosphor-react'; 
+import { PencilSimpleLine, Calendar, Trash, Copy, FloppyDisk, CalendarBlank, Plus } from 'phosphor-react'; 
 
 const Container = styled.div`
   padding: 2rem;
@@ -141,7 +141,11 @@ function UserManagement() {
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    userType: UserType.MEMBER
+    userType: UserType.MEMBER,
+    shifts: {
+      weekly: [],
+      specificDates: []
+    }
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
@@ -155,6 +159,18 @@ function UserManagement() {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
+  const [showWeeklyShiftForm, setShowWeeklyShiftForm] = useState(false);
+  const [showSpecificDateShiftForm, setShowSpecificDateShiftForm] = useState(false);
+  const [weeklyShiftFormData, setWeeklyShiftFormData] = useState({
+    dayOfWeek: 'monday',
+    timeIn: '',
+    shiftDuration: ''
+  });
+  const [specificDateShiftFormData, setSpecificDateShiftFormData] = useState({
+    date: new Date().toISOString().split('T')[0],
+    timeIn: '',
+    shiftDuration: ''
+  });
 
   useEffect(() => {
     loadUsers();
@@ -205,7 +221,8 @@ function UserManagement() {
         name: newUser.name,
         email: newUser.email,
         userType: newUser.userType,
-        schedule: {}, // Empty object for schedule
+        shifts: newUser.shifts, // Include the shifts structure
+        schedule: {}, // Keep empty object for backward compatibility
         createdAt: new Date().toISOString()
       });
 
@@ -213,7 +230,11 @@ function UserManagement() {
       setNewUser({
         name: '',
         email: '',
-        userType: UserType.MEMBER
+        userType: UserType.MEMBER,
+        shifts: {
+          weekly: [],
+          specificDates: []
+        }
       });
       setShowCreateModal(false);
       
@@ -285,12 +306,23 @@ function UserManagement() {
         }
       }
 
-      await createOrUpdateUser(userId, {
+      // Use the new function that handles document renaming when name changes
+      const updatedUserId = await updateUserWithDocumentRename(userId, {
         ...userData,
-        userType: user.userType,
         schedule: user.schedule,
         createdAt: user.createdAt
       });
+      
+      // If the user ID changed (due to name change or userType change), update the selectedUser
+      if (updatedUserId !== userId) {
+        setSelectedUser(prev => ({
+          ...prev,
+          id: updatedUserId,
+          name: userData.name,
+          email: userData.email,
+          userType: userData.userType
+        }));
+      }
       
       setShowEditModal(false);
       
@@ -832,8 +864,8 @@ function UserManagement() {
                       value={shiftFormData.startDay || 'monday'}
                       onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
                     >
-                      {daysOfWeek.map(day => (
-                        <option key={day} value={day}>{formatDayName(day)}</option>
+                      {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
+                        <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
                       ))}
                     </Select>
                   </FormGroup>
@@ -1101,7 +1133,8 @@ function UserManagement() {
   const EditUserModal = () => {
     const [editData, setEditData] = useState({
       name: selectedUser?.name || '',
-      email: selectedUser?.email || ''
+      email: selectedUser?.email || '',
+      userType: selectedUser?.userType || UserType.MEMBER
     });
     const [error, setError] = useState('');
     const [originalEmail] = useState(selectedUser?.email || '');
@@ -1161,6 +1194,32 @@ function UserManagement() {
                 onChange={(e) => setEditData(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="Enter email"
               />
+            </FormGroup>
+            <FormGroup>
+              <Label>User Type</Label>
+              <Select
+                value={editData.userType}
+                onChange={(e) => setEditData(prev => ({ ...prev, userType: e.target.value }))}
+              >
+                <option value={UserType.ADMIN}>Administrator</option>
+                <option value={UserType.ACCOUNTANT}>Accountant</option>
+                <option value={UserType.MEMBER}>Member</option>
+              </Select>
+            </FormGroup>
+            <FormGroup>
+              <Label>Permanent User ID (Non-editable)</Label>
+              <div style={{ 
+                padding: '0.5rem', 
+                backgroundColor: '#f3f4f6', 
+                borderRadius: '0.25rem',
+                fontFamily: 'monospace',
+                border: '1px solid #d1d5db'
+              }}>
+                {selectedUser?.userID || 'Not set'}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                This ID is used as a stable reference for this user across the system
+              </div>
             </FormGroup>
             {error && <ErrorMessage>{error}</ErrorMessage>}
           </div>
@@ -1632,8 +1691,8 @@ function UserManagement() {
                           value={shiftFormData.startDay || 'monday'}
                           onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
                         >
-                          {daysOfWeek.map(day => (
-                            <option key={day} value={day}>{formatDayName(day)}</option>
+                          {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
+                            <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
                           ))}
                         </Select>
                       </FormGroup>
@@ -1906,6 +1965,7 @@ function UserManagement() {
             <Th onClick={() => handleSort('type')} style={{ cursor: 'pointer' }}>
               Type {sortField === 'type' && (sortDirection === 'asc' ? '↑' : '↓')}
             </Th>
+            <Th>User ID</Th>
             <Th onClick={() => handleSort('createdAt')} style={{ cursor: 'pointer' }}>
               Created {sortField === 'createdAt' && (sortDirection === 'asc' ? '↑' : '↓')}
             </Th>
@@ -1934,6 +1994,17 @@ function UserManagement() {
                     </option>
                   ))}
                 </Select>
+              </Td>
+              <Td>
+                <span style={{ 
+                  fontSize: '0.8rem', 
+                  backgroundColor: '#f3f4f6', 
+                  padding: '0.25rem 0.5rem', 
+                  borderRadius: '0.25rem',
+                  fontFamily: 'monospace'
+                }}>
+                  {user.userID || 'Not set'}
+                </span>
               </Td>
               <Td>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}</Td>
               <Td>
@@ -2030,6 +2101,115 @@ function UserManagement() {
                   ))}
                 </Select>
               </FormGroup>
+
+              {/* Weekly Shifts Section */}
+              <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', border: '1px solid #e5e7eb', padding: '1rem', borderRadius: '0.5rem' }}>
+                <h3 style={{ marginBottom: '1rem' }}>Weekly Shifts</h3>
+                {newUser.shifts.weekly.map((shift, index) => (
+                  <div key={index} style={{ 
+                    marginBottom: '1rem', 
+                    padding: '1rem',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div>
+                        <Icon><Calendar size={16} /></Icon>
+                        <strong> {formatDayName(shift.dayOfWeek)} {shift.timeIn || ''}</strong>
+                        <div style={{ fontSize: '0.9em', color: '#666', display: 'inline-block', margin: '0 0.5rem' }}>
+                          for
+                        </div>
+                        <strong>{shift.shiftDuration || ''} hours</strong>
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={() => {
+                        const updatedWeekly = [...newUser.shifts.weekly];
+                        updatedWeekly.splice(index, 1);
+                        setNewUser({
+                          ...newUser,
+                          shifts: {
+                            ...newUser.shifts,
+                            weekly: updatedWeekly
+                          }
+                        });
+                      }}
+                      style={{ backgroundColor: '#DC2626' }}
+                    >
+                      <Icon><Trash size={16} /></Icon>
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+                <Button 
+                  type="button"
+                  onClick={() => setShowWeeklyShiftForm(true)}
+                  style={{ marginTop: '0.5rem' }}
+                >
+                  <Icon><Plus size={16} /></Icon>
+                  Add Weekly Shift
+                </Button>
+              </div>
+
+              {/* Specific Date Shifts Section */}
+              <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem', border: '1px solid #e5e7eb', padding: '1rem', borderRadius: '0.5rem' }}>
+                <h3 style={{ marginBottom: '1rem' }}>Specific Date Shifts</h3>
+                {newUser.shifts.specificDates.map((shift, index) => (
+                  <div key={index} style={{ 
+                    marginBottom: '1rem', 
+                    padding: '1rem',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: '#F0F9FF'
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: '#3B82F6' }}>
+                        <Icon><CalendarBlank size={16} /></Icon>
+                        {new Date(shift.date).toLocaleDateString()}
+                      </div>
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <strong>{shift.timeIn || ''}</strong>
+                        <div style={{ fontSize: '0.9em', color: '#666', display: 'inline-block', margin: '0 0.5rem' }}>
+                          for
+                        </div>
+                        <strong>{shift.shiftDuration || ''} hours</strong>
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={() => {
+                        const updatedSpecificDates = [...newUser.shifts.specificDates];
+                        updatedSpecificDates.splice(index, 1);
+                        setNewUser({
+                          ...newUser,
+                          shifts: {
+                            ...newUser.shifts,
+                            specificDates: updatedSpecificDates
+                          }
+                        });
+                      }}
+                      style={{ backgroundColor: '#DC2626' }}
+                    >
+                      <Icon><Trash size={16} /></Icon>
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+                <Button 
+                  type="button"
+                  onClick={() => setShowSpecificDateShiftForm(true)}
+                  style={{ marginTop: '0.5rem', backgroundColor: '#8B5CF6' }}
+                >
+                  <Icon><CalendarBlank size={16} /></Icon>
+                  Add Specific Date Shift
+                </Button>
+              </div>
+
               {createError && <ErrorMessage>{createError}</ErrorMessage>}
               <Button type="submit">Create User</Button>
               <Button
@@ -2086,6 +2266,159 @@ function UserManagement() {
 
       {showTemplatesModal && (
         <ScheduleTemplatesModal />
+      )}
+
+      {/* Weekly Shift Form Modal */}
+      {showWeeklyShiftForm && (
+        <Modal>
+          <ModalContent>
+            <h2>Add Weekly Shift</h2>
+            <FormGroup>
+              <Label>Day of Week</Label>
+              <Select
+                value={weeklyShiftFormData.dayOfWeek}
+                onChange={(e) => setWeeklyShiftFormData(prev => ({ ...prev, dayOfWeek: e.target.value }))}
+              >
+                {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
+                  <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
+                ))}
+              </Select>
+            </FormGroup>
+            <FormGroup>
+              <Label>Time In</Label>
+              <TimeInput
+                value={weeklyShiftFormData.timeIn}
+                onChange={(e) => setWeeklyShiftFormData(prev => ({ ...prev, timeIn: e.target.value }))}
+                placeholder="HH:MM"
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>Shift Duration (hours)</Label>
+              <Input
+                type="number"
+                min="1"
+                max="24"
+                step="0.5"
+                value={weeklyShiftFormData.shiftDuration}
+                onChange={(e) => setWeeklyShiftFormData(prev => ({ ...prev, shiftDuration: e.target.value }))}
+                placeholder="Enter duration in hours"
+              />
+            </FormGroup>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+              <Button onClick={() => setShowWeeklyShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                // Validate inputs
+                if (!weeklyShiftFormData.timeIn || !weeklyShiftFormData.shiftDuration) {
+                  alert('Please fill in all fields');
+                  return;
+                }
+                
+                // Add the weekly shift
+                setNewUser({
+                  ...newUser,
+                  shifts: {
+                    ...newUser.shifts,
+                    weekly: [
+                      ...newUser.shifts.weekly,
+                      {
+                        dayOfWeek: weeklyShiftFormData.dayOfWeek,
+                        timeIn: weeklyShiftFormData.timeIn,
+                        shiftDuration: weeklyShiftFormData.shiftDuration
+                      }
+                    ]
+                  }
+                });
+                
+                // Reset form and close modal
+                setWeeklyShiftFormData({
+                  dayOfWeek: 'monday',
+                  timeIn: '',
+                  shiftDuration: ''
+                });
+                setShowWeeklyShiftForm(false);
+              }}>
+                Add Shift
+              </Button>
+            </div>
+          </ModalContent>
+        </Modal>
+      )}
+
+      {/* Specific Date Shift Form Modal */}
+      {showSpecificDateShiftForm && (
+        <Modal>
+          <ModalContent>
+            <h2>Add Specific Date Shift</h2>
+            <FormGroup>
+              <Label>Date</Label>
+              <Input
+                type="date"
+                value={specificDateShiftFormData.date}
+                onChange={(e) => setSpecificDateShiftFormData(prev => ({ ...prev, date: e.target.value }))}
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>Time In</Label>
+              <TimeInput
+                value={specificDateShiftFormData.timeIn}
+                onChange={(e) => setSpecificDateShiftFormData(prev => ({ ...prev, timeIn: e.target.value }))}
+                placeholder="HH:MM"
+              />
+            </FormGroup>
+            <FormGroup>
+              <Label>Shift Duration (hours)</Label>
+              <Input
+                type="number"
+                min="1"
+                max="24"
+                step="0.5"
+                value={specificDateShiftFormData.shiftDuration}
+                onChange={(e) => setSpecificDateShiftFormData(prev => ({ ...prev, shiftDuration: e.target.value }))}
+                placeholder="Enter duration in hours"
+              />
+            </FormGroup>
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+              <Button onClick={() => setShowSpecificDateShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                // Validate inputs
+                if (!specificDateShiftFormData.date || !specificDateShiftFormData.timeIn || !specificDateShiftFormData.shiftDuration) {
+                  alert('Please fill in all fields');
+                  return;
+                }
+                
+                // Add the specific date shift
+                setNewUser({
+                  ...newUser,
+                  shifts: {
+                    ...newUser.shifts,
+                    specificDates: [
+                      ...newUser.shifts.specificDates,
+                      {
+                        date: specificDateShiftFormData.date,
+                        timeIn: specificDateShiftFormData.timeIn,
+                        shiftDuration: specificDateShiftFormData.shiftDuration
+                      }
+                    ]
+                  }
+                });
+                
+                // Reset form and close modal
+                setSpecificDateShiftFormData({
+                  date: new Date().toISOString().split('T')[0],
+                  timeIn: '',
+                  shiftDuration: ''
+                });
+                setShowSpecificDateShiftForm(false);
+              }}>
+                Add Shift
+              </Button>
+            </div>
+          </ModalContent>
+        </Modal>
       )}
     </Container>
   );

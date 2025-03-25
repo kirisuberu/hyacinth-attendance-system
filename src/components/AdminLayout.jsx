@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, Outlet, Link } from 'react-router-dom';
 import styled from 'styled-components';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { UserType } from '../utils/userService';
 import { recordAttendance, getUserAttendanceStatus, calculateAttendanceStatus } from '../utils/attendanceService';
 import { useAuth } from '../contexts/AuthContext';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut } from 'phosphor-react';
+import { doc, getDoc } from 'firebase/firestore';
 import PropTypes from 'prop-types';
 
 const LayoutContainer = styled.div`
@@ -171,50 +172,121 @@ function AdminLayout({ isMemberView = false }) {
   const [pendingTimeDiff, setPendingTimeDiff] = useState('');
   const [canTimeIn, setCanTimeIn] = useState(true);
   const [canTimeOut, setCanTimeOut] = useState(false);
+  const [userSchedule, setUserSchedule] = useState(null);
+  const [hasScheduleForToday, setHasScheduleForToday] = useState(false);
+  const [noScheduleMessage, setNoScheduleMessage] = useState('');
 
   useEffect(() => {
-    // Fetch the user's attendance status when the component mounts or when currentUser changes
-    const fetchAttendanceStatus = async () => {
-      if (!currentUser) return;
-      
+    if (!currentUser) return;
+
+    const fetchUserData = async () => {
       try {
-        const result = await getUserAttendanceStatus(currentUser.uid);
-        if (result.success) {
-          setCanTimeIn(result.canTimeIn);
-          setCanTimeOut(result.canTimeOut);
-        } else {
-          console.error('Error fetching attendance status:', result.error);
+        // Get user document
+        const userDoc = doc(db, 'users', currentUser.uid);
+        const userSnapshot = await getDoc(userDoc);
+        
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.data();
+          setUserSchedule(userData.schedule || {});
+          
+          // Check if user has a schedule for today
+          const now = new Date();
+          const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+          const previousDay = new Date(now);
+          previousDay.setDate(previousDay.getDate() - 1);
+          const previousDayOfWeek = previousDay.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+          
+          let hasSchedule = false;
+          let message = '';
+          
+          // Check if user has any schedule entries
+          if (Object.keys(userData.schedule || {}).length === 0) {
+            hasSchedule = false;
+            message = 'No schedule configured for this user.';
+          } else {
+            // Check for shifts that start today or overnight shifts that end today
+            Object.values(userData.schedule || {}).forEach(shift => {
+              if (shift.startDay && shift.startDay.toLowerCase() === dayOfWeek) {
+                hasSchedule = true;
+              } else if (shift.startDay && shift.startDay.toLowerCase() === previousDayOfWeek && 
+                        shift.endDay && shift.endDay.toLowerCase() === dayOfWeek) {
+                hasSchedule = true;
+              }
+            });
+            
+            if (!hasSchedule) {
+              message = `No schedule configured for ${dayOfWeek}.`;
+            }
+          }
+          
+          setHasScheduleForToday(hasSchedule);
+          setNoScheduleMessage(message);
         }
       } catch (error) {
-        console.error('Error in fetchAttendanceStatus:', error);
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    const fetchAttendanceStatus = async () => {
+      try {
+        const status = await getUserAttendanceStatus(currentUser.uid);
+        setCanTimeIn(status.canTimeIn);
+        setCanTimeOut(status.canTimeOut);
+      } catch (error) {
+        console.error('Error fetching attendance status:', error);
       }
     };
     
+    fetchUserData();
     fetchAttendanceStatus();
   }, [currentUser]);
 
   const handleAttendance = async (type) => {
-    const determineExpectedStatus = () => {
+    // If user has no schedule for today, show a warning message
+    if (!hasScheduleForToday) {
+      alert(`Cannot time ${type.toLowerCase()} - ${noScheduleMessage}`);
+      return;
+    }
+    
+    try {
       const now = new Date();
       
-      // Default schedule times
-      const defaultStartTime = '09:00';
-      const defaultEndTime = '18:00';
+      // Get the current day of the week
+      const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      
+      // Get the user's schedule for today
+      let scheduleTime;
+      if (userSchedule) {
+        const todaySchedule = Object.values(userSchedule).find(
+          shift => shift.startDay && shift.startDay.toLowerCase() === dayOfWeek
+        );
+        
+        if (todaySchedule) {
+          scheduleTime = type === 'IN' ? todaySchedule.startTime : todaySchedule.endTime;
+        }
+      }
+      
+      // Default schedule times if no schedule found
+      if (!scheduleTime) {
+        scheduleTime = type === 'IN' ? '09:00' : '18:00';
+      }
+      
+      console.log(`Using schedule time: ${scheduleTime} for ${type}`);
       
       // Use the same calculation as in AttendanceLogs.jsx via attendanceService.js
-      const scheduleTime = type === 'IN' ? defaultStartTime : defaultEndTime;
       const { status, timeDiff } = calculateAttendanceStatus(scheduleTime, now, type, 'PHT');
       
-      // Store the time difference for display in the confirmation modal
-      setPendingTimeDiff(timeDiff);
+      console.log(`Calculated status: ${status}, timeDiff:`, timeDiff);
       
-      return status;
-    };
-    
-    const expectedStatus = determineExpectedStatus();
-    setPendingStatus(expectedStatus);
-    setPendingAttendanceType(type);
-    setShowConfirmation(true);
+      // Store the raw minutes for the modal to use with the same formatter as AttendanceLogs
+      setPendingTimeDiff(timeDiff.totalMinutes);
+      setPendingStatus(status);
+      setPendingAttendanceType(type);
+      setShowConfirmation(true);
+    } catch (error) {
+      console.error('Error calculating attendance status:', error);
+      alert('Error calculating attendance status. Please try again.');
+    }
   };
 
   const handleConfirmAttendance = async (notes) => {
@@ -390,7 +462,8 @@ function AdminLayout({ isMemberView = false }) {
               <AttendanceButton
                 className="time-in"
                 onClick={() => handleAttendance('IN')}
-                disabled={isRecording || !canTimeIn}
+                //disabled={isRecording || !canTimeIn || !hasScheduleForToday}
+                title={!hasScheduleForToday ? noScheduleMessage : (canTimeIn ? 'Time In' : 'Already timed in')}
               >
                 <Icon><Clock size={18} /></Icon>
                 Time In
@@ -398,7 +471,8 @@ function AdminLayout({ isMemberView = false }) {
               <AttendanceButton
                 className="time-out"
                 onClick={() => handleAttendance('OUT')}
-                disabled={isRecording || !canTimeOut}
+                //disabled={isRecording || !canTimeOut || !hasScheduleForToday}
+                title={!hasScheduleForToday ? noScheduleMessage : (canTimeOut ? 'Time Out' : 'Need to time in first')}
               >
                 <Icon><Clock size={18} /></Icon>
                 Time Out

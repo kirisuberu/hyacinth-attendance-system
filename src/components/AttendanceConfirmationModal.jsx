@@ -2,12 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { formatInTimeZone } from 'date-fns-tz';
 import { CircleNotch } from 'phosphor-react';
-import EarlyINGif from '../assets/gif/TimeInOut/EarlyIN.gif';
-import EarlyOUTGif from '../assets/gif/TimeInOut/EarlyOUT.gif';
-import LateINGif from '../assets/gif/TimeInOut/LateIN.gif';
-import OnTimeINGif from '../assets/gif/TimeInOut/OnTimeIN.gif';
-import OnTimeOUTGif from '../assets/gif/TimeInOut/OnTimeOUT.gif';
-import OvertimeOUTGif from '../assets/gif/TimeInOut/OvertimeOUT.gif';
 
 const ModalOverlay = styled.div`
   position: fixed;
@@ -123,6 +117,33 @@ const TimeSection = styled.div`
   }
 `;
 
+const StatusBadge = styled.div`
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  
+  background-color: ${props => {
+    const status = props.status.toLowerCase();
+    if (status === 'early' || status === 'on time') return '#ECFDF5';
+    if (status === 'late') return '#FEF2F2';
+    if (status === 'early out') return '#FEF3C7';
+    if (status === 'overtime') return '#EFF6FF';
+    return '#F3F4F6';
+  }};
+  
+  color: ${props => {
+    const status = props.status.toLowerCase();
+    if (status === 'early' || status === 'on time') return '#059669';
+    if (status === 'late') return '#DC2626';
+    if (status === 'early out') return '#D97706';
+    if (status === 'overtime') return '#2563EB';
+    return '#4B5563';
+  }};
+`;
+
 const ButtonGroup = styled.div`
   display: flex;
   gap: 1rem;
@@ -199,47 +220,6 @@ const TextArea = styled.textarea`
   }
 `;
 
-const GifContainer = styled.div`
-  margin-bottom: 2rem;
-  width: 100%;
-  max-width: 280px;
-  display: flex;
-  justify-content: center;
-  
-  img {
-    width: 100%;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  }
-`;
-
-const StatusBadge = styled.div`
-  display: inline-block;
-  padding: 0.35rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-  
-  background-color: ${props => {
-    const status = props.status.toLowerCase();
-    if (status === 'early' || status === 'on time') return '#ECFDF5';
-    if (status === 'late') return '#FEF2F2';
-    if (status === 'early out') return '#FEF3C7';
-    if (status === 'overtime') return '#EFF6FF';
-    return '#F3F4F6';
-  }};
-  
-  color: ${props => {
-    const status = props.status.toLowerCase();
-    if (status === 'early' || status === 'on time') return '#059669';
-    if (status === 'late') return '#DC2626';
-    if (status === 'early out') return '#D97706';
-    if (status === 'overtime') return '#2563EB';
-    return '#4B5563';
-  }};
-`;
-
 const Icon = styled.span`
   display: inline-flex;
   align-items: center;
@@ -282,7 +262,6 @@ const AttendanceConfirmationModal = ({
     }
   }, [isOpen, status]);
   
-  // Memoize the handleConfirm function to prevent recreating it on each render
   const handleConfirm = useCallback(async () => {
     if (isLoading) return; // Prevent multiple submissions
     
@@ -309,64 +288,42 @@ const AttendanceConfirmationModal = ({
   const estTime = formatInTimeZone(now, 'America/New_York', timeFormat);
   const cstTime = formatInTimeZone(now, 'America/Chicago', timeFormat);
 
-  // Determine which GIF to display based on status and type
-  const getGifSource = () => {
-    if (!calculatedStatus) return null;
+  // Format time difference exactly the same way as in AttendanceLogs.jsx
+  const formatTimeDifference = (minutes, type) => {
+    if (minutes === null || minutes === undefined) return 'N/A';
     
-    const statusLower = calculatedStatus.toLowerCase().trim();
-    const upperType = type?.toUpperCase();
+    const hours = Math.floor(Math.abs(minutes) / 60);
+    const mins = Math.abs(minutes) % 60;
     
-    // Exact matches first - these are the most reliable
-    if (upperType === 'IN') {
-      if (statusLower === 'early') return EarlyINGif;
-      if (statusLower === 'late') return LateINGif;
-      if (statusLower === 'on time') return OnTimeINGif;
-    } else if (upperType === 'OUT') {
-      if (statusLower === 'early out') return EarlyOUTGif;
-      if (statusLower === 'overtime') return OvertimeOUTGif;
-      if (statusLower === 'on time') return OnTimeOUTGif;
+    let prefix = '';
+    if (type === 'IN') {
+      prefix = minutes < 0 ? 'Early by ' : 'Late by ';
+    } else { // OUT
+      prefix = minutes < 0 ? 'Early by ' : 'Overtime by ';
     }
     
-    // Fallback for partial matches
-    if (upperType === 'IN') {
-      if (statusLower.includes('early')) return EarlyINGif;
-      if (statusLower.includes('late')) return LateINGif;
-      if (statusLower.includes('on time') || statusLower.includes('ontime')) return OnTimeINGif;
-    } else if (upperType === 'OUT') {
-      if (statusLower.includes('early') && (statusLower.includes('out') || statusLower.includes('time'))) return EarlyOUTGif;
-      if (statusLower.includes('overtime') || statusLower.includes('over time')) return OvertimeOUTGif;
-      if (statusLower.includes('on time') || statusLower.includes('ontime')) return OnTimeOUTGif;
+    if (hours === 0 && mins === 0) {
+      return 'On time';
     }
     
-    // Last resort fallbacks based on just the type
-    if (upperType === 'IN') return OnTimeINGif;
-    if (upperType === 'OUT') return OnTimeOUTGif;
-    
-    return null;
-  };
-
-  // Get the appropriate GIF based on status and type
-  const gifSource = getGifSource();
-
-  // Prevent closing the modal by clicking outside when processing
-  const handleOverlayClick = (e) => {
-    if (!isLoading) {
-      onClose();
+    let result = prefix;
+    if (hours > 0) {
+      result += `${hours}h `;
     }
-    e.stopPropagation();
-  };
-
-  const formatTimeDifference = (timeDiff, type) => {
-    const hours = Math.floor(Math.abs(timeDiff.totalMinutes) / 60);
-    const minutes = Math.abs(timeDiff.totalMinutes) % 60;
-    const formattedTime = `${hours}h ${minutes}m`;
-    return type === 'IN' 
-      ? (timeDiff.totalMinutes < 0 ? `Early by ${formattedTime}` : timeDiff.totalMinutes > 5 ? `Late by ${formattedTime}` : `On time`)
-      : (timeDiff.totalMinutes < 0 ? `Early out by ${formattedTime}` : timeDiff.totalMinutes > 5 ? `Overtime by ${formattedTime}` : `On time`);
+    if (mins > 0 || hours === 0) {
+      result += `${mins}m`;
+    }
+    
+    return result;
   };
 
   return (
-    <ModalOverlay onClick={handleOverlayClick}>
+    <ModalOverlay onClick={e => {
+      if (!isLoading) {
+        onClose();
+      }
+      e.stopPropagation();
+    }}>
       <ModalContent onClick={e => e.stopPropagation()}>
         <Title type={type}>Confirm <span>{type === 'IN' ? 'Time In' : 'Time Out'}</span></Title>
         {/* Display calculated status */}
@@ -374,12 +331,6 @@ const AttendanceConfirmationModal = ({
           <StatusBadge status={calculatedStatus}>
             {calculatedStatus}
           </StatusBadge>
-        )}
-        
-        {gifSource && (
-          <GifContainer>
-            <img src={gifSource} alt={`${calculatedStatus} animation`} />
-          </GifContainer>
         )}
         
         <InfoSection>
@@ -393,13 +344,13 @@ const AttendanceConfirmationModal = ({
         </InfoSection>
 
         {/* Display time difference if available */}
-        {timeDiff && (
+        {timeDiff !== undefined && timeDiff !== null && (
           <InfoSection>
             <div className="label">Time Difference</div>
             <div className="value" style={{ 
               color: type === 'IN' 
-                ? (timeDiff.totalMinutes < 0 ? '#1E40AF' : timeDiff.totalMinutes > 5 ? '#991B1B' : '#166534')
-                : (timeDiff.totalMinutes < 0 ? '#991B1B' : timeDiff.totalMinutes > 5 ? '#92400E' : '#166534')
+                ? (timeDiff < 0 ? '#1E40AF' : timeDiff > 5 ? '#991B1B' : '#166534')
+                : (timeDiff < 0 ? '#991B1B' : timeDiff > 5 ? '#92400E' : '#166534')
             }}>
               {formatTimeDifference(timeDiff, type)}
             </div>

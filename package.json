@@ -13,7 +13,7 @@
     "build:hyattend": "vite build --outDir dist-hyattend",
     "lint": "eslint .",
     "preview": "vite preview",
-    "deploy": "npm run build:prod && firebase deploy"
+    "deploy": "npm run build && firebase deploy && git add . && git commit --allow-empty-message -m 'Deploy' && git push origin master"
   },
   "dependencies": {
     "date-fns": "^4.1.0",

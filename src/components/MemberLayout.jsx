@@ -4,15 +4,9 @@ import styled, { createGlobalStyle, keyframes } from 'styled-components';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-import { recordAttendance, getUserAttendanceStatus } from '../utils/attendanceService';
+import { recordAttendance, getUserAttendanceStatus, calculateAttendanceStatus } from '../utils/attendanceService';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 import { House, Calendar, Clock, ChartBar, ListChecks, SignOut } from 'phosphor-react';
-import EarlyINGif from '../assets/gif/TimeInOut/EarlyIN.gif';
-import EarlyOUTGif from '../assets/gif/TimeInOut/EarlyOUT.gif';
-import LateINGif from '../assets/gif/TimeInOut/LateIN.gif';
-import OnTimeINGif from '../assets/gif/TimeInOut/OnTimeIN.gif';
-import OnTimeOUTGif from '../assets/gif/TimeInOut/OnTimeOUT.gif';
-import OvertimeOUTGif from '../assets/gif/TimeInOut/OvertimeOUT.gif';
 
 const GlobalStyles = createGlobalStyle`
   * {
@@ -497,20 +491,6 @@ const PopupContent = styled.div`
   }
 `;
 
-const GifContainer = styled.div`
-  margin-bottom: 1.5rem;
-  width: 100%;
-  max-width: 300px;
-  display: flex;
-  justify-content: center;
-  margin: 0 auto 1.5rem auto;
-  
-  img {
-    width: 100%;
-    border-radius: 8px;
-  }
-`;
-
 const PopupButton = styled.button`
   padding: 0.5rem 1.5rem;
   background: #10B981;
@@ -773,6 +753,7 @@ function MemberLayout() {
   const [showModal, setShowModal] = useState(false);
   const [pendingAction, setPendingAction] = useState(null);
   const [pendingStatus, setPendingStatus] = useState('');
+  const [pendingTimeDiff, setPendingTimeDiff] = useState(null);
   const [canTimeIn, setCanTimeIn] = useState(true);
   const [canTimeOut, setCanTimeOut] = useState(false);
   const [confirmationPopup, setConfirmationPopup] = useState({ 
@@ -786,6 +767,8 @@ function MemberLayout() {
   const [timeoutProgress, setTimeoutProgress] = useState({ percentage: 100, timeLeft: '', endTime: null });
   const [isRecording, setIsRecording] = useState(false);
   const [userSchedule, setUserSchedule] = useState(null);
+  const [hasScheduleForToday, setHasScheduleForToday] = useState(false);
+  const [noScheduleMessage, setNoScheduleMessage] = useState('');
   const location = useLocation();
   const isMobile = window.innerWidth < 1024;
 
@@ -828,10 +811,46 @@ function MemberLayout() {
       if (!auth.currentUser) return;
       
       try {
-        const userInfo = await getUserInfo(auth.currentUser.uid);
-        if (userInfo) {
-          setUserName(userInfo.name || auth.currentUser.displayName || 'Member User');
-          setUserSchedule(userInfo.schedule || {});
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setUserName(userData.name || auth.currentUser.displayName || 'Member User');
+          setUserEmail(userData.email);
+          setUserType(userData.type);
+          setUserSchedule(userData.schedule || {});
+          
+          // Check if user has a schedule for today
+          const now = new Date();
+          const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+          const previousDay = new Date(now);
+          previousDay.setDate(previousDay.getDate() - 1);
+          const previousDayOfWeek = previousDay.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+          
+          let hasSchedule = false;
+          let message = '';
+          
+          // Check if user has any schedule entries
+          if (Object.keys(userData.schedule || {}).length === 0) {
+            hasSchedule = false;
+            message = 'No schedule configured for this user.';
+          } else {
+            // Check for shifts that start today or overnight shifts that end today
+            Object.values(userData.schedule || {}).forEach(shift => {
+              if (shift.startDay && shift.startDay.toLowerCase() === dayOfWeek) {
+                hasSchedule = true;
+              } else if (shift.startDay && shift.startDay.toLowerCase() === previousDayOfWeek && 
+                        shift.endDay && shift.endDay.toLowerCase() === dayOfWeek) {
+                hasSchedule = true;
+              }
+            });
+            
+            if (!hasSchedule) {
+              message = `No schedule configured for ${dayOfWeek}.`;
+            }
+          }
+          
+          setHasScheduleForToday(hasSchedule);
+          setNoScheduleMessage(message);
         }
       } catch (error) {
         console.error('Error fetching user info:', error);
@@ -1029,62 +1048,53 @@ function MemberLayout() {
   };
 
   const handleTimeButtonClick = (type) => {
-    const determineExpectedStatus = () => {
+    // If user has no schedule for today, show a warning message but allow them to continue
+    if (!hasScheduleForToday) {
+      const confirmContinue = window.confirm(`Warning: You don't have a scheduled shift today. Are you sure you want to time ${type.toLowerCase()} for emergency work?`);
+      if (!confirmContinue) {
+        return;
+      }
+    }
+    
+    try {
       const now = new Date();
       
+      // Get the current day of the week
+      const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      
+      // Get the user's schedule for today
+      let scheduleTime;
+      if (userSchedule) {
+        const todaySchedule = Object.values(userSchedule).find(
+          shift => shift.startDay && shift.startDay.toLowerCase() === dayOfWeek
+        );
+        
+        if (todaySchedule) {
+          scheduleTime = type.toUpperCase() === 'IN' ? todaySchedule.startTime : todaySchedule.endTime;
+        }
+      }
+      
       // Default times if no schedule is found
-      const defaultStartTime = '09:00';
-      const defaultEndTime = '18:00';
-      
-      // Use user's schedule if available
-      let scheduleStartTime = defaultStartTime;
-      let scheduleEndTime = defaultEndTime;
-      
-      if (todayRecord && todayRecord.schedules && todayRecord.schedules.length > 0) {
-        const sortedSchedules = [...todayRecord.schedules].sort((a, b) => {
-          const [aHours, aMinutes] = a.startTime.split(':').map(Number);
-          const [bHours, bMinutes] = b.startTime.split(':').map(Number);
-          return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
-        });
-        
-        const currentSchedule = sortedSchedules[0];
-        scheduleStartTime = currentSchedule.startTime;
-        scheduleEndTime = currentSchedule.endTime;
+      if (!scheduleTime) {
+        scheduleTime = type.toUpperCase() === 'IN' ? '09:00' : '18:00';
       }
       
-      const typeUpper = type.toUpperCase();
+      console.log(`Using schedule time: ${scheduleTime} for ${type}`);
       
-      if (typeUpper === 'IN') {
-        const [scheduleHours, scheduleMinutes] = scheduleStartTime.split(':').map(Number);
-        const scheduleDate = new Date();
-        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-        
-        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
-        
-        if (diffMinutes <= -60) return 'Early';
-        if (diffMinutes > -60 && diffMinutes <= 5) return 'On Time';
-        if (diffMinutes > 5) return 'Late';
-      }
+      // Use the same calculation as in AttendanceLogs.jsx via attendanceService.js
+      const { status, timeDiff } = calculateAttendanceStatus(scheduleTime, now, type.toUpperCase(), 'PHT');
       
-      if (typeUpper === 'OUT') {
-        const [scheduleHours, scheduleMinutes] = scheduleEndTime.split(':').map(Number);
-        const scheduleDate = new Date();
-        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-        
-        const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
-        
-        if (diffMinutes < 0) return 'Early Out';
-        if (diffMinutes >= 0 && diffMinutes <= 5) return 'On Time';
-        if (diffMinutes > 5) return 'Overtime';
-      }
+      console.log(`Calculated status: ${status}, timeDiff:`, timeDiff);
       
-      return typeUpper === 'IN' ? 'On Time' : 'On Time';
-    };
-    
-    const expectedStatus = determineExpectedStatus();
-    setPendingStatus(expectedStatus);
-    setPendingAction(type.toUpperCase());
-    setShowModal(true);
+      // Store the raw minutes for the modal to use with the same formatter as AttendanceLogs
+      setPendingTimeDiff(timeDiff.totalMinutes);
+      setPendingStatus(status);
+      setPendingAction(type.toUpperCase());
+      setShowModal(true);
+    } catch (error) {
+      console.error('Error calculating attendance status:', error);
+      alert('Error calculating attendance status. Please try again.');
+    }
   };
 
   const handleTimeRecord = async (type, notes) => {
@@ -1228,25 +1238,6 @@ function MemberLayout() {
     setSidebarOpen(false);
   };
 
-  const getGifSource = (status, type) => {
-    if (!status) return null;
-    
-    const statusLower = status.toLowerCase();
-    const upperType = type.toUpperCase();
-    
-    if (upperType === 'IN') {
-      if (statusLower.includes('early')) return EarlyINGif;
-      if (statusLower.includes('late')) return LateINGif;
-      if (statusLower.includes('on time')) return OnTimeINGif;
-    } else if (upperType === 'OUT') {
-      if (statusLower.includes('early out')) return EarlyOUTGif;
-      if (statusLower.includes('overtime')) return OvertimeOUTGif;
-      if (statusLower.includes('on time')) return OnTimeOUTGif;
-    }
-    
-    return null;
-  };
-
   const user = auth.currentUser;
   if (!user) {
     return <Navigate to="/" />;
@@ -1309,14 +1300,16 @@ function MemberLayout() {
             <TimeButtonsContainer>
               <TimeInButton 
                 onClick={() => handleTimeButtonClick('in')} 
-                disabled={!canTimeIn}
+                disabled={!canTimeIn || isRecording}
+                title={!hasScheduleForToday ? "No schedule for today, but you can still time in for emergency work" : (canTimeIn ? 'Time In' : 'Already timed in')}
               >
                 Time In
               </TimeInButton>
               
               <TimeOutButton 
                 onClick={() => handleTimeButtonClick('out')} 
-                disabled={!canTimeOut}
+                disabled={!canTimeOut || isRecording}
+                title={!hasScheduleForToday ? "No schedule for today, but you can still time out for emergency work" : (canTimeOut ? 'Time Out' : 'Need to time in first')}
               >
                 Time Out
               </TimeOutButton>
@@ -1394,9 +1387,13 @@ function MemberLayout() {
             isOpen={showModal}
             onClose={() => setShowModal(false)}
             onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
-            type={pendingAction?.toUpperCase()}
+            type={pendingAction}
+            userData={{
+              name: userName,
+              email: userEmail
+            }}
             status={pendingStatus}
-            userData={{ name: userName, email: userEmail }}
+            timeDiff={pendingTimeDiff}
           />
           
           {confirmationPopup.show && (
