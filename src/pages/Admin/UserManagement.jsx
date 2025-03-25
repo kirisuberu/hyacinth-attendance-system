@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import styled from 'styled-components';
 import { 
   getAllUsers, 
   createOrUpdateUser, 
   deleteUser, 
   UserType, 
-  WeeklySchedule, 
   addApprovedEmail, 
   removeApprovedEmail, 
   getApprovedEmails, 
@@ -19,8 +18,6 @@ import {
   refreshUserAccessAfterRename
 } from '../../utils/userService';
 import { auth } from '../../firebase';
-
-//icons
 import { 
   PencilSimpleLine, 
   Calendar, 
