@@ -473,6 +473,49 @@ function UserManagement() {
     }
   };
 
+  const getSortedUsers = () => {
+    if (!users.length) return [];
+    
+    return [...users].sort((a, b) => {
+      let aValue, bValue;
+      
+      // Get the values to compare based on the sort field
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'type':
+          aValue = a.userType.toLowerCase();
+          bValue = b.userType.toLowerCase();
+          break;
+        case 'createdAt':
+          // Handle dates - if createdAt doesn't exist, use current date
+          aValue = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bValue = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        case 'shiftCount':
+          aValue = a.schedule ? Object.keys(a.schedule).length : 0;
+          bValue = b.schedule ? Object.keys(b.schedule).length : 0;
+          break;
+        case 'totalHours':
+          aValue = parseFloat(calculateTotalHours(a.schedule));
+          bValue = parseFloat(calculateTotalHours(b.schedule));
+          break;
+        default:
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+      }
+      
+      // Compare based on direction
+      if (sortDirection === 'asc') {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      } else {
+        return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+      }
+    });
+  };
+
   const ScheduleModal = ({ userId, userName, currentSchedule }) => {
     const [schedule, setSchedule] = useState(currentSchedule || {});
     const [showShiftForm, setShowShiftForm] = useState(false);
@@ -1072,11 +1115,7 @@ function UserManagement() {
                             return (
                               <>
                                 <strong>{endTime}</strong>
-                                {isNextDay && (
-                                  <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                                    (Next Day)
-                                  </span>
-                                )}
+                                {isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                               </>
                             );
                           })()}
@@ -1124,11 +1163,7 @@ function UserManagement() {
                           return (
                             <>
                               <strong>{endTime}</strong>
-                              {isNextDay && (
-                                <span style={{ marginLeft: '0.5rem', color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}>
-                                  (Next Day)
-                                </span>
-                              )}
+                              {isNextDay && <span style={{ color: '#6366F1', fontSize: '0.85em', fontStyle: 'italic' }}> (Next Day)</span>}
                             </>
                           );
                         })()}
