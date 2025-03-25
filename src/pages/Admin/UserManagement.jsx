@@ -804,16 +804,38 @@ function UserManagement() {
               <FormGroup>
                 <Label>Shift Type</Label>
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    cursor: 'pointer',
+                    padding: '0.5rem 1rem',
+                    backgroundColor: !shiftFormData.isSpecificDate ? '#EEF2FF' : '#F3F4F6',
+                    borderRadius: '0.375rem',
+                    border: '1px solid',
+                    borderColor: !shiftFormData.isSpecificDate ? '#6366F1' : '#D1D5DB',
+                    fontWeight: !shiftFormData.isSpecificDate ? '500' : 'normal',
+                    color: !shiftFormData.isSpecificDate ? '#4F46E5' : '#374151'
+                  }}>
                     <input 
                       type="radio" 
                       checked={!shiftFormData.isSpecificDate} 
                       onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: false }))}
                       style={{ marginRight: '0.5rem' }}
                     />
-                    Weekly Schedule
+                    Weekly Shift
                   </label>
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <label style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    cursor: 'pointer',
+                    padding: '0.5rem 1rem',
+                    backgroundColor: shiftFormData.isSpecificDate ? '#EEF2FF' : '#F3F4F6',
+                    borderRadius: '0.375rem',
+                    border: '1px solid',
+                    borderColor: shiftFormData.isSpecificDate ? '#6366F1' : '#D1D5DB',
+                    fontWeight: shiftFormData.isSpecificDate ? '500' : 'normal',
+                    color: shiftFormData.isSpecificDate ? '#4F46E5' : '#374151'
+                  }}>
                     <input 
                       type="radio" 
                       checked={shiftFormData.isSpecificDate} 
@@ -833,6 +855,13 @@ function UserManagement() {
                       type="date"
                       value={shiftFormData.specificDate}
                       onChange={(e) => setShiftFormData(prev => ({ ...prev, specificDate: e.target.value }))}
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.5rem',
+                        borderRadius: '0.375rem',
+                        border: '1px solid #D1D5DB',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      }}
                     />
                   </FormGroup>
                 </>
@@ -843,6 +872,13 @@ function UserManagement() {
                     <Select
                       value={shiftFormData.startDay || 'monday'}
                       onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.5rem',
+                        borderRadius: '0.375rem',
+                        border: '1px solid #D1D5DB',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      }}
                     >
                       {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
                         <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
@@ -852,40 +888,93 @@ function UserManagement() {
                 </>
               )}
               
-              <FormGroup>
-                <Label>Start Time</Label>
-                <TimeInput
-                  value={shiftFormData.startTime || ''}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                />
-              </FormGroup>
-              <FormGroup>
-                <Label>Shift Duration (hours)</Label>
-                <Input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={shiftFormData.duration || ''}
-                  onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
-                  placeholder="e.g., 8 for 8 hours, 8.5 for 8 hours 30 minutes"
-                />
-              </FormGroup>
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                <FormGroup style={{ flex: 1 }}>
+                  <Label>Start Time</Label>
+                  <TimeInput
+                    value={shiftFormData.startTime || ''}
+                    onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.5rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #D1D5DB',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                    }}
+                  />
+                </FormGroup>
+                <FormGroup style={{ flex: 1 }}>
+                  <Label>Shift Duration (hours)</Label>
+                  <Input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={shiftFormData.duration || ''}
+                    onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
+                    placeholder="e.g., 8 for 8 hours"
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.5rem',
+                      borderRadius: '0.375rem',
+                      border: '1px solid #D1D5DB',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                    }}
+                  />
+                </FormGroup>
+              </div>
               <FormGroup>
                 <Label>Time Region</Label>
                 <Select
                   value={shiftFormData.timeRegion || 'PHT'}
                   onChange={(e) => setShiftFormData(prev => ({ ...prev, timeRegion: e.target.value }))}
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.5rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #D1D5DB',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
                 >
                   {timeRegions.map(region => (
                     <option key={region} value={region}>{region}</option>
                   ))}
                 </Select>
               </FormGroup>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                <Button onClick={() => setShowShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                marginTop: '1.5rem',
+                gap: '1rem'
+              }}>
+                <Button 
+                  onClick={() => {
+                    setShowShiftForm(false);
+                    setSelectedShift(null);
+                  }} 
+                  style={{ 
+                    backgroundColor: '#6B7280',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.375rem',
+                    border: 'none',
+                    color: 'white',
+                    fontWeight: '500',
+                    flex: '1'
+                  }}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleSaveShift}>
+                <Button 
+                  onClick={handleSaveShift}
+                  style={{ 
+                    backgroundColor: '#4F46E5',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '0.375rem',
+                    border: 'none',
+                    color: 'white',
+                    fontWeight: '500',
+                    flex: '1'
+                  }}
+                >
                   Save Shift
                 </Button>
               </div>
@@ -908,6 +997,13 @@ function UserManagement() {
                       onChange={(e) => {
                         const template = scheduleTemplates.find(t => t.id === e.target.value);
                         setSelectedTemplate(template || null);
+                      }}
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.5rem',
+                        borderRadius: '0.375rem',
+                        border: '1px solid #D1D5DB',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
                       }}
                     >
                       <option value="">-- Select a template --</option>
@@ -971,6 +1067,13 @@ function UserManagement() {
                   value={templateName}
                   onChange={(e) => setTemplateName(e.target.value)}
                   placeholder="Enter template name"
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.5rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #D1D5DB',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
                 />
               </FormGroup>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
@@ -1577,6 +1680,13 @@ function UserManagement() {
                   value={editFormData.name}
                   onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="Enter template name"
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.5rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #D1D5DB',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
                 />
               </FormGroup>
 
@@ -1595,16 +1705,38 @@ function UserManagement() {
                   <FormGroup>
                     <Label>Shift Type</Label>
                     <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <label style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: !shiftFormData.isSpecificDate ? '#EEF2FF' : '#F3F4F6',
+                        borderRadius: '0.375rem',
+                        border: '1px solid',
+                        borderColor: !shiftFormData.isSpecificDate ? '#6366F1' : '#D1D5DB',
+                        fontWeight: !shiftFormData.isSpecificDate ? '500' : 'normal',
+                        color: !shiftFormData.isSpecificDate ? '#4F46E5' : '#374151'
+                      }}>
                         <input 
                           type="radio" 
                           checked={!shiftFormData.isSpecificDate} 
                           onChange={() => setShiftFormData(prev => ({ ...prev, isSpecificDate: false }))}
                           style={{ marginRight: '0.5rem' }}
                         />
-                        Weekly Schedule
+                        Weekly Shift
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <label style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        cursor: 'pointer',
+                        padding: '0.5rem 1rem',
+                        backgroundColor: shiftFormData.isSpecificDate ? '#EEF2FF' : '#F3F4F6',
+                        borderRadius: '0.375rem',
+                        border: '1px solid',
+                        borderColor: shiftFormData.isSpecificDate ? '#6366F1' : '#D1D5DB',
+                        fontWeight: shiftFormData.isSpecificDate ? '500' : 'normal',
+                        color: shiftFormData.isSpecificDate ? '#4F46E5' : '#374151'
+                      }}>
                         <input 
                           type="radio" 
                           checked={shiftFormData.isSpecificDate} 
@@ -1624,6 +1756,13 @@ function UserManagement() {
                           type="date"
                           value={shiftFormData.specificDate}
                           onChange={(e) => setShiftFormData(prev => ({ ...prev, specificDate: e.target.value }))}
+                          style={{ 
+                            width: '100%', 
+                            padding: '0.5rem',
+                            borderRadius: '0.375rem',
+                            border: '1px solid #D1D5DB',
+                            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                          }}
                         />
                       </FormGroup>
                     </>
@@ -1634,6 +1773,13 @@ function UserManagement() {
                         <Select
                           value={shiftFormData.startDay || 'monday'}
                           onChange={(e) => setShiftFormData(prev => ({ ...prev, startDay: e.target.value }))}
+                          style={{ 
+                            width: '100%', 
+                            padding: '0.5rem',
+                            borderRadius: '0.375rem',
+                            border: '1px solid #D1D5DB',
+                            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                          }}
                         >
                           {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
                             <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
@@ -1643,40 +1789,93 @@ function UserManagement() {
                     </>
                   )}
                   
-                  <FormGroup>
-                    <Label>Start Time</Label>
-                    <TimeInput
-                      value={shiftFormData.startTime || ''}
-                      onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                    />
-                  </FormGroup>
-                  <FormGroup>
-                    <Label>Shift Duration (hours)</Label>
-                    <Input
-                      type="number"
-                      min="0.5"
-                      step="0.5"
-                      value={shiftFormData.duration || ''}
-                      onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
-                      placeholder="e.g., 8 for 8 hours, 8.5 for 8 hours 30 minutes"
-                    />
-                  </FormGroup>
+                  <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                    <FormGroup style={{ flex: 1 }}>
+                      <Label>Start Time</Label>
+                      <TimeInput
+                        value={shiftFormData.startTime || ''}
+                        onChange={(e) => setShiftFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.5rem',
+                          borderRadius: '0.375rem',
+                          border: '1px solid #D1D5DB',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                      />
+                    </FormGroup>
+                    <FormGroup style={{ flex: 1 }}>
+                      <Label>Shift Duration (hours)</Label>
+                      <Input
+                        type="number"
+                        min="0.5"
+                        step="0.5"
+                        value={shiftFormData.duration || ''}
+                        onChange={(e) => setShiftFormData(prev => ({ ...prev, duration: e.target.value }))}
+                        placeholder="e.g., 8 for 8 hours"
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.5rem',
+                          borderRadius: '0.375rem',
+                          border: '1px solid #D1D5DB',
+                          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                        }}
+                      />
+                    </FormGroup>
+                  </div>
                   <FormGroup>
                     <Label>Time Region</Label>
                     <Select
                       value={shiftFormData.timeRegion || 'PHT'}
                       onChange={(e) => setShiftFormData(prev => ({ ...prev, timeRegion: e.target.value }))}
+                      style={{ 
+                        width: '100%', 
+                        padding: '0.5rem',
+                        borderRadius: '0.375rem',
+                        border: '1px solid #D1D5DB',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      }}
                     >
                       {timeRegions.map(region => (
                         <option key={region} value={region}>{region}</option>
                       ))}
                     </Select>
                   </FormGroup>
-                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                    <Button onClick={() => setShowShiftForm(false)} style={{ backgroundColor: '#6B7280' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    marginTop: '1.5rem',
+                    gap: '1rem'
+                  }}>
+                    <Button 
+                      onClick={() => {
+                        setShowShiftForm(false);
+                        setSelectedShift(null);
+                      }} 
+                      style={{ 
+                        backgroundColor: '#6B7280',
+                        padding: '0.5rem 1rem',
+                        borderRadius: '0.375rem',
+                        border: 'none',
+                        color: 'white',
+                        fontWeight: '500',
+                        flex: '1'
+                      }}
+                    >
                       Cancel
                     </Button>
-                    <Button onClick={handleSaveShift}>
+                    <Button 
+                      onClick={handleSaveShift}
+                      style={{ 
+                        backgroundColor: '#4F46E5',
+                        padding: '0.5rem 1rem',
+                        borderRadius: '0.375rem',
+                        border: 'none',
+                        color: 'white',
+                        fontWeight: '500',
+                        flex: '1'
+                      }}
+                    >
                       Save Shift
                     </Button>
                   </div>
@@ -2008,6 +2207,13 @@ function UserManagement() {
                   value={newUser.name}
                   onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
                   required
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.5rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #D1D5DB',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
                 />
               </FormGroup>
               <FormGroup>
@@ -2017,6 +2223,13 @@ function UserManagement() {
                   value={newUser.email}
                   onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
                   required
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.5rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #D1D5DB',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
                 />
               </FormGroup>
               <FormGroup>
@@ -2024,6 +2237,13 @@ function UserManagement() {
                 <Select
                   value={newUser.userType}
                   onChange={(e) => setNewUser({ ...newUser, userType: e.target.value })}
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.5rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #D1D5DB',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
                 >
                   {Object.values(UserType).map(type => (
                     <option key={type} value={type}>
@@ -2209,6 +2429,13 @@ function UserManagement() {
               <Select
                 value={weeklyShiftFormData.dayOfWeek}
                 onChange={(e) => setWeeklyShiftFormData(prev => ({ ...prev, dayOfWeek: e.target.value }))}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #D1D5DB',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                }}
               >
                 {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
                   <option key={day} value={day}>{day.charAt(0).toUpperCase() + day.slice(1)}</option>
@@ -2221,6 +2448,13 @@ function UserManagement() {
                 value={weeklyShiftFormData.timeIn}
                 onChange={(e) => setWeeklyShiftFormData(prev => ({ ...prev, timeIn: e.target.value }))}
                 placeholder="HH:MM"
+                style={{ 
+                  width: '100%', 
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #D1D5DB',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                }}
               />
             </FormGroup>
             <FormGroup>
@@ -2233,6 +2467,13 @@ function UserManagement() {
                 value={weeklyShiftFormData.shiftDuration}
                 onChange={(e) => setWeeklyShiftFormData(prev => ({ ...prev, shiftDuration: e.target.value }))}
                 placeholder="Enter duration in hours"
+                style={{ 
+                  width: '100%', 
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #D1D5DB',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                }}
               />
             </FormGroup>
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
@@ -2288,6 +2529,13 @@ function UserManagement() {
                 type="date"
                 value={specificDateShiftFormData.date}
                 onChange={(e) => setSpecificDateShiftFormData(prev => ({ ...prev, date: e.target.value }))}
+                style={{ 
+                  width: '100%', 
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #D1D5DB',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                }}
               />
             </FormGroup>
             <FormGroup>
@@ -2296,6 +2544,13 @@ function UserManagement() {
                 value={specificDateShiftFormData.timeIn}
                 onChange={(e) => setSpecificDateShiftFormData(prev => ({ ...prev, timeIn: e.target.value }))}
                 placeholder="HH:MM"
+                style={{ 
+                  width: '100%', 
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #D1D5DB',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                }}
               />
             </FormGroup>
             <FormGroup>
@@ -2308,6 +2563,13 @@ function UserManagement() {
                 value={specificDateShiftFormData.shiftDuration}
                 onChange={(e) => setSpecificDateShiftFormData(prev => ({ ...prev, shiftDuration: e.target.value }))}
                 placeholder="Enter duration in hours"
+                style={{ 
+                  width: '100%', 
+                  padding: '0.5rem',
+                  borderRadius: '0.375rem',
+                  border: '1px solid #D1D5DB',
+                  boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                }}
               />
             </FormGroup>
             <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
