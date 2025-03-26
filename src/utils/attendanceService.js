@@ -1,5 +1,21 @@
+import { 
+  collection, 
+  addDoc, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  doc, 
+  getDoc, 
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
+  deleteDoc
+} from 'firebase/firestore';
 import { db } from '../firebase';
-import { collection, addDoc, serverTimestamp, getDocs, query, where, doc, getDoc, setDoc, orderBy, limit, updateDoc, deleteDoc } from 'firebase/firestore';
+import { format, parseISO, differenceInMinutes, differenceInHours, addDays, subDays } from 'date-fns';
+import { zonedTimeToUtc, utcToZonedTime, format as formatTZ } from 'date-fns-tz';
 
 // Time region offset in hours from UTC
 const TIME_REGION_OFFSETS = {
@@ -144,6 +160,37 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
 };
 
 /**
+ * Get attendance rules from admin user document
+ * @returns {Object} - Attendance rules
+ */
+const getAttendanceRules = async () => {
+  try {
+    // Find admin user document
+    const usersRef = collection(db, 'users');
+    const adminQuery = query(usersRef, where("userType", "==", "admin"));
+    const adminSnapshot = await getDocs(adminQuery);
+    
+    if (adminSnapshot.empty) {
+      console.warn('No admin user found, using default rules');
+      return null;
+    }
+    
+    // Get the first admin user document
+    const adminDoc = adminSnapshot.docs[0];
+    const adminData = adminDoc.data();
+    
+    if (adminData.attendanceRules) {
+      return adminData.attendanceRules;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting attendance rules:', error);
+    return null;
+  }
+};
+
+/**
  * Determine attendance status based on time difference and record type
  * @param {number} diffMinutes - Time difference in minutes
  * @param {string} type - Record type: 'IN' or 'OUT'
@@ -151,12 +198,11 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
  */
 const determineStatus = async (diffMinutes, type) => {
   try {
-    // Get rules from Firestore
-    const rulesDoc = doc(db, 'system', 'attendanceRules');
-    const rulesSnapshot = await getDoc(rulesDoc);
+    // Get rules from admin user document
+    const rules = await getAttendanceRules();
     
     // Default rules
-    let rules = {
+    let defaultRules = {
       timeIn: {
         early: -60, // minutes before schedule to be considered "Early"
         onTime: 5,  // minutes after schedule to still be considered "On Time"
@@ -167,32 +213,30 @@ const determineStatus = async (diffMinutes, type) => {
       }
     };
     
-    // If rules exist in Firestore, use them
-    if (rulesSnapshot.exists()) {
-      rules = rulesSnapshot.data();
-    }
+    // Use custom rules if available, otherwise use defaults
+    const attendanceRules = rules || defaultRules;
     
     if (type === 'IN') {
       // For time-in:
-      if (diffMinutes <= rules.timeIn.early) {
+      if (diffMinutes <= attendanceRules.timeIn.early) {
         return 'Early';
-      } else if (diffMinutes > rules.timeIn.early && diffMinutes <= rules.timeIn.onTime) {
+      } else if (diffMinutes > attendanceRules.timeIn.early && diffMinutes <= attendanceRules.timeIn.onTime) {
         return 'On Time';
       } else {
         return 'Late';
       }
     } else {
       // For time-out:
-      if (diffMinutes < rules.timeOut.earlyOut) {
+      if (diffMinutes < attendanceRules.timeOut.earlyOut) {
         return 'Early Out';
-      } else if (diffMinutes >= rules.timeOut.earlyOut && diffMinutes <= rules.timeOut.onTime) {
+      } else if (diffMinutes >= attendanceRules.timeOut.earlyOut && diffMinutes <= attendanceRules.timeOut.onTime) {
         return 'On Time';
       } else {
         return 'Overtime';
       }
     }
   } catch (error) {
-    console.error('Error getting attendance rules:', error);
+    console.error('Error determining attendance status:', error);
     // Fallback to original hardcoded values if there's an error
     if (type === 'IN') {
       // For time-in:
@@ -216,6 +260,13 @@ const determineStatus = async (diffMinutes, type) => {
   }
 };
 
+/**
+ * Record attendance
+ * @param {string} userId - User ID
+ * @param {string} type - Record type: 'IN' or 'OUT'
+ * @param {string} notes - Notes
+ * @returns {Object} - Result of the attendance record operation
+ */
 export const recordAttendance = async (userId, type, notes = '') => {
   console.log('Recording attendance with type:', type, 'for user:', { userId });
   try {

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { FloppyDisk, ArrowClockwise } from 'phosphor-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Styled components
 const Container = styled.div`
@@ -147,6 +148,7 @@ function Rules() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     fetchRules();
@@ -155,18 +157,32 @@ function Rules() {
   const fetchRules = async () => {
     setLoading(true);
     try {
-      const rulesDoc = doc(db, 'system', 'attendanceRules');
-      const rulesSnapshot = await getDoc(rulesDoc);
+      // Find admin user document
+      const usersRef = collection(db, 'users');
+      const adminQuery = query(usersRef, where("userType", "==", "admin"));
+      const adminSnapshot = await getDocs(adminQuery);
       
-      if (rulesSnapshot.exists()) {
-        setRules(rulesSnapshot.data());
+      if (adminSnapshot.empty) {
+        console.error('No admin user found');
+        setRules(DEFAULT_RULES);
+        setLoading(false);
+        return;
+      }
+      
+      // Get the first admin user document
+      const adminDoc = adminSnapshot.docs[0];
+      const adminData = adminDoc.data();
+      
+      if (adminData.attendanceRules) {
+        setRules(adminData.attendanceRules);
       } else {
-        // If no rules document exists, use defaults
+        // If no rules found in admin document, use defaults
         setRules(DEFAULT_RULES);
       }
     } catch (error) {
       console.error('Error fetching rules:', error);
       alert('Failed to load attendance rules. Please try again.');
+      setRules(DEFAULT_RULES);
     } finally {
       setLoading(false);
     }
@@ -190,8 +206,22 @@ function Rules() {
   const saveRules = async () => {
     setSaving(true);
     try {
-      const rulesDoc = doc(db, 'system', 'attendanceRules');
-      await setDoc(rulesDoc, rules);
+      // Find admin user document
+      const usersRef = collection(db, 'users');
+      const adminQuery = query(usersRef, where("userType", "==", "admin"));
+      const adminSnapshot = await getDocs(adminQuery);
+      
+      if (adminSnapshot.empty) {
+        throw new Error('No admin user found');
+      }
+      
+      // Get the first admin user document
+      const adminDoc = adminSnapshot.docs[0];
+      
+      // Update the admin document with the rules
+      await updateDoc(doc(db, 'users', adminDoc.id), {
+        attendanceRules: rules
+      });
       
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
