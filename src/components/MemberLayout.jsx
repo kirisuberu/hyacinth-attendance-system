@@ -1040,7 +1040,10 @@ function MemberLayout() {
               parts.push(`${Math.abs(latestRecord.timeDiffMinutes)}m`);
             }
             if (parts.length > 0) {
-              statusText += ` (${parts.join(' and ')}${latestRecord.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`;
+              const isEarly = latestRecord.timeDiff && typeof latestRecord.timeDiff.totalMinutes === 'number' 
+                ? latestRecord.timeDiff.totalMinutes < 0 
+                : false;
+              statusText += ` (${parts.join(' and ')}${isEarly ? ' early' : ' late'})`;
             }
           }
           
@@ -1059,7 +1062,7 @@ function MemberLayout() {
     }
   };
 
-  const handleTimeButtonClick = (type) => {
+  const handleTimeButtonClick = async (type) => {
     // If user has no schedule for today, show a warning message but allow them to continue
     if (!hasScheduleForToday) {
       const confirmContinue = window.confirm(`Warning: You don't have a scheduled shift today. Are you sure you want to time ${type.toLowerCase()} for emergency work?`);
@@ -1094,12 +1097,12 @@ function MemberLayout() {
       console.log(`Using schedule time: ${scheduleTime} for ${type}`);
       
       // Use the same calculation as in AttendanceLogs.jsx via attendanceService.js
-      const { status, timeDiff } = calculateAttendanceStatus(scheduleTime, now, type.toUpperCase(), 'PHT');
+      const { status, timeDiff } = await calculateAttendanceStatus(scheduleTime, now, type.toUpperCase(), 'PHT');
       
       console.log(`Calculated status: ${status}, timeDiff:`, timeDiff);
       
       // Store the raw minutes for the modal to use with the same formatter as AttendanceLogs
-      setPendingTimeDiff(timeDiff.totalMinutes);
+      setPendingTimeDiff(timeDiff && timeDiff.totalMinutes !== undefined ? timeDiff.totalMinutes : 0);
       setPendingStatus(status);
       setPendingAction(type.toUpperCase());
       setShowModal(true);
@@ -1179,14 +1182,17 @@ function MemberLayout() {
       }
       
       if (result.timeDiff) {
-        const hours = Math.abs(result.timeDiff.hours);
-        const minutes = Math.abs(result.timeDiff.minutes);
+        const hours = Math.abs(result.timeDiff?.hours || 0);
+        const minutes = Math.abs(result.timeDiff?.minutes || 0);
         const timeDesc = [];
         if (hours > 0) timeDesc.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
         if (minutes > 0) timeDesc.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
         
         if (timeDesc.length > 0) {
-          let message = `${statusMessage} (${timeDesc.join(' and ')}${result.timeDiff.totalMinutes < 0 ? ' early' : ' late'})`;
+          const isEarly = result.timeDiff && typeof result.timeDiff.totalMinutes === 'number' 
+            ? result.timeDiff.totalMinutes < 0 
+            : false;
+          let message = `${statusMessage} (${timeDesc.join(' and ')}${isEarly ? ' early' : ' late'})`;
           
           // Show confirmation popup instead of alert
           setConfirmationPopup({

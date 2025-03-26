@@ -805,22 +805,25 @@ const createAttendanceRecord = (
   notes,
   shiftDuration
 ) => {
-  const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  // Get day of week
+  const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
   
-  // Prepare the attendance record
-  const attendanceRecord = {
+  // Ensure timeDiff is always an object with the expected properties
+  const safeTimeDiff = timeDiff || formatTimeDiff(0);
+  
+  // Create base record
+  const record = {
     userId,
     email,
     name,
     type,
     timestamp: serverTimestamp(),
-    date: now.toISOString(),
+    actualTime: now.toISOString(),
+    scheduleTime: scheduleTime || '',
     status,
-    scheduleTime,
-    actualTime: now.toLocaleTimeString(),
-    hoursDiff: timeDiff.hours,
-    minutesDiff: timeDiff.minutes,
-    totalMinutesDiff: timeDiff.totalMinutes,
+    hoursDiff: safeTimeDiff.hours,
+    minutesDiff: safeTimeDiff.minutes,
+    totalMinutesDiff: safeTimeDiff.totalMinutes,
     dayOfWeek,
     notes,
     shiftId,
@@ -829,18 +832,10 @@ const createAttendanceRecord = (
   
   // Add shift duration for OUT records
   if (type === 'OUT' && shiftDuration) {
-    attendanceRecord.shiftDuration = {
-      hours: shiftDuration.hours,
-      minutes: shiftDuration.minutes,
-      totalMinutes: shiftDuration.totalMinutes
-    };
-    attendanceRecord.shiftDurationHours = shiftDuration.hours;
-    attendanceRecord.shiftDurationMinutes = shiftDuration.minutes;
-    attendanceRecord.totalShiftMinutes = shiftDuration.totalMinutes;
-    attendanceRecord.correspondingInRecordId = shiftDuration.correspondingInRecordId || null;
+    record.shiftDuration = shiftDuration;
   }
   
-  return attendanceRecord;
+  return record;
 };
 
 /**
@@ -885,50 +880,51 @@ const generateDocumentId = (now, type, name) => {
 
 export const updateAttendance = async (recordId, updateData) => {
   try {
-    // Get the current record
+    // Get the attendance record
     const attendanceRef = doc(db, 'attendance', recordId);
-    const recordSnapshot = await getDoc(attendanceRef);
+    const attendanceDoc = await getDoc(attendanceRef);
     
-    if (!recordSnapshot.exists()) {
-      throw new Error('Attendance record not found');
+    if (!attendanceDoc.exists()) {
+      throw new Error(`Attendance record not found: ${recordId}`);
     }
     
-    const recordData = recordSnapshot.data();
-    let finalUpdateData = { ...updateData };
+    // Get the current data
+    const currentData = attendanceDoc.data();
     
-    // If actualTime is being updated, recalculate the status
-    if (updateData.actualTime && recordData.scheduleTime) {
-      const actualTimeDate = parseActualTime(updateData.actualTime);
-      
-      // Recalculate status based on the new time
-      const { status, timeDiff } = await calculateAttendanceStatus(
-        recordData.scheduleTime, 
-        actualTimeDate, 
-        recordData.type, 
-        recordData.timeRegion || 'PHT'
-      );
-      
-      // Update with new status and time difference
-      finalUpdateData = {
-        ...finalUpdateData,
-        status,
-        hoursDiff: timeDiff.hours,
-        minutesDiff: timeDiff.minutes,
-        totalMinutesDiff: timeDiff.totalMinutes
-      };
+    // Update the status if provided
+    if (updateData.status) {
+      // Calculate time difference if actual time and schedule time are provided
+      if (updateData.actualTime && updateData.scheduleTime) {
+        const actualTime = parseActualTime(updateData.actualTime);
+        const [scheduleHours, scheduleMinutes] = updateData.scheduleTime.split(':').map(Number);
+        
+        // Create a date object for the schedule time on the same day as the actual time
+        const scheduleDate = new Date(actualTime);
+        scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+        
+        // Calculate the time difference in minutes
+        const diffMinutes = Math.round((actualTime.getTime() - scheduleDate.getTime()) / (1000 * 60));
+        
+        // Format the time difference
+        const timeDiff = formatTimeDiff(diffMinutes);
+        
+        // Update the time difference fields
+        updateData.hoursDiff = timeDiff.hours;
+        updateData.minutesDiff = timeDiff.minutes;
+        updateData.totalMinutesDiff = timeDiff.totalMinutes;
+      }
     }
+    
+    // Add audit information
+    updateData.updatedAt = serverTimestamp();
+    updateData.updatedBy = updateData.updatedBy || 'system';
     
     // Update the record
-    await updateDoc(attendanceRef, {
-      ...finalUpdateData,
-      updatedAt: new Date().toISOString(),
-      updatedBy: updateData.updatedBy || 'admin'
-    });
+    await updateDoc(attendanceRef, updateData);
     
-    console.log('Attendance record updated successfully:', recordId);
     return {
       success: true,
-      recordId
+      message: 'Attendance record updated successfully'
     };
   } catch (error) {
     console.error('Error updating attendance record:', error);

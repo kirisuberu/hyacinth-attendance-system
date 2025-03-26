@@ -274,12 +274,12 @@ function AdminLayout({ isMemberView = false }) {
       console.log(`Using schedule time: ${scheduleTime} for ${type}`);
       
       // Use the same calculation as in AttendanceLogs.jsx via attendanceService.js
-      const { status, timeDiff } = calculateAttendanceStatus(scheduleTime, now, type, 'PHT');
+      const { status, timeDiff } = await calculateAttendanceStatus(scheduleTime, now, type, 'PHT');
       
       console.log(`Calculated status: ${status}, timeDiff:`, timeDiff);
       
       // Store the raw minutes for the modal to use with the same formatter as AttendanceLogs
-      setPendingTimeDiff(timeDiff.totalMinutes);
+      setPendingTimeDiff(timeDiff && timeDiff.totalMinutes !== undefined ? timeDiff.totalMinutes : 0);
       setPendingStatus(status);
       setPendingAttendanceType(type);
       setShowConfirmation(true);
