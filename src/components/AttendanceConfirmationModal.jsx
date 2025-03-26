@@ -242,7 +242,8 @@ const AttendanceConfirmationModal = ({
   type,
   userData,
   status,
-  timeDiff
+  timeDiff,
+  shiftDuration
 }) => {
   const [notes, setNotes] = useState('');
   const [calculatedStatus, setCalculatedStatus] = useState('');
@@ -317,6 +318,24 @@ const AttendanceConfirmationModal = ({
     return result;
   };
 
+  // Format shift duration for display
+  const formatShiftDuration = (duration) => {
+    if (!duration) return 'N/A';
+    
+    const { hours, minutes } = duration;
+    let result = '';
+    
+    if (hours > 0) {
+      result += `${hours} hour${hours !== 1 ? 's' : ''} `;
+    }
+    
+    if (minutes > 0 || hours === 0) {
+      result += `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    }
+    
+    return result.trim();
+  };
+
   return (
     <ModalOverlay onClick={e => {
       if (!isLoading) {
@@ -342,6 +361,16 @@ const AttendanceConfirmationModal = ({
           <div className="label">Email</div>
           <div className="value">{userData?.email}</div>
         </InfoSection>
+
+        {/* Display shift duration for time-out */}
+        {type === 'OUT' && shiftDuration && (
+          <InfoSection>
+            <div className="label">Current Shift Duration</div>
+            <div className="value" style={{ color: '#2563EB' }}>
+              {formatShiftDuration(shiftDuration)}
+            </div>
+          </InfoSection>
+        )}
 
         {/* Display time difference if available */}
         {timeDiff !== undefined && timeDiff !== null && (

@@ -284,6 +284,7 @@ function TimeInOut() {
     status: ''
   });
   const [canTimeIn, setCanTimeIn] = useState(true)
+  const [shiftDuration, setShiftDuration] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -551,6 +552,33 @@ function TimeInOut() {
     const timeDifference = calculateTimeDifference(type);
     console.log('Calculated time difference for modal:', timeDifference);
     
+    // Calculate shift duration for time-out
+    if (type.toUpperCase() === 'OUT' && todayRecord && todayRecord.latestRecord) {
+      const latestTimeIn = todayRecord.latestRecord.timestamp;
+      if (latestTimeIn) {
+        // Convert Firestore timestamp to Date if needed
+        const timeInDate = latestTimeIn.toDate ? latestTimeIn.toDate() : new Date(latestTimeIn);
+        const now = new Date();
+        const durationMinutes = Math.round((now - timeInDate) / (1000 * 60));
+        
+        // Format the duration
+        const hours = Math.floor(durationMinutes / 60);
+        const minutes = durationMinutes % 60;
+        
+        setShiftDuration({
+          hours,
+          minutes,
+          totalMinutes: durationMinutes
+        });
+        
+        console.log('Calculated shift duration:', { hours, minutes, totalMinutes: durationMinutes });
+      } else {
+        setShiftDuration(null);
+      }
+    } else {
+      setShiftDuration(null);
+    }
+    
     // Make sure we're setting the correct status for the current action
     setPendingStatus(expectedStatus);
     setPendingAction(type);
@@ -601,6 +629,18 @@ function TimeInOut() {
         }
       }
       
+      // Add shift duration to status message for time-out
+      if (type.toUpperCase() === 'OUT' && result.shiftDuration) {
+        const { hours, minutes } = result.shiftDuration;
+        const durationDesc = [];
+        if (hours > 0) durationDesc.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+        if (minutes > 0) durationDesc.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+        
+        if (durationDesc.length > 0) {
+          statusMessage += ` - Shift duration: ${durationDesc.join(' and ')}`;
+        }
+      }
+      
       // Show confirmation popup
       setConfirmationPopup({
         show: true,
@@ -611,6 +651,8 @@ function TimeInOut() {
 
     } catch (error) {
       console.error('Error recording time:', error);
+      // Show error message to user
+      alert('Failed to record attendance, please try again.');
       // Modal will handle its own loading state reset on error
     }
   }
@@ -698,6 +740,7 @@ function TimeInOut() {
         status={pendingStatus}
         timeDiff={pendingAction ? calculateTimeDifference(pendingAction) : null}
         userData={{ name: userName, email: userEmail }}
+        shiftDuration={pendingAction?.toUpperCase() === 'OUT' ? shiftDuration : null}
       />
       
       {confirmationPopup.show && (
