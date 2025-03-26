@@ -153,10 +153,19 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
   
   const timeDiff = formatTimeDiff(diffMinutes);
   
-  // Determine status based on the time difference and type
-  const status = await determineStatus(diffMinutes, type);
-  
-  return { status, timeDiff };
+  try {
+    // Determine status based on the time difference and type
+    const status = await determineStatus(diffMinutes, type);
+    
+    return { status, timeDiff };
+  } catch (error) {
+    console.error('Error calculating attendance status:', error);
+    return {
+      status: 'Error',
+      timeDiff,
+      error: error.message
+    };
+  }
 };
 
 /**
