@@ -275,39 +275,52 @@ export const recordAttendance = async (userId, type, notes = '') => {
           }
           
           // Calculate actual duration between time-in and current time
-          const timeInDate = new Date(latestRecord.timestamp.seconds * 1000);
-          const actualDurationMinutes = Math.round((now.getTime() - timeInDate.getTime()) / (1000 * 60));
+          const timeInDate = latestRecord.timestamp && typeof latestRecord.timestamp === 'object' 
+            ? new Date(
+                (latestRecord.timestamp.seconds || 0) * 1000 + 
+                (latestRecord.timestamp.nanoseconds || 0) / 1000000
+              )
+            : new Date(); // Fallback to current time if timestamp is invalid
           
-          // Calculate the difference between actual and expected duration
-          const durationDiffMinutes = actualDurationMinutes - expectedDurationMinutes;
-          
-          console.log('Time-out duration calculation:', {
-            timeInTime: timeInDate.toISOString(),
-            currentTime: now.toISOString(),
-            expectedDurationMinutes,
-            actualDurationMinutes,
-            durationDiffMinutes
-          });
-          
-          // Determine status based on the duration difference
-          if (durationDiffMinutes < -15) {
-            status = 'Early Out';
-          } else if (durationDiffMinutes >= -15 && durationDiffMinutes <= 60) {
-            status = 'On Time';
+          // Validate the timeInDate before using it
+          if (isNaN(timeInDate.getTime())) {
+            console.error('Invalid time-in date detected:', latestRecord.timestamp);
+            status = 'Invalid Time-In Record';
+            timeDiff = { hours: 0, minutes: 0, totalMinutes: 0 };
           } else {
-            status = 'Overtime';
+            const actualDurationMinutes = Math.round((now.getTime() - timeInDate.getTime()) / (1000 * 60));
+            
+            // Calculate the difference between actual and expected duration
+            const durationDiffMinutes = actualDurationMinutes - expectedDurationMinutes;
+            
+            console.log('Time-out duration calculation:', {
+              timeInTime: timeInDate.toISOString(),
+              currentTime: now.toISOString(),
+              expectedDurationMinutes,
+              actualDurationMinutes,
+              durationDiffMinutes
+            });
+            
+            // Determine status based on the duration difference
+            if (durationDiffMinutes < -15) {
+              status = 'Early Out';
+            } else if (durationDiffMinutes >= -15 && durationDiffMinutes <= 60) {
+              status = 'On Time';
+            } else {
+              status = 'Overtime';
+            }
+            
+            // Format the time difference
+            timeDiff = formatTimeDiff(durationDiffMinutes);
+            
+            // Calculate shift duration for the record
+            shiftDuration = {
+              hours: Math.floor(actualDurationMinutes / 60),
+              minutes: actualDurationMinutes % 60,
+              totalMinutes: actualDurationMinutes,
+              correspondingInRecordId: latestRecord.id
+            };
           }
-          
-          // Format the time difference
-          timeDiff = formatTimeDiff(durationDiffMinutes);
-          
-          // Calculate shift duration for the record
-          shiftDuration = {
-            hours: Math.floor(actualDurationMinutes / 60),
-            minutes: actualDurationMinutes % 60,
-            totalMinutes: actualDurationMinutes,
-            correspondingInRecordId: latestRecord.id
-          };
         } else {
           status = 'No Shift Found';
         }
