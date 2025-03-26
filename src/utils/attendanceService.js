@@ -69,6 +69,118 @@ const formatTimeDiff = (diffMins) => {
 };
 
 /**
+ * Get attendance rules from admin user document
+ * @returns {Object} - Attendance rules
+ */
+const getAttendanceRules = async () => {
+  try {
+    // Find admin user document
+    const usersRef = collection(db, 'users');
+    const adminQuery = query(usersRef, where("userType", "==", "admin"));
+    const adminSnapshot = await getDocs(adminQuery);
+    
+    if (adminSnapshot.empty) {
+      console.warn('No admin user found, using default rules');
+      return null;
+    }
+    
+    // Get the first admin user document
+    const adminDoc = adminSnapshot.docs[0];
+    const adminData = adminDoc.data();
+    
+    if (adminData.attendanceRules) {
+      return adminData.attendanceRules;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting attendance rules:', error);
+    return null;
+  }
+};
+
+/**
+ * Determine attendance status based on time difference and record type
+ * @param {number} diffMinutes - Time difference in minutes
+ * @param {string} type - Record type: 'IN' or 'OUT'
+ * @returns {string} - Attendance status
+ */
+const determineStatus = async (diffMinutes, type) => {
+  if (typeof diffMinutes !== 'number') {
+    console.error('Invalid diffMinutes provided to determineStatus:', diffMinutes);
+    diffMinutes = 0;
+  }
+  
+  if (!type || (type !== 'IN' && type !== 'OUT')) {
+    console.error('Invalid type provided to determineStatus:', type);
+    // Default to IN if invalid type
+    type = 'IN';
+  }
+  
+  try {
+    // Get rules from admin user document
+    const rules = await getAttendanceRules();
+    
+    // Default rules
+    let defaultRules = {
+      timeIn: {
+        early: -60, // minutes before schedule to be considered "Early"
+        onTime: 5,  // minutes after schedule to still be considered "On Time"
+      },
+      timeOut: {
+        earlyOut: -15, // minutes before schedule to be considered "Early Out"
+        onTime: 60,    // minutes after schedule to still be considered "On Time"
+      }
+    };
+    
+    // Use custom rules if available, otherwise use defaults
+    const attendanceRules = rules || defaultRules;
+    
+    if (type === 'IN') {
+      // For time-in:
+      if (diffMinutes <= attendanceRules.timeIn.early) {
+        return 'Early';
+      } else if (diffMinutes > attendanceRules.timeIn.early && diffMinutes <= attendanceRules.timeIn.onTime) {
+        return 'On Time';
+      } else {
+        return 'Late';
+      }
+    } else {
+      // For time-out:
+      if (diffMinutes < attendanceRules.timeOut.earlyOut) {
+        return 'Early Out';
+      } else if (diffMinutes >= attendanceRules.timeOut.earlyOut && diffMinutes <= attendanceRules.timeOut.onTime) {
+        return 'On Time';
+      } else {
+        return 'Overtime';
+      }
+    }
+  } catch (error) {
+    console.error('Error determining attendance status:', error);
+    // Fallback to original hardcoded values if there's an error
+    if (type === 'IN') {
+      // For time-in:
+      if (diffMinutes <= -60) {
+        return 'Early';
+      } else if (diffMinutes > -60 && diffMinutes <= 5) {
+        return 'On Time';
+      } else {
+        return 'Late';
+      }
+    } else {
+      // For time-out:
+      if (diffMinutes < -15) {
+        return 'Early Out';
+      } else if (diffMinutes >= -15 && diffMinutes <= 60) {
+        return 'On Time';
+      } else {
+        return 'Overtime';
+      }
+    }
+  }
+};
+
+/**
  * Calculate attendance status based on schedule and actual time
  * @param {string} scheduleTime - Scheduled time in "HH:MM" format
  * @param {Date} actualTime - Actual time as Date object
@@ -78,6 +190,18 @@ const formatTimeDiff = (diffMins) => {
  */
 export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, timeRegion = 'PHT') => {
   console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString(), timeRegion });
+  
+  // Validate input parameters
+  if (!actualTime || !(actualTime instanceof Date)) {
+    console.error('Invalid actualTime provided:', actualTime);
+    actualTime = new Date();
+  }
+  
+  if (!type || (type !== 'IN' && type !== 'OUT')) {
+    console.error('Invalid type provided:', type);
+    // Default to IN if invalid type
+    type = 'IN';
+  }
   
   // Validate timeRegion parameter
   if (!TIME_REGION_OFFSETS[timeRegion]) {
@@ -186,107 +310,6 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
       }
     }
     return { status: fallbackStatus, timeDiff };
-  }
-};
-
-/**
- * Get attendance rules from admin user document
- * @returns {Object} - Attendance rules
- */
-const getAttendanceRules = async () => {
-  try {
-    // Find admin user document
-    const usersRef = collection(db, 'users');
-    const adminQuery = query(usersRef, where("userType", "==", "admin"));
-    const adminSnapshot = await getDocs(adminQuery);
-    
-    if (adminSnapshot.empty) {
-      console.warn('No admin user found, using default rules');
-      return null;
-    }
-    
-    // Get the first admin user document
-    const adminDoc = adminSnapshot.docs[0];
-    const adminData = adminDoc.data();
-    
-    if (adminData.attendanceRules) {
-      return adminData.attendanceRules;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error getting attendance rules:', error);
-    return null;
-  }
-};
-
-/**
- * Determine attendance status based on time difference and record type
- * @param {number} diffMinutes - Time difference in minutes
- * @param {string} type - Record type: 'IN' or 'OUT'
- * @returns {string} - Attendance status
- */
-const determineStatus = async (diffMinutes, type) => {
-  try {
-    // Get rules from admin user document
-    const rules = await getAttendanceRules();
-    
-    // Default rules
-    let defaultRules = {
-      timeIn: {
-        early: -60, // minutes before schedule to be considered "Early"
-        onTime: 5,  // minutes after schedule to still be considered "On Time"
-      },
-      timeOut: {
-        earlyOut: -15, // minutes before schedule to be considered "Early Out"
-        onTime: 60,    // minutes after schedule to still be considered "On Time"
-      }
-    };
-    
-    // Use custom rules if available, otherwise use defaults
-    const attendanceRules = rules || defaultRules;
-    
-    if (type === 'IN') {
-      // For time-in:
-      if (diffMinutes <= attendanceRules.timeIn.early) {
-        return 'Early';
-      } else if (diffMinutes > attendanceRules.timeIn.early && diffMinutes <= attendanceRules.timeIn.onTime) {
-        return 'On Time';
-      } else {
-        return 'Late';
-      }
-    } else {
-      // For time-out:
-      if (diffMinutes < attendanceRules.timeOut.earlyOut) {
-        return 'Early Out';
-      } else if (diffMinutes >= attendanceRules.timeOut.earlyOut && diffMinutes <= attendanceRules.timeOut.onTime) {
-        return 'On Time';
-      } else {
-        return 'Overtime';
-      }
-    }
-  } catch (error) {
-    console.error('Error determining attendance status:', error);
-    // Fallback to original hardcoded values if there's an error
-    if (type === 'IN') {
-      // For time-in:
-      if (diffMinutes <= -60) {
-        return 'Early';
-      } else if (diffMinutes > -60 && diffMinutes <= 5) {
-        return 'On Time';
-      } else {
-        return 'Late';
-      }
-    } else {
-      // For time-out:
-      if (diffMinutes < -15) {
-        return 'Early Out';
-      } else if (diffMinutes >= -15 && diffMinutes <= 60) {
-        return 'On Time';
-      } else {
-        return 'Overtime';
-      }
-    }
   }
 };
 
