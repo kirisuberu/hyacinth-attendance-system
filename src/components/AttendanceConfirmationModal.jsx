@@ -9,229 +9,147 @@ const ModalOverlay = styled.div`
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  backdrop-filter: blur(3px);
 `;
 
 const ModalContent = styled.div`
-  background: white;
-  padding: 2rem;
-  border-radius: 12px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
   width: 90%;
   max-width: 500px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  animation: fadeIn 0.3s ease-out;
-  
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  max-height: 90vh;
+  overflow-y: auto;
 `;
 
 const Title = styled.h2`
-  margin-bottom: 1.5rem;
-  color: #1a1a1a;
-  font-weight: 600;
-  text-align: center;
   font-size: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: ${props => props.type === 'IN' ? '#2563EB' : '#DC2626'};
+  text-align: center;
   
   span {
-    color: ${props => props.type === 'IN' ? '#10B981' : '#EF4444'};
+    font-weight: bold;
   }
 `;
 
 const InfoSection = styled.div`
-  margin-bottom: 1.5rem;
-  width: 100%;
+  margin-bottom: 16px;
   
   .label {
-    font-weight: 600;
+    font-size: 0.875rem;
     color: #6B7280;
-    margin-bottom: 0.25rem;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    margin-bottom: 4px;
   }
   
   .value {
-    color: #1f2937;
-    font-size: 1.1rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #E5E7EB;
-  }
-`;
-
-const TimeSection = styled.div`
-  background: #F9FAFB;
-  padding: 1.25rem;
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
-  width: 100%;
-  border: 1px solid #E5E7EB;
-
-  .title {
-    font-weight: 600;
-    color: #4B5563;
-    margin-bottom: 0.75rem;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .timezone {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 1px dashed #E5E7EB;
-    
-    &:last-child {
-      margin-bottom: 0;
-      padding-bottom: 0;
-      border-bottom: none;
-    }
-
-    .label {
-      font-weight: 500;
-      color: #6B7280;
-    }
-
-    .time {
-      color: #111827;
-      font-family: 'Roboto Mono', monospace;
-      font-weight: 500;
-    }
+    font-size: 1rem;
+    color: #1F2937;
+    font-weight: 500;
   }
 `;
 
 const StatusBadge = styled.div`
   display: inline-block;
-  padding: 0.35rem 0.75rem;
-  border-radius: 9999px;
+  padding: 4px 12px;
+  border-radius: 16px;
   font-size: 0.875rem;
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-  
+  font-weight: 500;
   background-color: ${props => {
-    const status = props.status.toLowerCase();
-    if (status === 'early' || status === 'on time') return '#ECFDF5';
-    if (status === 'late') return '#FEF2F2';
-    if (status === 'early out') return '#FEF3C7';
-    if (status === 'overtime') return '#EFF6FF';
-    return '#F3F4F6';
+    const status = props.status?.toLowerCase();
+    if (status?.includes('early') && !status?.includes('out')) return '#DBEAFE'; // Light blue for early
+    if (status?.includes('late')) return '#FEE2E2'; // Light red for late
+    if (status?.includes('on time')) return '#DCFCE7'; // Light green for on time
+    if (status?.includes('early out')) return '#FEE2E2'; // Light red for early out
+    if (status?.includes('overtime')) return '#FEF3C7'; // Light yellow for overtime
+    return '#F3F4F6'; // Light gray default
   }};
-  
   color: ${props => {
-    const status = props.status.toLowerCase();
-    if (status === 'early' || status === 'on time') return '#059669';
-    if (status === 'late') return '#DC2626';
-    if (status === 'early out') return '#D97706';
-    if (status === 'overtime') return '#2563EB';
-    return '#4B5563';
+    const status = props.status?.toLowerCase();
+    if (status?.includes('early') && !status?.includes('out')) return '#1E40AF'; // Dark blue for early
+    if (status?.includes('late')) return '#991B1B'; // Dark red for late
+    if (status?.includes('on time')) return '#166534'; // Dark green for on time
+    if (status?.includes('early out')) return '#991B1B'; // Dark red for early out
+    if (status?.includes('overtime')) return '#92400E'; // Dark orange for overtime
+    return '#6B7280'; // Gray default
   }};
 `;
 
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: 1rem;
-  width: 100%;
-  margin-top: 0.5rem;
-`;
-
-const Button = styled.button`
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
-  flex: 1;
-  font-size: 1rem;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    transform: none !important;
-    box-shadow: none !important;
-  }
-
-  &.confirm {
-    background-color: ${props => props.type === 'IN' ? '#10B981' : '#EF4444'};
-    color: white;
-    &:hover:not(:disabled) {
-      background-color: ${props => props.type === 'IN' ? '#059669' : '#DC2626'};
-      transform: translateY(-2px);
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    &:active:not(:disabled) {
-      transform: translateY(0);
-    }
-  }
-
-  &.cancel {
-    background-color: #F3F4F6;
-    color: #4B5563;
-    &:hover:not(:disabled) {
-      background-color: #E5E7EB;
-      transform: translateY(-2px);
-    }
-    &:active:not(:disabled) {
-      transform: translateY(0);
-    }
+const NotesSection = styled.div`
+  margin-bottom: 20px;
+  
+  .label {
+    font-size: 0.875rem;
+    color: #6B7280;
+    margin-bottom: 4px;
   }
 `;
 
-const TextArea = styled.textarea`
+const NotesInput = styled.textarea`
   width: 100%;
-  min-height: 100px;
-  padding: 0.75rem;
-  margin-bottom: 1.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  min-height: 80px;
+  padding: 8px 12px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  font-size: 0.875rem;
   resize: vertical;
-  font-family: inherit;
-  font-size: 1rem;
   
   &:focus {
     outline: none;
-    border-color: ${props => props.type === 'IN' ? '#10B981' : '#EF4444'};
-    box-shadow: 0 0 0 2px ${props => props.type === 'IN' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)'};
+    border-color: #2563EB;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
   }
   
-  &::placeholder {
-    color: #9CA3AF;
+  &:disabled {
+    background-color: #F3F4F6;
+    cursor: not-allowed;
   }
 `;
 
-const Icon = styled.span`
-  display: inline-flex;
-  align-items: center;
-  animation: ${props => props.spin ? 'spin 1s linear infinite' : 'none'};
+const ButtonsContainer = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+`;
+
+const Button = styled.button`
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
   
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const CancelButton = styled(Button)`
+  background-color: white;
+  color: #4B5563;
+  border: 1px solid #D1D5DB;
+  
+  &:hover:not(:disabled) {
+    background-color: #F3F4F6;
+  }
+`;
+
+const ConfirmButton = styled(Button)`
+  background-color: ${props => props.type === 'IN' ? '#2563EB' : '#DC2626'};
+  color: white;
+  border: none;
+  
+  &:hover:not(:disabled) {
+    background-color: ${props => props.type === 'IN' ? '#1D4ED8' : '#B91C1C'};
   }
 `;
 
@@ -283,9 +201,10 @@ const AttendanceConfirmationModal = ({
   
   const now = new Date();
   const timeFormat = 'hh:mm:ss a';
+  const dateFormat = 'MMMM dd, yyyy';
 
-  // Format times in different timezones
-  const phtTime = formatInTimeZone(now, 'Asia/Manila', timeFormat);
+  // Format current time in different timezones
+  const phtTime = formatInTimeZone(now, 'Asia/Manila', `${dateFormat} ${timeFormat}`);
   const estTime = formatInTimeZone(now, 'America/New_York', timeFormat);
   const cstTime = formatInTimeZone(now, 'America/Chicago', timeFormat);
 
@@ -336,6 +255,26 @@ const AttendanceConfirmationModal = ({
     return result.trim();
   };
 
+  // Get the appropriate status color
+  const getStatusColor = (status) => {
+    if (!status) return '#666666';
+    
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('early') && !statusLower.includes('out')) {
+      return '#1E40AF'; // Dark blue for early
+    } else if (statusLower.includes('late')) {
+      return '#991B1B'; // Dark red for late
+    } else if (statusLower.includes('on time')) {
+      return '#166534'; // Dark green for on time
+    } else if (statusLower.includes('early out')) {
+      return '#991B1B'; // Dark red for early out
+    } else if (statusLower.includes('overtime')) {
+      return '#92400E'; // Dark orange for overtime
+    }
+    
+    return '#666666'; // Default gray
+  };
+
   return (
     <ModalOverlay onClick={e => {
       if (!isLoading) {
@@ -345,22 +284,45 @@ const AttendanceConfirmationModal = ({
     }}>
       <ModalContent onClick={e => e.stopPropagation()}>
         <Title type={type}>Confirm <span>{type === 'IN' ? 'Time In' : 'Time Out'}</span></Title>
-        {/* Display calculated status */}
-        {calculatedStatus && (
-          <StatusBadge status={calculatedStatus}>
-            {calculatedStatus}
-          </StatusBadge>
-        )}
         
+        {/* User Information Section */}
         <InfoSection>
           <div className="label">Name</div>
-          <div className="value">{userData?.name}</div>
+          <div className="value">{userData?.name || 'N/A'}</div>
         </InfoSection>
         
         <InfoSection>
           <div className="label">Email</div>
-          <div className="value">{userData?.email}</div>
+          <div className="value">{userData?.email || 'N/A'}</div>
         </InfoSection>
+        
+        {/* Current Time Section */}
+        <InfoSection>
+          <div className="label">Current Time (PHT)</div>
+          <div className="value">{phtTime}</div>
+        </InfoSection>
+        
+        {/* Status Badge */}
+        {calculatedStatus && (
+          <InfoSection>
+            <div className="label">Status</div>
+            <StatusBadge status={calculatedStatus}>
+              {calculatedStatus}
+            </StatusBadge>
+          </InfoSection>
+        )}
+        
+        {/* Time Difference */}
+        {timeDiff !== undefined && timeDiff !== null && (
+          <InfoSection>
+            <div className="label">Time Difference</div>
+            <div className="value" style={{ 
+              color: getStatusColor(calculatedStatus)
+            }}>
+              {formatTimeDifference(timeDiff, type)}
+            </div>
+          </InfoSection>
+        )}
 
         {/* Display shift duration for time-out */}
         {type === 'OUT' && shiftDuration && (
@@ -371,73 +333,34 @@ const AttendanceConfirmationModal = ({
             </div>
           </InfoSection>
         )}
-
-        {/* Display time difference if available */}
-        {timeDiff !== undefined && timeDiff !== null && (
-          <InfoSection>
-            <div className="label">Time Difference</div>
-            <div className="value" style={{ 
-              color: type === 'IN' 
-                ? (timeDiff < 0 ? '#1E40AF' : timeDiff > 5 ? '#991B1B' : '#166534')
-                : (timeDiff < 0 ? '#991B1B' : timeDiff > 5 ? '#92400E' : '#166534')
-            }}>
-              {formatTimeDifference(timeDiff, type)}
-            </div>
-          </InfoSection>
-        )}
-
-        <TimeSection>
-          <div className="title">Current Time</div>
-          <div className="timezone">
-            <span className="label">PHT</span>
-            <span className="time">{phtTime}</span>
-          </div>
-          <div className="timezone">
-            <span className="label">EST</span>
-            <span className="time">{estTime}</span>
-          </div>
-          <div className="timezone">
-            <span className="label">CST</span>
-            <span className="time">{cstTime}</span>
-          </div>
-        </TimeSection>
-
-        <InfoSection>
-          <div className="label">Remarks (Optional)</div>
-          <TextArea
+        
+        {/* Notes Section */}
+        <NotesSection>
+          <div className="label">Notes (Optional)</div>
+          <NotesInput
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="I am late because . . ."
-            type={type}
+            placeholder="Add any notes here..."
             disabled={isLoading}
           />
-        </InfoSection>
-
-        <ButtonGroup>
-          <Button 
-            className="cancel" 
+        </NotesSection>
+        
+        {/* Buttons Section */}
+        <ButtonsContainer>
+          <CancelButton 
             onClick={onClose} 
             disabled={isLoading}
-            type="button"
           >
             Cancel
-          </Button>
-          <Button 
-            className="confirm" 
-            onClick={handleConfirm} 
-            type={type}
+          </CancelButton>
+          <ConfirmButton 
+            onClick={handleConfirm}
             disabled={isLoading}
+            type={type}
           >
-            {isLoading ? (
-              <>
-                <Icon spin><CircleNotch size={16} weight="bold" /></Icon>
-                Processing...
-              </>
-            ) : (
-              'Confirm'
-            )}
-          </Button>
-        </ButtonGroup>
+            {isLoading ? 'Processing...' : 'Confirm'}
+          </ConfirmButton>
+        </ButtonsContainer>
       </ModalContent>
     </ModalOverlay>
   );
