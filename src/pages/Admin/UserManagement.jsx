@@ -17,6 +17,7 @@ import {
   deleteScheduleTemplate,
   refreshUserAccessAfterRename
 } from '../../utils/userService';
+import { safeTimestampToDate } from '../../utils/dateUtils';
 import { auth } from '../../firebase';
 import { 
   PencilSimpleLine, 
@@ -572,13 +573,37 @@ function UserManagement() {
 
     const formatDate = (dateString) => {
       if (!dateString) return '';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
+      try {
+        // Handle potential timestamp objects
+        if (typeof dateString === 'object' && dateString !== null) {
+          const date = safeTimestampToDate(dateString);
+          if (!date) return 'Invalid date';
+          
+          return date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        }
+        
+        // Handle string dates
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+          console.error('Invalid date string:', dateString);
+          return 'Invalid date';
+        }
+        
+        return date.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      } catch (error) {
+        console.error('Error formatting date:', error, dateString);
+        return 'Invalid date';
+      }
     };
 
     const handleAddShift = () => {
@@ -1530,13 +1555,37 @@ function UserManagement() {
 
     const formatDate = (dateString) => {
       if (!dateString) return '';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
+      try {
+        // Handle potential timestamp objects
+        if (typeof dateString === 'object' && dateString !== null) {
+          const date = safeTimestampToDate(dateString);
+          if (!date) return 'Invalid date';
+          
+          return date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        }
+        
+        // Handle string dates
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+          console.error('Invalid date string:', dateString);
+          return 'Invalid date';
+        }
+        
+        return date.toLocaleDateString('en-US', { 
+          weekday: 'long', 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      } catch (error) {
+        console.error('Error formatting date:', error, dateString);
+        return 'Invalid date';
+      }
     };
 
     const handleAddShift = () => {

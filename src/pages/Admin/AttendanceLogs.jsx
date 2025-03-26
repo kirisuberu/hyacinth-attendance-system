@@ -6,6 +6,7 @@ import { PencilSimple, Check, X, Trash, CalendarBlank, Clock } from 'phosphor-re
 import { updateAttendance, deleteAttendance } from '../../utils/attendanceService';
 import { useAuth } from '../../contexts/AuthContext';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { safeTimestampToDate } from '../../utils/dateUtils';
 
 const Container = styled.div`
   padding: 2rem;
@@ -291,17 +292,23 @@ function AttendanceLogs() {
       
       const newLogs = querySnapshot.docs.map(doc => {
         const data = doc.data();
-        const timestamp = data.timestamp?.toDate() || new Date(data.date);
+        // Use our safe timestamp conversion utility
+        const timestamp = safeTimestampToDate(data.timestamp) || new Date();
         
         // Calculate time difference if schedule time is available
         let timeDifference = null;
-        if (data.scheduleTime) {
-          const [scheduleHours, scheduleMinutes] = data.scheduleTime.split(':').map(Number);
-          const scheduleDate = new Date(timestamp);
-          scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-          
-          // Calculate difference in minutes
-          timeDifference = differenceInMinutes(timestamp, scheduleDate);
+        if (data.scheduleTime && timestamp) {
+          try {
+            const [scheduleHours, scheduleMinutes] = data.scheduleTime.split(':').map(Number);
+            const scheduleDate = new Date(timestamp);
+            scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+            
+            // Calculate difference in minutes
+            timeDifference = differenceInMinutes(timestamp, scheduleDate);
+          } catch (error) {
+            console.error('Error calculating time difference:', error);
+            timeDifference = null;
+          }
         }
         
         return {

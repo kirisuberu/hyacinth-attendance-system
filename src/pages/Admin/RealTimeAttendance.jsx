@@ -6,6 +6,7 @@ import { PencilSimple, Check, X, Trash, CalendarBlank } from 'phosphor-react';
 import { updateAttendance, deleteAttendance, getAttendanceByDate, getScheduledUsersByDate } from '../../utils/attendanceService';
 import { useAuth } from '../../contexts/AuthContext';
 import { format, parseISO } from 'date-fns';
+import { safeTimestampToDate } from '../../utils/dateUtils';
 
 const Container = styled.div`
   padding: 2rem;
@@ -249,30 +250,20 @@ function RealTimeAttendance() {
     }
   }, [selectedDate]);
 
-  // Format time to 12-hour format
-  const formatTimeTo12Hour = (time) => {
-    if (!time) return '';
-
-    // If time is already in 12-hour format (contains AM/PM), return as is
-    if (time.includes('AM') || time.includes('PM')) {
-      return time;
-    }
-
+  // Format timestamp to 12-hour time
+  const formatTimeFromTimestamp = (timestamp) => {
+    const date = safeTimestampToDate(timestamp);
+    if (!date) return 'N/A';
+    
     try {
-      // Try to parse the time string
-      const [hours, minutes] = time.split(':').map(Number);
-
-      if (isNaN(hours) || isNaN(minutes)) {
-        return time; // Return original if parsing fails
-      }
-
-      const period = hours >= 12 ? 'PM' : 'AM';
-      const hour12 = hours % 12 || 12; // Convert 0 to 12 for 12 AM
-
-      return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
     } catch (error) {
-      console.error('Error formatting time:', error);
-      return time; // Return original on error
+      console.error('Error formatting timestamp:', error);
+      return 'N/A';
     }
   };
 
@@ -287,8 +278,8 @@ function RealTimeAttendance() {
           // Format scheduled times to 12-hour format
           const formattedUsers = scheduledUsersResult.users.map(user => ({
             ...user,
-            scheduledTimeIn: formatTimeTo12Hour(user.scheduledTimeIn),
-            scheduledTimeOut: formatTimeTo12Hour(user.scheduledTimeOut)
+            scheduledTimeIn: formatTimeFromTimestamp(user.scheduledTimeIn),
+            scheduledTimeOut: formatTimeFromTimestamp(user.scheduledTimeOut)
           }));
 
           setScheduledUsers(formattedUsers);
@@ -349,21 +340,13 @@ function RealTimeAttendance() {
           
           if (data.type === 'IN') {
             records[userId].timeIn = {
-              time: data.timestamp ? data.timestamp.toDate().toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              }) : 'N/A',
+              time: formatTimeFromTimestamp(data.timestamp),
               status: data.status,
               id: doc.id
             };
           } else if (data.type === 'OUT') {
             records[userId].timeOut = {
-              time: data.timestamp ? data.timestamp.toDate().toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true
-              }) : 'N/A',
+              time: formatTimeFromTimestamp(data.timestamp),
               status: data.status,
               id: doc.id
             };
@@ -613,7 +596,7 @@ function RealTimeAttendance() {
                     ) : (
                       user.timeIn ? (
                         <>
-                          <div>{formatTimeTo12Hour(user.timeIn.time)}</div>
+                          <div>{user.timeIn.time}</div>
                           {user.timeIn.status && (
                             <StatusBadge status={user.timeIn.status}>
                               {user.timeIn.status}
@@ -669,7 +652,7 @@ function RealTimeAttendance() {
                     ) : (
                       user.timeOut ? (
                         <>
-                          <div>{formatTimeTo12Hour(user.timeOut.time)}</div>
+                          <div>{user.timeOut.time}</div>
                           {user.timeOut.status && (
                             <StatusBadge status={user.timeOut.status}>
                               {user.timeOut.status}
