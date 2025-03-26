@@ -194,6 +194,12 @@ function UserManagement() {
     shiftDuration: ''
   });
 
+  // Helper function to format day names
+  const formatDayName = (day) => {
+    if (!day || typeof day !== 'string') return '';
+    return day.charAt(0).toUpperCase() + day.slice(1);
+  };
+
   useEffect(() => {
     loadUsers();
     loadApprovedEmails();
@@ -1483,6 +1489,8 @@ function UserManagement() {
       </Modal>
     );
   });
+
+  ApprovedEmailsModal.displayName = 'ApprovedEmailsModal';
 
   const ScheduleTemplatesModal = () => {
     const [templates, setTemplates] = useState(scheduleTemplates);
