@@ -11,7 +11,8 @@ import {
   updateDoc,
   serverTimestamp,
   Timestamp,
-  deleteDoc
+  deleteDoc,
+  setDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { format, parseISO, differenceInMinutes, differenceInHours, addDays, subDays } from 'date-fns';
@@ -442,7 +443,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
             for (const shift of sortedShifts) {
               if (shift.startTime && shift.endTime) {
                 const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
-                const shiftStartMinutes = startHours * 60 + startMinutes;
+                const shiftStartMinutes = startHours * 60 + startMinutes; // Shift start time in minutes
                 
                 // If the time-in is within 2 hours of the shift start, use this shift
                 if (Math.abs(timeInMinutes - shiftStartMinutes) <= 120) {
