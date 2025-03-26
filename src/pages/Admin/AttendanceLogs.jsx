@@ -298,13 +298,19 @@ function AttendanceLogs() {
         // Calculate time difference if schedule time is available
         let timeDifference = null;
         let scheduledShiftDuration = null;
+        let expectedShiftDuration = null;
         
         if (data.type === 'OUT' && data.shiftDuration) {
           // For time-out records, use shiftDuration data if available
           timeDifference = data.shiftDuration.totalMinutes;
-        } else if (data.type === 'IN' && data.shiftDuration && data.shiftDuration.scheduled) {
-          // For time-in records, store the scheduled shift duration separately
-          scheduledShiftDuration = data.shiftDuration;
+        } else if (data.type === 'IN') {
+          // For time-in records, store the expected shift duration if available
+          if (data.expectedShiftDuration) {
+            expectedShiftDuration = data.expectedShiftDuration;
+          } else if (data.shiftDuration && data.shiftDuration.scheduled) {
+            // Fallback to shiftDuration if it exists and is scheduled
+            expectedShiftDuration = data.shiftDuration;
+          }
           
           // Still calculate the regular time difference for status display
           if (data.scheduleTime && timestamp) {
@@ -347,7 +353,8 @@ function AttendanceLogs() {
           timeRegion: data.timeRegion || 'PHT',
           timeDifference: timeDifference,
           shiftDuration: data.type === 'OUT' && data.shiftDuration ? true : false,
-          scheduledShiftDuration: scheduledShiftDuration
+          scheduledShiftDuration: scheduledShiftDuration,
+          expectedShiftDuration: expectedShiftDuration
         };
       });
       
@@ -444,7 +451,7 @@ function AttendanceLogs() {
     return true;
   });
 
-  const formatTimeDifference = (minutes, type, shiftDuration, scheduledShiftDuration) => {
+  const formatTimeDifference = (minutes, type, shiftDuration, expectedShiftDuration) => {
     if (minutes === null) return 'N/A';
     
     const hours = Math.floor(Math.abs(minutes) / 60);
@@ -475,10 +482,10 @@ function AttendanceLogs() {
       result += `${mins}m`;
     }
     
-    // Add scheduled shift duration for time-in records
-    if (type === 'IN' && scheduledShiftDuration) {
-      const schedHours = scheduledShiftDuration.hours;
-      const schedMins = scheduledShiftDuration.minutes;
+    // Add expected shift duration for time-in records
+    if (type === 'IN' && expectedShiftDuration) {
+      const schedHours = expectedShiftDuration.hours || 0;
+      const schedMins = expectedShiftDuration.minutes || 0;
       let schedDuration = '';
       
       if (schedHours > 0) {
@@ -488,7 +495,7 @@ function AttendanceLogs() {
         schedDuration += `${schedMins}m`;
       }
       
-      result += ` (Scheduled: ${schedDuration})`;
+      result += ` (Expected: ${schedDuration})`;
     }
     
     return result;
@@ -568,7 +575,7 @@ function AttendanceLogs() {
                       minutes={log.timeDifference} 
                       type={log.type}
                     >
-                      {formatTimeDifference(log.timeDifference, log.type, log.shiftDuration, log.scheduledShiftDuration)}
+                      {formatTimeDifference(log.timeDifference, log.type, log.shiftDuration, log.expectedShiftDuration)}
                     </TimeDifference>
                   </Td>
                   <Td>

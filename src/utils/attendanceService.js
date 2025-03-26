@@ -345,6 +345,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
     let status = 'No Schedule';
     let timeDiff = { hours: 0, minutes: 0, totalMinutes: 0 };
     let shiftDuration = null;
+    let expectedShiftDuration = null;
     
     // For time-in, check the user's shift for the current day
     if (type === 'IN') {
@@ -379,21 +380,8 @@ export const recordAttendance = async (userId, type, notes = '') => {
           scheduleTime = shift.startTime;
           shiftTimeRegion = shift.timeRegion || shiftTimeRegion;
           
-          // Get shift duration from user's schedule if available
-          if (shift.duration) {
-            // Use the duration directly from the shift data
-            shiftDuration = {
-              hours: shift.duration.hours || 0,
-              minutes: shift.duration.minutes || 0,
-              totalMinutes: shift.duration.totalMinutes || 
-                ((shift.duration.hours || 0) * 60 + (shift.duration.minutes || 0)),
-              scheduled: true, // Flag to indicate this is a scheduled duration, not actual
-              fromSchedule: true // Flag to indicate this came directly from the schedule
-            };
-            console.log('Using shift duration from schedule:', shiftDuration);
-          }
-          // Calculate scheduled shift duration if not available in the schedule
-          else if (shift.startTime && shift.endTime) {
+          // Calculate scheduled shift duration
+          if (shift.startTime && shift.endTime) {
             const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
             const [endHours, endMinutes] = shift.endTime.split(':').map(Number);
             
@@ -409,12 +397,21 @@ export const recordAttendance = async (userId, type, notes = '') => {
               hours: Math.floor(expectedDurationMinutes / 60),
               minutes: expectedDurationMinutes % 60,
               totalMinutes: expectedDurationMinutes,
-              scheduled: true, // Flag to indicate this is a scheduled duration, not actual
-              calculated: true // Flag to indicate this was calculated, not from schedule
+              scheduled: true // Flag to indicate this is a scheduled duration, not actual
             };
-            console.log('Calculated shift duration from start/end times:', shiftDuration);
+            
+            // Add the expected shift duration from user's schedule if available
+            if (shift.duration) {
+              expectedShiftDuration = shift.duration;
+            } else {
+              // If no explicit duration in the schedule, calculate it from start/end times
+              expectedShiftDuration = {
+                hours: Math.floor(expectedDurationMinutes / 60),
+                minutes: expectedDurationMinutes % 60,
+                totalMinutes: expectedDurationMinutes
+              };
+            }
           }
-          
           break;
         }
       }
@@ -425,21 +422,8 @@ export const recordAttendance = async (userId, type, notes = '') => {
         scheduleTime = currentShift.startTime;
         shiftTimeRegion = currentShift.timeRegion || shiftTimeRegion;
         
-        // Get shift duration from user's schedule if available
-        if (currentShift.duration) {
-          // Use the duration directly from the shift data
-          shiftDuration = {
-            hours: currentShift.duration.hours || 0,
-            minutes: currentShift.duration.minutes || 0,
-            totalMinutes: currentShift.duration.totalMinutes || 
-              ((currentShift.duration.hours || 0) * 60 + (currentShift.duration.minutes || 0)),
-            scheduled: true, // Flag to indicate this is a scheduled duration, not actual
-            fromSchedule: true // Flag to indicate this came directly from the schedule
-          };
-          console.log('Using shift duration from schedule:', shiftDuration);
-        }
-        // Calculate scheduled shift duration if not available in the schedule
-        else if (currentShift.startTime && currentShift.endTime) {
+        // Calculate scheduled shift duration
+        if (currentShift.startTime && currentShift.endTime) {
           const [startHours, startMinutes] = currentShift.startTime.split(':').map(Number);
           const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
           
@@ -455,10 +439,20 @@ export const recordAttendance = async (userId, type, notes = '') => {
             hours: Math.floor(expectedDurationMinutes / 60),
             minutes: expectedDurationMinutes % 60,
             totalMinutes: expectedDurationMinutes,
-            scheduled: true, // Flag to indicate this is a scheduled duration, not actual
-            calculated: true // Flag to indicate this was calculated, not from schedule
+            scheduled: true // Flag to indicate this is a scheduled duration, not actual
           };
-          console.log('Calculated shift duration from start/end times:', shiftDuration);
+          
+          // Add the expected shift duration from user's schedule if available
+          if (currentShift.duration) {
+            expectedShiftDuration = currentShift.duration;
+          } else {
+            // If no explicit duration in the schedule, calculate it from start/end times
+            expectedShiftDuration = {
+              hours: Math.floor(expectedDurationMinutes / 60),
+              minutes: expectedDurationMinutes % 60,
+              totalMinutes: expectedDurationMinutes
+            };
+          }
         }
       }
       
@@ -667,7 +661,8 @@ export const recordAttendance = async (userId, type, notes = '') => {
       shiftId: currentShift?.id || null,
       timeRegion: shiftTimeRegion,
       notes,
-      shiftDuration
+      shiftDuration,
+      expectedShiftDuration
     };
     
     // Save to Firestore with custom document ID
@@ -682,7 +677,8 @@ export const recordAttendance = async (userId, type, notes = '') => {
       success: true,
       status,
       timeDiff,
-      shiftDuration: type === 'OUT' ? shiftDuration : null
+      shiftDuration: type === 'OUT' ? shiftDuration : null,
+      expectedShiftDuration: type === 'IN' ? expectedShiftDuration : null
     };
     
   } catch (error) {
@@ -863,6 +859,7 @@ const calculateShiftDuration = async (userId, now) => {
  * @param {string} timeRegion - Time region
  * @param {string} notes - Notes
  * @param {Object|null} shiftDuration - Shift duration for OUT records
+ * @param {Object|null} expectedShiftDuration - Expected shift duration for IN records
  * @returns {Object} - Attendance record object
  */
 const createAttendanceRecord = (
@@ -877,7 +874,8 @@ const createAttendanceRecord = (
   shiftId, 
   timeRegion, 
   notes,
-  shiftDuration
+  shiftDuration,
+  expectedShiftDuration
 ) => {
   // Get day of week
   const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' });
@@ -907,6 +905,11 @@ const createAttendanceRecord = (
   // Add shift duration for both IN and OUT records
   if (shiftDuration) {
     record.shiftDuration = shiftDuration;
+  }
+  
+  // Add expected shift duration for IN records
+  if (expectedShiftDuration) {
+    record.expectedShiftDuration = expectedShiftDuration;
   }
   
   return record;
