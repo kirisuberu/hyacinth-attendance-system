@@ -18,6 +18,7 @@ import RealTimeAttendance from './pages/Admin/RealTimeAttendance';
 import AttendanceLogs from './pages/Admin/AttendanceLogs';
 import AllSchedules from './pages/Admin/AllSchedules';
 import UserCalendar from './pages/Admin/UserCalendar';
+import Rules from './pages/Admin/Rules';
 import AbsenteeService from './components/AbsenteeService';
 import PropTypes from 'prop-types';
 import './App.css'
@@ -142,6 +143,14 @@ function App() {
             <Route path="my-schedule" element={<MySchedule />} />
             <Route path="all-schedules" element={<AllSchedules />} />
             <Route path="user-calendar" element={<UserCalendar />} />
+            <Route 
+              path="rules" 
+              element={
+                <PrivateRoute requiredRole={UserType.ADMIN}>
+                  <Rules />
+                </PrivateRoute>
+              } 
+            />
             <Route path="my-dashboard" element={<MemberDashboard />} />
           </Route>
 

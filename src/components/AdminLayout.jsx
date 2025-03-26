@@ -6,7 +6,7 @@ import { UserType } from '../utils/userService';
 import { recordAttendance, getUserAttendanceStatus, calculateAttendanceStatus } from '../utils/attendanceService';
 import { useAuth } from '../contexts/AuthContext';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
-import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut } from 'phosphor-react';
+import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut, Gear } from 'phosphor-react';
 import { doc, getDoc } from 'firebase/firestore';
 import PropTypes from 'prop-types';
 
@@ -379,7 +379,12 @@ function AdminLayout({ isMemberView = false }) {
         <nav>
           {/* Admin-only links - hidden for member view */}
           {!isMemberView && isAdmin && (
-            <NavLink to="/admin/users"><Icon><Users size={16} /></Icon>User Management</NavLink>
+            <>
+              <NavLink to="/admin/users"><Icon><Users size={16} /></Icon>User Management</NavLink>
+              <NavLink to="/admin/rules" className={({ isActive }) => isActive ? 'active' : ''}>
+                <Icon><Gear size={16} /></Icon>Rules
+              </NavLink>
+            </>
           )}
           
           {/* Admin Dashboard - hidden for member view */}

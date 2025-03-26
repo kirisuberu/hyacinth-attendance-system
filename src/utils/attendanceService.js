@@ -57,7 +57,7 @@ const formatTimeDiff = (diffMins) => {
  * @param {string} timeRegion - Time region code
  * @returns {Object} - Status and time difference
  */
-export const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRegion = 'PHT') => {
+export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, timeRegion = 'PHT') => {
   console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString(), timeRegion });
   
   // Validate timeRegion parameter
@@ -138,7 +138,7 @@ export const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRe
   const timeDiff = formatTimeDiff(diffMinutes);
   
   // Determine status based on the time difference and type
-  let status = determineStatus(diffMinutes, type);
+  const status = await determineStatus(diffMinutes, type);
   
   return { status, timeDiff };
 };
@@ -149,24 +149,69 @@ export const calculateAttendanceStatus = (scheduleTime, actualTime, type, timeRe
  * @param {string} type - Record type: 'IN' or 'OUT'
  * @returns {string} - Attendance status
  */
-const determineStatus = (diffMinutes, type) => {
-  if (type === 'IN') {
-    // For time-in:
-    if (diffMinutes <= -60) {
-      return 'Early';
-    } else if (diffMinutes > -60 && diffMinutes <= 5) {
-      return 'On Time';
-    } else {
-      return 'Late';
+const determineStatus = async (diffMinutes, type) => {
+  try {
+    // Get rules from Firestore
+    const rulesDoc = doc(db, 'system', 'attendanceRules');
+    const rulesSnapshot = await getDoc(rulesDoc);
+    
+    // Default rules
+    let rules = {
+      timeIn: {
+        early: -60, // minutes before schedule to be considered "Early"
+        onTime: 5,  // minutes after schedule to still be considered "On Time"
+      },
+      timeOut: {
+        earlyOut: -15, // minutes before schedule to be considered "Early Out"
+        onTime: 60,    // minutes after schedule to still be considered "On Time"
+      }
+    };
+    
+    // If rules exist in Firestore, use them
+    if (rulesSnapshot.exists()) {
+      rules = rulesSnapshot.data();
     }
-  } else {
-    // For time-out:
-    if (diffMinutes < -15) {
-      return 'Early Out';
-    } else if (diffMinutes >= -15 && diffMinutes <= 60) {
-      return 'On Time';
+    
+    if (type === 'IN') {
+      // For time-in:
+      if (diffMinutes <= rules.timeIn.early) {
+        return 'Early';
+      } else if (diffMinutes > rules.timeIn.early && diffMinutes <= rules.timeIn.onTime) {
+        return 'On Time';
+      } else {
+        return 'Late';
+      }
     } else {
-      return 'Overtime';
+      // For time-out:
+      if (diffMinutes < rules.timeOut.earlyOut) {
+        return 'Early Out';
+      } else if (diffMinutes >= rules.timeOut.earlyOut && diffMinutes <= rules.timeOut.onTime) {
+        return 'On Time';
+      } else {
+        return 'Overtime';
+      }
+    }
+  } catch (error) {
+    console.error('Error getting attendance rules:', error);
+    // Fallback to original hardcoded values if there's an error
+    if (type === 'IN') {
+      // For time-in:
+      if (diffMinutes <= -60) {
+        return 'Early';
+      } else if (diffMinutes > -60 && diffMinutes <= 5) {
+        return 'On Time';
+      } else {
+        return 'Late';
+      }
+    } else {
+      // For time-out:
+      if (diffMinutes < -15) {
+        return 'Early Out';
+      } else if (diffMinutes >= -15 && diffMinutes <= 60) {
+        return 'On Time';
+      } else {
+        return 'Overtime';
+      }
     }
   }
 };
@@ -240,7 +285,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
       }
       
       // Calculate attendance status based on schedule time
-      const result = calculateAttendanceStatus(scheduleTime, now, type, shiftTimeRegion);
+      const result = await calculateAttendanceStatus(scheduleTime, now, type, shiftTimeRegion);
       status = result.status;
       timeDiff = result.timeDiff;
     } 
@@ -752,7 +797,7 @@ export const updateAttendance = async (recordId, updateData) => {
       const actualTimeDate = parseActualTime(updateData.actualTime);
       
       // Recalculate status based on the new time
-      const { status, timeDiff } = calculateAttendanceStatus(
+      const { status, timeDiff } = await calculateAttendanceStatus(
         recordData.scheduleTime, 
         actualTimeDate, 
         recordData.type, 
