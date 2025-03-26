@@ -252,19 +252,71 @@ export const recordAttendance = async (userId, type, notes = '') => {
       if (!latestRecord) {
         status = 'No Time-In Record';
       } else {
+        console.log('Latest time-in record:', latestRecord);
+        
         // Get the shift associated with the time-in record
         const shiftId = latestRecord.shiftId;
         const userSchedule = userData.schedule || {};
-        currentShift = shiftId && userSchedule[shiftId] 
+        
+        // Try to get the shift from the latest record
+        let currentShift = shiftId && userSchedule[shiftId] 
           ? { ...userSchedule[shiftId], id: shiftId } 
           : null;
         
-        if (currentShift) {
+        // If no shift found from the latest record, try to determine it based on the time-in timestamp
+        if (!currentShift) {
+          console.log('No shift found from latest record, attempting to determine from timestamp');
+          
+          const timeInDate = safeTimestampToDate(latestRecord.timestamp);
+          if (timeInDate) {
+            // Get the day of week from the time-in date
+            const timeInDayOfWeek = timeInDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            
+            // Find shifts for the time-in day
+            const possibleShifts = [];
+            Object.entries(userSchedule).forEach(([shiftId, shift]) => {
+              if (shift.startDay && shift.startDay.toLowerCase() === timeInDayOfWeek) {
+                possibleShifts.push({ ...shift, id: shiftId });
+              }
+            });
+            
+            // Sort shifts by start time
+            const sortedShifts = possibleShifts.sort((a, b) => {
+              const [aHours, aMinutes] = a.startTime.split(':').map(Number);
+              const [bHours, bMinutes] = b.startTime.split(':').map(Number);
+              return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
+            });
+            
+            // Find the shift that best matches the time-in time
+            const timeInMinutes = timeInDate.getHours() * 60 + timeInDate.getMinutes();
+            
+            for (const shift of sortedShifts) {
+              if (shift.startTime && shift.endTime) {
+                const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
+                const shiftStartMinutes = startHours * 60 + startMinutes;
+                
+                // If the time-in is within 2 hours of the shift start, use this shift
+                if (Math.abs(timeInMinutes - shiftStartMinutes) <= 120) {
+                  currentShift = shift;
+                  break;
+                }
+              }
+            }
+            
+            // If still no match, use the first shift of the day if available
+            if (!currentShift && sortedShifts.length > 0) {
+              currentShift = sortedShifts[0];
+            }
+          }
+        }
+        
+        // If we have a shift, use its end time for comparison
+        if (currentShift && currentShift.endTime) {
           scheduleTime = currentShift.endTime;
           shiftTimeRegion = currentShift.timeRegion || shiftTimeRegion;
           
           // Calculate the expected shift duration in minutes
-          if (currentShift.startTime && currentShift.endTime) {
+          if (currentShift.startTime) {
             const [startHours, startMinutes] = currentShift.startTime.split(':').map(Number);
             const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
             
@@ -318,7 +370,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
               };
             }
           } else {
-            // Handle case where shift doesn't have start or end time
+            // Handle case where shift doesn't have start time
             status = 'Invalid Shift Schedule';
             
             // Still calculate shift duration based on time-in record
@@ -331,10 +383,49 @@ export const recordAttendance = async (userId, type, notes = '') => {
                 totalMinutes: actualDurationMinutes,
                 correspondingInRecordId: latestRecord.id
               };
+              
+              // Use actual duration to determine a basic status
+              if (actualDurationMinutes < 480) { // Less than 8 hours
+                status = 'Early Out';
+              } else if (actualDurationMinutes <= 540) { // 8-9 hours
+                status = 'On Time';
+              } else {
+                status = 'Overtime';
+              }
+              
+              // Set a default time difference based on 8 hours expected shift
+              const durationDiffMinutes = actualDurationMinutes - 480; // 8 hours = 480 minutes
+              timeDiff = formatTimeDiff(durationDiffMinutes);
             }
           }
         } else {
+          // Even without a valid shift, we can still calculate shift duration
           status = 'No Shift Found';
+          
+          // Calculate shift duration based on time-in record
+          const timeInDate = safeTimestampToDate(latestRecord.timestamp);
+          if (timeInDate) {
+            const actualDurationMinutes = Math.round((now.getTime() - timeInDate.getTime()) / (1000 * 60));
+            shiftDuration = {
+              hours: Math.floor(actualDurationMinutes / 60),
+              minutes: actualDurationMinutes % 60,
+              totalMinutes: actualDurationMinutes,
+              correspondingInRecordId: latestRecord.id
+            };
+            
+            // Use actual duration to determine a basic status
+            if (actualDurationMinutes < 480) { // Less than 8 hours
+              status = 'Early Out';
+            } else if (actualDurationMinutes <= 540) { // 8-9 hours
+              status = 'On Time';
+            } else {
+              status = 'Overtime';
+            }
+            
+            // Set a default time difference based on 8 hours expected shift
+            const durationDiffMinutes = actualDurationMinutes - 480; // 8 hours = 480 minutes
+            timeDiff = formatTimeDiff(durationDiffMinutes);
+          }
         }
       }
     }
