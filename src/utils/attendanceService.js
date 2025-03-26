@@ -347,7 +347,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
       type,
       timestamp: serverTimestamp(),
       actualTime: now.toISOString(),
-      scheduleTime,
+      scheduleTime: scheduleTime || '', // Ensure scheduleTime is never undefined
       status,
       timeDiff,
       shiftId: currentShift?.id || null,
