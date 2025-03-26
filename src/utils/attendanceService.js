@@ -275,15 +275,10 @@ export const recordAttendance = async (userId, type, notes = '') => {
           }
           
           // Calculate actual duration between time-in and current time
-          const timeInDate = latestRecord.timestamp && typeof latestRecord.timestamp === 'object' 
-            ? new Date(
-                (latestRecord.timestamp.seconds || 0) * 1000 + 
-                (latestRecord.timestamp.nanoseconds || 0) / 1000000
-              )
-            : new Date(); // Fallback to current time if timestamp is invalid
+          const timeInDate = safeTimestampToDate(latestRecord.timestamp);
           
           // Validate the timeInDate before using it
-          if (isNaN(timeInDate.getTime())) {
+          if (!timeInDate) {
             console.error('Invalid time-in date detected:', latestRecord.timestamp);
             status = 'Invalid Time-In Record';
             timeDiff = { hours: 0, minutes: 0, totalMinutes: 0 };
@@ -401,9 +396,15 @@ const getLatestTimeInRecord = async (userId) => {
   
   // Sort by timestamp in descending order to get the most recent
   records.sort((a, b) => {
-    const timestampA = a.timestamp?.seconds || 0;
-    const timestampB = b.timestamp?.seconds || 0;
-    return timestampB - timestampA;
+    // Use safe comparison that handles null values
+    const dateA = safeTimestampToDate(a.timestamp);
+    const dateB = safeTimestampToDate(b.timestamp);
+    
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    
+    return dateB.getTime() - dateA.getTime();
   });
   
   // Return the most recent time-in record
@@ -473,15 +474,21 @@ const calculateShiftDuration = async (userId, now) => {
       
       // Filter by date
       if (!record.timestamp) return false;
-      const recordDate = new Date(record.timestamp.seconds * 1000);
+      const recordDate = safeTimestampToDate(record.timestamp);
       return recordDate >= startOfLookup;
     });
   
   // Sort by timestamp in descending order to get the most recent IN record
   inRecords.sort((a, b) => {
-    const timestampA = a.timestamp?.seconds || 0;
-    const timestampB = b.timestamp?.seconds || 0;
-    return timestampB - timestampA;
+    // Use safe comparison that handles null values
+    const dateA = safeTimestampToDate(a.timestamp);
+    const dateB = safeTimestampToDate(b.timestamp);
+    
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    
+    return dateB.getTime() - dateA.getTime();
   });
   
   if (inRecords.length === 0) {
@@ -492,7 +499,7 @@ const calculateShiftDuration = async (userId, now) => {
   console.log('Found corresponding IN record:', correspondingInRecord);
   
   // Calculate shift duration
-  const inTime = new Date(correspondingInRecord.timestamp.seconds * 1000);
+  const inTime = safeTimestampToDate(correspondingInRecord.timestamp);
   const outTime = now;
   
   // Calculate duration in minutes
@@ -814,7 +821,7 @@ const collectTimeInsOnDate = (querySnapshot, startDate, nextDayStart) => {
     if (!data.timestamp) return;
     
     // Convert Firestore timestamp to Date
-    const recordDate = getRecordDate(data);
+    const recordDate = safeTimestampToDate(data.timestamp);
     if (!recordDate) return;
     
     // Check if this is a time in on the selected date
@@ -842,7 +849,7 @@ const processAttendanceRecord = (doc, records, timeInsOnSelectedDate, startDate,
   if (!data.timestamp) return;
   
   // Convert Firestore timestamp to Date
-  const recordDate = getRecordDate(data);
+  const recordDate = safeTimestampToDate(data.timestamp);
   if (!recordDate) return;
   
   const userId = data.userId;
@@ -861,6 +868,67 @@ const processAttendanceRecord = (doc, records, timeInsOnSelectedDate, startDate,
 };
 
 /**
+ * Safely converts a Firestore timestamp to a JavaScript Date
+ * @param {Object|null} timestamp - Firestore timestamp object
+ * @returns {Date|null} - JavaScript Date object or null if invalid
+ */
+const safeTimestampToDate = (timestamp) => {
+  if (!timestamp) return null;
+  
+  try {
+    // Handle Firestore Timestamp objects
+    if (typeof timestamp === 'object' && timestamp !== null) {
+      if (timestamp.seconds !== undefined) {
+        // Standard Firestore timestamp with seconds and optional nanoseconds
+        const milliseconds = (timestamp.seconds || 0) * 1000 + (timestamp.nanoseconds || 0) / 1000000;
+        const date = new Date(milliseconds);
+        
+        // Validate the date
+        if (isNaN(date.getTime())) {
+          console.error('Invalid timestamp conversion:', timestamp);
+          return null;
+        }
+        return date;
+      } else if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        // Handle Firestore Timestamp objects that have toDate method
+        const date = timestamp.toDate();
+        if (isNaN(date.getTime())) {
+          console.error('Invalid timestamp.toDate() conversion:', timestamp);
+          return null;
+        }
+        return date;
+      }
+    }
+    
+    // Handle ISO string timestamps
+    if (typeof timestamp === 'string') {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        console.error('Invalid string timestamp conversion:', timestamp);
+        return null;
+      }
+      return date;
+    }
+    
+    // Handle numeric timestamps (milliseconds since epoch)
+    if (typeof timestamp === 'number') {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        console.error('Invalid numeric timestamp conversion:', timestamp);
+        return null;
+      }
+      return date;
+    }
+    
+    console.error('Unhandled timestamp format:', timestamp);
+    return null;
+  } catch (error) {
+    console.error('Error converting timestamp:', error, timestamp);
+    return null;
+  }
+};
+
+/**
  * Get record date from data
  * @param {Object} data - Record data
  * @returns {Date|null} - Record date or null if invalid
@@ -868,111 +936,12 @@ const processAttendanceRecord = (doc, records, timeInsOnSelectedDate, startDate,
 const getRecordDate = (data) => {
   if (data.timestamp?.seconds) {
     // Server timestamp
-    return new Date(data.timestamp.seconds * 1000);
+    return safeTimestampToDate(data.timestamp);
   } else if (data.date) {
     // Fallback to date field if available
     return new Date(data.date);
   }
   return null;
-};
-
-/**
- * Process a time-in record
- * @param {FirebaseFirestore.QueryDocumentSnapshot} doc - Document snapshot
- * @param {Object} data - Record data
- * @param {Object} records - Records object to update
- * @param {string} userId - User ID
- * @param {Date} recordDate - Record date
- */
-const processTimeInRecord = (doc, data, records, userId, recordDate) => {
-  // Format the record
-  const record = formatAttendanceRecord(doc.id, data, recordDate);
-  
-  // Initialize user record if not exists
-  if (!records[userId]) {
-    records[userId] = initializeUserRecord(data);
-  }
-  
-  // Set time in
-  records[userId].timeIn = {
-    time: formatRecordTime(recordDate),
-    status: record.status,
-    id: doc.id
-  };
-};
-
-/**
- * Process a time-out record
- * @param {FirebaseFirestore.QueryDocumentSnapshot} doc - Document snapshot
- * @param {Object} data - Record data
- * @param {Object} records - Records object to update
- * @param {string} userId - User ID
- * @param {Date} recordDate - Record date
- */
-const processTimeOutRecord = (doc, data, records, userId, recordDate) => {
-  // Format the record
-  const record = formatAttendanceRecord(doc.id, data, recordDate);
-  
-  // Initialize user record if not exists
-  if (!records[userId]) {
-    records[userId] = initializeUserRecord(data);
-  }
-  
-  // Set time out
-  records[userId].timeOut = {
-    time: formatRecordTime(recordDate),
-    status: record.status,
-    id: doc.id
-  };
-};
-
-/**
- * Format an attendance record
- * @param {string} docId - Document ID
- * @param {Object} data - Record data
- * @param {Date} recordDate - Record date
- * @returns {Object} - Formatted record
- */
-const formatAttendanceRecord = (docId, data, recordDate) => {
-  return {
-    id: docId,
-    userId: data.userId,
-    name: data.name || 'Unknown',
-    email: data.email || '',
-    type: data.type,
-    timestamp: recordDate,
-    status: data.status || 'Unknown',
-    scheduleTime: data.scheduleTime,
-    timeRegion: data.timeRegion || 'PHT'
-  };
-};
-
-/**
- * Initialize a user record
- * @param {Object} data - Record data
- * @returns {Object} - Initialized user record
- */
-const initializeUserRecord = (data) => {
-  return {
-    userId: data.userId,
-    name: data.name || 'Unknown',
-    email: data.email || '',
-    timeIn: null,
-    timeOut: null
-  };
-};
-
-/**
- * Format record time
- * @param {Date} recordDate - Record date
- * @returns {string} - Formatted time string
- */
-const formatRecordTime = (recordDate) => {
-  return recordDate ? recordDate.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  }) : 'N/A';
 };
 
 /**
@@ -1129,11 +1098,116 @@ const getLastAttendanceRecord = async (userId) => {
   
   // Sort by timestamp in descending order
   records.sort((a, b) => {
-    const timestampA = a.timestamp?.seconds || 0;
-    const timestampB = b.timestamp?.seconds || 0;
-    return timestampB - timestampA;
+    // Use safe comparison that handles null values
+    const dateA = safeTimestampToDate(a.timestamp);
+    const dateB = safeTimestampToDate(b.timestamp);
+    
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    
+    return dateB.getTime() - dateA.getTime();
   });
   
   // Get the most recent record
   return records[0];
+};
+
+/**
+ * Format an attendance record
+ * @param {string} docId - Document ID
+ * @param {Object} data - Record data
+ * @param {Date} recordDate - Record date
+ * @returns {Object} - Formatted record
+ */
+const formatAttendanceRecord = (docId, data, recordDate) => {
+  return {
+    id: docId,
+    userId: data.userId,
+    name: data.name || 'Unknown',
+    email: data.email || '',
+    type: data.type,
+    timestamp: recordDate,
+    status: data.status || 'Unknown',
+    scheduleTime: data.scheduleTime,
+    timeRegion: data.timeRegion || 'PHT'
+  };
+};
+
+/**
+ * Initialize a user record
+ * @param {Object} data - Record data
+ * @returns {Object} - Initialized user record
+ */
+const initializeUserRecord = (data) => {
+  return {
+    userId: data.userId,
+    name: data.name || 'Unknown',
+    email: data.email || '',
+    timeIn: null,
+    timeOut: null
+  };
+};
+
+/**
+ * Format record time
+ * @param {Date} recordDate - Record date
+ * @returns {string} - Formatted time string
+ */
+const formatRecordTime = (recordDate) => {
+  return recordDate ? recordDate.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }) : 'N/A';
+};
+
+/**
+ * Process a time-in record
+ * @param {FirebaseFirestore.QueryDocumentSnapshot} doc - Document snapshot
+ * @param {Object} data - Record data
+ * @param {Object} records - Records object to update
+ * @param {string} userId - User ID
+ * @param {Date} recordDate - Record date
+ */
+const processTimeInRecord = (doc, data, records, userId, recordDate) => {
+  // Format the record
+  const record = formatAttendanceRecord(doc.id, data, recordDate);
+  
+  // Initialize user record if not exists
+  if (!records[userId]) {
+    records[userId] = initializeUserRecord(data);
+  }
+  
+  // Set time in
+  records[userId].timeIn = {
+    time: formatRecordTime(recordDate),
+    status: record.status,
+    id: doc.id
+  };
+};
+
+/**
+ * Process a time-out record
+ * @param {FirebaseFirestore.QueryDocumentSnapshot} doc - Document snapshot
+ * @param {Object} data - Record data
+ * @param {Object} records - Records object to update
+ * @param {string} userId - User ID
+ * @param {Date} recordDate - Record date
+ */
+const processTimeOutRecord = (doc, data, records, userId, recordDate) => {
+  // Format the record
+  const record = formatAttendanceRecord(doc.id, data, recordDate);
+  
+  // Initialize user record if not exists
+  if (!records[userId]) {
+    records[userId] = initializeUserRecord(data);
+  }
+  
+  // Set time out
+  records[userId].timeOut = {
+    time: formatRecordTime(recordDate),
+    status: record.status,
+    id: doc.id
+  };
 };
