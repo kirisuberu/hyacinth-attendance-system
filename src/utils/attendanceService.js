@@ -378,6 +378,28 @@ export const recordAttendance = async (userId, type, notes = '') => {
           currentShift = shift;
           scheduleTime = shift.startTime;
           shiftTimeRegion = shift.timeRegion || shiftTimeRegion;
+          
+          // Calculate scheduled shift duration
+          if (shift.startTime && shift.endTime) {
+            const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
+            const [endHours, endMinutes] = shift.endTime.split(':').map(Number);
+            
+            // Calculate expected shift duration (handling overnight shifts)
+            let expectedDurationMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+            if (expectedDurationMinutes < 0) {
+              // This is an overnight shift, add 24 hours (1440 minutes)
+              expectedDurationMinutes += 1440;
+            }
+            
+            // Store the scheduled shift duration
+            shiftDuration = {
+              hours: Math.floor(expectedDurationMinutes / 60),
+              minutes: expectedDurationMinutes % 60,
+              totalMinutes: expectedDurationMinutes,
+              scheduled: true // Flag to indicate this is a scheduled duration, not actual
+            };
+          }
+          
           break;
         }
       }
@@ -387,6 +409,27 @@ export const recordAttendance = async (userId, type, notes = '') => {
         currentShift = sortedTodayShifts[0];
         scheduleTime = currentShift.startTime;
         shiftTimeRegion = currentShift.timeRegion || shiftTimeRegion;
+        
+        // Calculate scheduled shift duration
+        if (currentShift.startTime && currentShift.endTime) {
+          const [startHours, startMinutes] = currentShift.startTime.split(':').map(Number);
+          const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
+          
+          // Calculate expected shift duration (handling overnight shifts)
+          let expectedDurationMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+          if (expectedDurationMinutes < 0) {
+            // This is an overnight shift, add 24 hours (1440 minutes)
+            expectedDurationMinutes += 1440;
+          }
+          
+          // Store the scheduled shift duration
+          shiftDuration = {
+            hours: Math.floor(expectedDurationMinutes / 60),
+            minutes: expectedDurationMinutes % 60,
+            totalMinutes: expectedDurationMinutes,
+            scheduled: true // Flag to indicate this is a scheduled duration, not actual
+          };
+        }
       }
       
       // Calculate attendance status based on schedule time

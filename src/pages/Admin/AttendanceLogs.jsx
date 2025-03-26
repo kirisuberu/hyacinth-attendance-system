@@ -297,9 +297,29 @@ function AttendanceLogs() {
         
         // Calculate time difference if schedule time is available
         let timeDifference = null;
+        let scheduledShiftDuration = null;
+        
         if (data.type === 'OUT' && data.shiftDuration) {
           // For time-out records, use shiftDuration data if available
           timeDifference = data.shiftDuration.totalMinutes;
+        } else if (data.type === 'IN' && data.shiftDuration && data.shiftDuration.scheduled) {
+          // For time-in records, store the scheduled shift duration separately
+          scheduledShiftDuration = data.shiftDuration;
+          
+          // Still calculate the regular time difference for status display
+          if (data.scheduleTime && timestamp) {
+            try {
+              const [scheduleHours, scheduleMinutes] = data.scheduleTime.split(':').map(Number);
+              const scheduleDate = new Date(timestamp);
+              scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+              
+              // Calculate difference in minutes
+              timeDifference = differenceInMinutes(timestamp, scheduleDate);
+            } catch (error) {
+              console.error('Error calculating time difference:', error);
+              timeDifference = null;
+            }
+          }
         } else if (data.scheduleTime && timestamp) {
           try {
             const [scheduleHours, scheduleMinutes] = data.scheduleTime.split(':').map(Number);
@@ -326,7 +346,8 @@ function AttendanceLogs() {
           scheduleTime: data.scheduleTime || '',
           timeRegion: data.timeRegion || 'PHT',
           timeDifference: timeDifference,
-          shiftDuration: data.type === 'OUT' && data.shiftDuration ? true : false
+          shiftDuration: data.type === 'OUT' && data.shiftDuration ? true : false,
+          scheduledShiftDuration: scheduledShiftDuration
         };
       });
       
@@ -423,7 +444,7 @@ function AttendanceLogs() {
     return true;
   });
 
-  const formatTimeDifference = (minutes, type, shiftDuration) => {
+  const formatTimeDifference = (minutes, type, shiftDuration, scheduledShiftDuration) => {
     if (minutes === null) return 'N/A';
     
     const hours = Math.floor(Math.abs(minutes) / 60);
@@ -452,6 +473,22 @@ function AttendanceLogs() {
     }
     if (mins > 0 || hours === 0) {
       result += `${mins}m`;
+    }
+    
+    // Add scheduled shift duration for time-in records
+    if (type === 'IN' && scheduledShiftDuration) {
+      const schedHours = scheduledShiftDuration.hours;
+      const schedMins = scheduledShiftDuration.minutes;
+      let schedDuration = '';
+      
+      if (schedHours > 0) {
+        schedDuration += `${schedHours}h `;
+      }
+      if (schedMins > 0 || schedHours === 0) {
+        schedDuration += `${schedMins}m`;
+      }
+      
+      result += ` (Scheduled: ${schedDuration})`;
     }
     
     return result;
@@ -531,7 +568,7 @@ function AttendanceLogs() {
                       minutes={log.timeDifference} 
                       type={log.type}
                     >
-                      {formatTimeDifference(log.timeDifference, log.type, log.shiftDuration)}
+                      {formatTimeDifference(log.timeDifference, log.type, log.shiftDuration, log.scheduledShiftDuration)}
                     </TimeDifference>
                   </Td>
                   <Td>
