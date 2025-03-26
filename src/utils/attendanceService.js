@@ -400,9 +400,31 @@ export const recordAttendance = async (userId, type, notes = '') => {
               scheduled: true // Flag to indicate this is a scheduled duration, not actual
             };
             
+            console.log('Shift data for expectedShiftDuration:', {
+              shiftId: shift.id,
+              duration: shift.duration,
+              shiftData: shift
+            });
+            
             // Add the expected shift duration from user's schedule if available
             if (shift.duration) {
-              expectedShiftDuration = shift.duration;
+              // If duration is a number (hours), convert it to the expected object format
+              if (typeof shift.duration === 'number') {
+                const durationHours = Math.floor(shift.duration);
+                const durationMinutes = Math.round((shift.duration - durationHours) * 60);
+                
+                expectedShiftDuration = {
+                  hours: durationHours,
+                  minutes: durationMinutes,
+                  totalMinutes: durationHours * 60 + durationMinutes
+                };
+                
+                console.log('Converted numeric duration to object:', expectedShiftDuration);
+              } else {
+                // If it's already an object, use it directly
+                expectedShiftDuration = shift.duration;
+                console.log('Using existing duration object:', expectedShiftDuration);
+              }
             } else {
               // If no explicit duration in the schedule, calculate it from start/end times
               expectedShiftDuration = {
@@ -410,6 +432,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
                 minutes: expectedDurationMinutes % 60,
                 totalMinutes: expectedDurationMinutes
               };
+              console.log('Calculated expectedShiftDuration from times:', expectedShiftDuration);
             }
           }
           break;
@@ -442,9 +465,31 @@ export const recordAttendance = async (userId, type, notes = '') => {
             scheduled: true // Flag to indicate this is a scheduled duration, not actual
           };
           
+          console.log('Shift data for expectedShiftDuration (fallback):', {
+            shiftId: currentShift.id,
+            duration: currentShift.duration,
+            shiftData: currentShift
+          });
+          
           // Add the expected shift duration from user's schedule if available
           if (currentShift.duration) {
-            expectedShiftDuration = currentShift.duration;
+            // If duration is a number (hours), convert it to the expected object format
+            if (typeof currentShift.duration === 'number') {
+              const durationHours = Math.floor(currentShift.duration);
+              const durationMinutes = Math.round((currentShift.duration - durationHours) * 60);
+              
+              expectedShiftDuration = {
+                hours: durationHours,
+                minutes: durationMinutes,
+                totalMinutes: durationHours * 60 + durationMinutes
+              };
+              
+              console.log('Converted numeric duration to object (fallback):', expectedShiftDuration);
+            } else {
+              // If it's already an object, use it directly
+              expectedShiftDuration = currentShift.duration;
+              console.log('Using existing duration object (fallback):', expectedShiftDuration);
+            }
           } else {
             // If no explicit duration in the schedule, calculate it from start/end times
             expectedShiftDuration = {
@@ -452,6 +497,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
               minutes: expectedDurationMinutes % 60,
               totalMinutes: expectedDurationMinutes
             };
+            console.log('Calculated expectedShiftDuration from times (fallback):', expectedShiftDuration);
           }
         }
       }
@@ -664,6 +710,12 @@ export const recordAttendance = async (userId, type, notes = '') => {
       shiftDuration,
       expectedShiftDuration
     };
+    
+    console.log('Final attendance record to save:', {
+      type,
+      shiftDuration,
+      expectedShiftDuration
+    });
     
     // Save to Firestore with custom document ID
     const customDocId = generateDocumentId(now, type, userName);
