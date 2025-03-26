@@ -696,7 +696,7 @@ function TimeInOut() {
         onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
         type={pendingAction?.toUpperCase()}
         status={pendingStatus}
-        timeDiff={calculateTimeDifference()}
+        timeDiff={pendingAction ? calculateTimeDifference(pendingAction) : null}
         userData={{ name: userName, email: userEmail }}
       />
       
