@@ -297,7 +297,10 @@ function AttendanceLogs() {
         
         // Calculate time difference if schedule time is available
         let timeDifference = null;
-        if (data.scheduleTime && timestamp) {
+        if (data.type === 'OUT' && data.shiftDuration) {
+          // For time-out records, use shiftDuration data if available
+          timeDifference = data.shiftDuration.totalMinutes;
+        } else if (data.scheduleTime && timestamp) {
           try {
             const [scheduleHours, scheduleMinutes] = data.scheduleTime.split(':').map(Number);
             const scheduleDate = new Date(timestamp);
@@ -322,7 +325,8 @@ function AttendanceLogs() {
           notes: data.notes || '',
           scheduleTime: data.scheduleTime || '',
           timeRegion: data.timeRegion || 'PHT',
-          timeDifference: timeDifference
+          timeDifference: timeDifference,
+          shiftDuration: data.type === 'OUT' && data.shiftDuration ? true : false
         };
       });
       
@@ -419,7 +423,7 @@ function AttendanceLogs() {
     return true;
   });
 
-  const formatTimeDifference = (minutes, type) => {
+  const formatTimeDifference = (minutes, type, shiftDuration) => {
     if (minutes === null) return 'N/A';
     
     const hours = Math.floor(Math.abs(minutes) / 60);
@@ -429,7 +433,13 @@ function AttendanceLogs() {
     if (type === 'IN') {
       prefix = minutes < 0 ? 'Early by ' : 'Late by ';
     } else { // OUT
-      prefix = minutes < 0 ? 'Early by ' : 'Overtime by ';
+      // For time-out records, if we're using shiftDuration, we want to show the shift duration
+      // rather than the early/overtime status
+      if (shiftDuration) {
+        return `Shift duration: ${hours}h ${mins}m`;
+      } else {
+        prefix = minutes < 0 ? 'Early by ' : 'Overtime by ';
+      }
     }
     
     if (hours === 0 && mins === 0) {
@@ -521,7 +531,7 @@ function AttendanceLogs() {
                       minutes={log.timeDifference} 
                       type={log.type}
                     >
-                      {formatTimeDifference(log.timeDifference, log.type)}
+                      {formatTimeDifference(log.timeDifference, log.type, log.shiftDuration)}
                     </TimeDifference>
                   </Td>
                   <Td>
