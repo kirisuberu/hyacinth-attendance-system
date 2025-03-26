@@ -379,8 +379,21 @@ export const recordAttendance = async (userId, type, notes = '') => {
           scheduleTime = shift.startTime;
           shiftTimeRegion = shift.timeRegion || shiftTimeRegion;
           
-          // Calculate scheduled shift duration
-          if (shift.startTime && shift.endTime) {
+          // Get shift duration from user's schedule if available
+          if (shift.duration) {
+            // Use the duration directly from the shift data
+            shiftDuration = {
+              hours: shift.duration.hours || 0,
+              minutes: shift.duration.minutes || 0,
+              totalMinutes: shift.duration.totalMinutes || 
+                ((shift.duration.hours || 0) * 60 + (shift.duration.minutes || 0)),
+              scheduled: true, // Flag to indicate this is a scheduled duration, not actual
+              fromSchedule: true // Flag to indicate this came directly from the schedule
+            };
+            console.log('Using shift duration from schedule:', shiftDuration);
+          }
+          // Calculate scheduled shift duration if not available in the schedule
+          else if (shift.startTime && shift.endTime) {
             const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
             const [endHours, endMinutes] = shift.endTime.split(':').map(Number);
             
@@ -396,8 +409,10 @@ export const recordAttendance = async (userId, type, notes = '') => {
               hours: Math.floor(expectedDurationMinutes / 60),
               minutes: expectedDurationMinutes % 60,
               totalMinutes: expectedDurationMinutes,
-              scheduled: true // Flag to indicate this is a scheduled duration, not actual
+              scheduled: true, // Flag to indicate this is a scheduled duration, not actual
+              calculated: true // Flag to indicate this was calculated, not from schedule
             };
+            console.log('Calculated shift duration from start/end times:', shiftDuration);
           }
           
           break;
@@ -410,8 +425,21 @@ export const recordAttendance = async (userId, type, notes = '') => {
         scheduleTime = currentShift.startTime;
         shiftTimeRegion = currentShift.timeRegion || shiftTimeRegion;
         
-        // Calculate scheduled shift duration
-        if (currentShift.startTime && currentShift.endTime) {
+        // Get shift duration from user's schedule if available
+        if (currentShift.duration) {
+          // Use the duration directly from the shift data
+          shiftDuration = {
+            hours: currentShift.duration.hours || 0,
+            minutes: currentShift.duration.minutes || 0,
+            totalMinutes: currentShift.duration.totalMinutes || 
+              ((currentShift.duration.hours || 0) * 60 + (currentShift.duration.minutes || 0)),
+            scheduled: true, // Flag to indicate this is a scheduled duration, not actual
+            fromSchedule: true // Flag to indicate this came directly from the schedule
+          };
+          console.log('Using shift duration from schedule:', shiftDuration);
+        }
+        // Calculate scheduled shift duration if not available in the schedule
+        else if (currentShift.startTime && currentShift.endTime) {
           const [startHours, startMinutes] = currentShift.startTime.split(':').map(Number);
           const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
           
@@ -427,8 +455,10 @@ export const recordAttendance = async (userId, type, notes = '') => {
             hours: Math.floor(expectedDurationMinutes / 60),
             minutes: expectedDurationMinutes % 60,
             totalMinutes: expectedDurationMinutes,
-            scheduled: true // Flag to indicate this is a scheduled duration, not actual
+            scheduled: true, // Flag to indicate this is a scheduled duration, not actual
+            calculated: true // Flag to indicate this was calculated, not from schedule
           };
+          console.log('Calculated shift duration from start/end times:', shiftDuration);
         }
       }
       
