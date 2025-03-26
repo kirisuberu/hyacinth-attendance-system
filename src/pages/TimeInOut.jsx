@@ -410,6 +410,46 @@ function TimeInOut() {
     }
   }
 
+  // Calculate time difference for the confirmation modal
+  const calculateTimeDifference = (actionType) => {
+    if (!auth.currentUser) return null;
+    
+    const now = new Date();
+    const type = actionType || pendingAction;
+    
+    if (!type) return null;
+    
+    // Default schedule
+    const defaultSchedule = {
+      startTime: '09:00',
+      endTime: '18:00'
+    };
+    
+    // Use the current schedule or default
+    let currentSchedule = defaultSchedule;
+    
+    // Get schedule from today's record if available
+    if (todayRecord && todayRecord.schedules && todayRecord.schedules.length > 0) {
+      currentSchedule = todayRecord.schedules[0];
+    }
+    
+    const upperType = type.toUpperCase();
+    
+    if (upperType === 'IN') {
+      const [scheduleHours, scheduleMinutes] = currentSchedule.startTime.split(':').map(Number);
+      const scheduleDate = new Date();
+      scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+      
+      return Math.round((now - scheduleDate) / (1000 * 60));
+    } else { // OUT
+      const [scheduleHours, scheduleMinutes] = currentSchedule.endTime.split(':').map(Number);
+      const scheduleDate = new Date();
+      scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+      
+      return Math.round((now - scheduleDate) / (1000 * 60));
+    }
+  };
+
   const getGifSource = (status, type) => {
     if (!status) return null;
     
@@ -506,6 +546,10 @@ function TimeInOut() {
     // Calculate a fresh status for this action, don't use the previous record's status
     const expectedStatus = determineExpectedStatus();
     console.log('Calculated expected status for', type, ':', expectedStatus);
+    
+    // Calculate time difference for the modal
+    const timeDifference = calculateTimeDifference(type);
+    console.log('Calculated time difference for modal:', timeDifference);
     
     // Make sure we're setting the correct status for the current action
     setPendingStatus(expectedStatus);
@@ -652,6 +696,7 @@ function TimeInOut() {
         onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
         type={pendingAction?.toUpperCase()}
         status={pendingStatus}
+        timeDiff={calculateTimeDifference()}
         userData={{ name: userName, email: userEmail }}
       />
       
