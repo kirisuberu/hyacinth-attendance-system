@@ -15,7 +15,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { format, parseISO, differenceInMinutes, differenceInHours, addDays, subDays } from 'date-fns';
-import { zonedTimeToUtc, utcToZonedTime, format as formatTZ } from 'date-fns-tz';
+import { formatInTimeZone } from 'date-fns-tz';
 
 // Time region offset in hours from UTC
 const TIME_REGION_OFFSETS = {
@@ -160,11 +160,28 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     return { status, timeDiff };
   } catch (error) {
     console.error('Error calculating attendance status:', error);
-    return {
-      status: 'Error',
-      timeDiff,
-      error: error.message
-    };
+    // Fallback to original hardcoded values if there's an error
+    let fallbackStatus;
+    if (type === 'IN') {
+      // For time-in:
+      if (diffMinutes <= -60) {
+        fallbackStatus = 'Early';
+      } else if (diffMinutes > -60 && diffMinutes <= 5) {
+        fallbackStatus = 'On Time';
+      } else {
+        fallbackStatus = 'Late';
+      }
+    } else {
+      // For time-out:
+      if (diffMinutes < -15) {
+        fallbackStatus = 'Early Out';
+      } else if (diffMinutes >= -15 && diffMinutes <= 60) {
+        fallbackStatus = 'On Time';
+      } else {
+        fallbackStatus = 'Overtime';
+      }
+    }
+    return { status: fallbackStatus, timeDiff };
   }
 };
 
