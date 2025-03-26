@@ -56,12 +56,15 @@ const convertTimeRegion = (time, fromRegion, toRegion) => {
  * @returns {Object} - Formatted time difference
  */
 const formatTimeDiff = (diffMins) => {
-  const hours = Math.floor(Math.abs(diffMins) / 60);
-  const minutes = Math.abs(diffMins) % 60;
+  // Ensure diffMins is a number
+  const diffMinutes = typeof diffMins === 'number' ? diffMins : 0;
+  
+  const hours = Math.floor(Math.abs(diffMinutes) / 60);
+  const minutes = Math.abs(diffMinutes) % 60;
   return {
     hours,
     minutes,
-    totalMinutes: Math.abs(diffMins) * (diffMins < 0 ? -1 : 1)
+    totalMinutes: diffMinutes
   };
 };
 
@@ -86,7 +89,7 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
   if (!scheduleTime) {
     return {
       status: 'No Schedule',
-      timeDiff: { hours: 0, minutes: 0, totalMinutes: 0 }
+      timeDiff: formatTimeDiff(0)
     };
   }
 
@@ -151,6 +154,7 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     }
   }
   
+  // Always ensure we have a valid timeDiff object
   const timeDiff = formatTimeDiff(diffMinutes);
   
   try {
