@@ -874,8 +874,8 @@ const createAttendanceRecord = (
     timeRegion
   };
   
-  // Add shift duration for OUT records
-  if (type === 'OUT' && shiftDuration) {
+  // Add shift duration for both IN and OUT records
+  if (shiftDuration) {
     record.shiftDuration = shiftDuration;
   }
   
