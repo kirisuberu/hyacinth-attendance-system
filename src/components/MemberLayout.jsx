@@ -7,6 +7,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { recordAttendance, getUserAttendanceStatus, calculateAttendanceStatus } from '../utils/attendanceService';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 import { House, Calendar, Clock, ChartBar, ListChecks, SignOut } from 'phosphor-react';
+import { safeTimestampToDate } from '../utils/dateUtils';
 
 const GlobalStyles = createGlobalStyle`
   * {
@@ -885,7 +886,12 @@ function MemberLayout() {
     // Calculate the expected end time based on the schedule
     if (todayRecord && todayRecord.type === 'IN' && todayRecord.scheduleTime) {
       const [startHours, startMinutes] = todayRecord.scheduleTime.split(':').map(Number);
-      const timestampDate = new Date(todayRecord.timestamp.seconds * 1000);
+      const timestampDate = safeTimestampToDate(todayRecord.timestamp);
+      
+      if (!timestampDate) {
+        console.error('Invalid timestamp in todayRecord:', todayRecord.timestamp);
+        return;
+      }
       
       // Get the shift duration from the record or use a default of 10 hours
       const shiftDuration = todayRecord.shiftDuration ? 
@@ -992,7 +998,13 @@ function MemberLayout() {
         const todayRecords = allRecords.filter(record => {
           if (!record.timestamp) return false;
           
-          const recordDate = new Date(record.timestamp.seconds * 1000);
+          const recordDate = safeTimestampToDate(record.timestamp);
+          
+          if (!recordDate) {
+            console.error('Invalid timestamp in record:', record.timestamp);
+            return false; // Skip this record
+          }
+          
           const isToday = recordDate >= today && recordDate < tomorrow;
           if (isToday) {
             console.log('Found today\'s record:', {
@@ -1221,8 +1233,9 @@ function MemberLayout() {
   };
 
   const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp.seconds * 1000);
+    const date = safeTimestampToDate(timestamp);
+    if (!date) return 'N/A';
+    
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',

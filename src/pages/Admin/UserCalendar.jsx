@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isSameMonth, getDay, parseISO, addDays, startOfWeek, endOfWeek } from 'date-fns';
+import { safeTimestampToDate } from '../../utils/dateUtils';
 
 // Styled components
 const Container = styled.div`
@@ -269,7 +270,7 @@ function UserCalendar() {
         const records = attendanceSnapshot.docs
           .map(doc => {
             const data = doc.data();
-            const timestamp = data.timestamp ? new Date(data.timestamp.seconds * 1000) : null;
+            const timestamp = safeTimestampToDate(data.timestamp);
             
             if (!timestamp) return null;
             

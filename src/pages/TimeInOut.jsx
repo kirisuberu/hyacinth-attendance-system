@@ -4,6 +4,7 @@ import { auth, db } from '../firebase'
 import { collection, query, where, getDocs, Timestamp, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { recordAttendance } from '../utils/attendanceService'
+import { formatTime } from '../utils/dateUtils'
 import TopBar from '../components/TopBar'
 import AttendanceConfirmationModal from '../components/AttendanceConfirmationModal'
 import styled from 'styled-components'
@@ -577,11 +578,6 @@ function TimeInOut() {
     } catch (error) {
       console.error('Error signing out:', error)
     }
-  }
-
-  const formatTime = (timestamp) => {
-    if (!timestamp) return ''
-    return new Date(timestamp.seconds * 1000).toLocaleTimeString()
   }
 
   if (loading) {

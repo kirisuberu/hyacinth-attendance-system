@@ -5,6 +5,7 @@ import { collection, query, getDocs, orderBy, doc, getDoc } from 'firebase/fires
 import { signOut } from 'firebase/auth'
 import TopBar from '../components/TopBar'
 import { UserType } from '../utils/userService'
+import { formatDate, formatTime } from '../utils/dateUtils'
 
 function Admin() {
   const [attendanceRecords, setAttendanceRecords] = useState([])
@@ -97,8 +98,8 @@ function Admin() {
                     <td className={`status-${record.type}`}>
                       {record.type === 'in' ? 'Time In' : 'Time Out'}
                     </td>
-                    <td>{new Date(record.timestamp.seconds * 1000).toLocaleDateString()}</td>
-                    <td>{new Date(record.timestamp.seconds * 1000).toLocaleTimeString()}</td>
+                    <td>{formatDate(record.timestamp)}</td>
+                    <td>{formatTime(record.timestamp)}</td>
                   </tr>
                 ))}
               </tbody>
