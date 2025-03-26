@@ -264,57 +264,74 @@ export const recordAttendance = async (userId, type, notes = '') => {
           shiftTimeRegion = currentShift.timeRegion || shiftTimeRegion;
           
           // Calculate the expected shift duration in minutes
-          const [startHours, startMinutes] = currentShift.startTime.split(':').map(Number);
-          const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
-          
-          // Calculate expected shift duration (handling overnight shifts)
-          let expectedDurationMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
-          if (expectedDurationMinutes < 0) {
-            // This is an overnight shift, add 24 hours (1440 minutes)
-            expectedDurationMinutes += 1440;
-          }
-          
-          // Calculate actual duration between time-in and current time
-          const timeInDate = safeTimestampToDate(latestRecord.timestamp);
-          
-          // Validate the timeInDate before using it
-          if (!timeInDate) {
-            console.error('Invalid time-in date detected:', latestRecord.timestamp);
-            status = 'Invalid Time-In Record';
-            timeDiff = { hours: 0, minutes: 0, totalMinutes: 0 };
-          } else {
-            const actualDurationMinutes = Math.round((now.getTime() - timeInDate.getTime()) / (1000 * 60));
+          if (currentShift.startTime && currentShift.endTime) {
+            const [startHours, startMinutes] = currentShift.startTime.split(':').map(Number);
+            const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
             
-            // Calculate the difference between actual and expected duration
-            const durationDiffMinutes = actualDurationMinutes - expectedDurationMinutes;
-            
-            console.log('Time-out duration calculation:', {
-              timeInTime: timeInDate.toISOString(),
-              currentTime: now.toISOString(),
-              expectedDurationMinutes,
-              actualDurationMinutes,
-              durationDiffMinutes
-            });
-            
-            // Determine status based on the duration difference
-            if (durationDiffMinutes < -15) {
-              status = 'Early Out';
-            } else if (durationDiffMinutes >= -15 && durationDiffMinutes <= 60) {
-              status = 'On Time';
-            } else {
-              status = 'Overtime';
+            // Calculate expected shift duration (handling overnight shifts)
+            let expectedDurationMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
+            if (expectedDurationMinutes < 0) {
+              // This is an overnight shift, add 24 hours (1440 minutes)
+              expectedDurationMinutes += 1440;
             }
             
-            // Format the time difference
-            timeDiff = formatTimeDiff(durationDiffMinutes);
+            // Calculate actual duration between time-in and current time
+            const timeInDate = safeTimestampToDate(latestRecord.timestamp);
             
-            // Calculate shift duration for the record
-            shiftDuration = {
-              hours: Math.floor(actualDurationMinutes / 60),
-              minutes: actualDurationMinutes % 60,
-              totalMinutes: actualDurationMinutes,
-              correspondingInRecordId: latestRecord.id
-            };
+            // Validate the timeInDate before using it
+            if (!timeInDate) {
+              console.error('Invalid time-in date detected:', latestRecord.timestamp);
+              status = 'Invalid Time-In Record';
+              timeDiff = { hours: 0, minutes: 0, totalMinutes: 0 };
+            } else {
+              const actualDurationMinutes = Math.round((now.getTime() - timeInDate.getTime()) / (1000 * 60));
+              
+              // Calculate the difference between actual and expected duration
+              const durationDiffMinutes = actualDurationMinutes - expectedDurationMinutes;
+              
+              console.log('Time-out duration calculation:', {
+                timeInTime: timeInDate.toISOString(),
+                currentTime: now.toISOString(),
+                expectedDurationMinutes,
+                actualDurationMinutes,
+                durationDiffMinutes
+              });
+              
+              // Determine status based on the duration difference
+              if (durationDiffMinutes < -15) {
+                status = 'Early Out';
+              } else if (durationDiffMinutes >= -15 && durationDiffMinutes <= 60) {
+                status = 'On Time';
+              } else {
+                status = 'Overtime';
+              }
+              
+              // Format the time difference
+              timeDiff = formatTimeDiff(durationDiffMinutes);
+              
+              // Calculate shift duration for the record
+              shiftDuration = {
+                hours: Math.floor(actualDurationMinutes / 60),
+                minutes: actualDurationMinutes % 60,
+                totalMinutes: actualDurationMinutes,
+                correspondingInRecordId: latestRecord.id
+              };
+            }
+          } else {
+            // Handle case where shift doesn't have start or end time
+            status = 'Invalid Shift Schedule';
+            
+            // Still calculate shift duration based on time-in record
+            const timeInDate = safeTimestampToDate(latestRecord.timestamp);
+            if (timeInDate) {
+              const actualDurationMinutes = Math.round((now.getTime() - timeInDate.getTime()) / (1000 * 60));
+              shiftDuration = {
+                hours: Math.floor(actualDurationMinutes / 60),
+                minutes: actualDurationMinutes % 60,
+                totalMinutes: actualDurationMinutes,
+                correspondingInRecordId: latestRecord.id
+              };
+            }
           }
         } else {
           status = 'No Shift Found';
