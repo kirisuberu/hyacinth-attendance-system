@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDate, addMonths, subMonths } from 'date-fns';
+import { Calendar, CaretLeft, CaretRight, Trash, PencilSimple } from 'phosphor-react';
 
 const Container = styled.div`
   padding: 2.5rem;
@@ -353,6 +355,306 @@ const DayColumn = styled.div`
   }
 `;
 
+const CalendarContainer = styled.div`
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-top: 2rem;
+`;
+
+const CalendarHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const MonthNavigation = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+`;
+
+const MonthTitle = styled.h2`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  min-width: 200px;
+  text-align: center;
+`;
+
+const NavButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+  background-color: white;
+  color: #4b5563;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background-color: #f3f4f6;
+    color: #111827;
+  }
+  
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+`;
+
+const CalendarGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const WeekdayHeader = styled.div`
+  padding: 0.75rem;
+  text-align: center;
+  font-weight: 600;
+  color: #4b5563;
+  background-color: #f9fafb;
+  border-right: 1px solid #e5e7eb;
+  
+  &:last-child {
+    border-right: none;
+  }
+`;
+
+const CalendarDay = styled.div`
+  min-height: 120px;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.5rem;
+  position: relative;
+  background-color: ${props => props.isCurrentMonth ? 'white' : '#f9fafb'};
+  
+  &:last-child {
+    border-right: none;
+  }
+  
+  &:nth-last-child(-n+7) {
+    border-bottom: none;
+  }
+`;
+
+const DayNumber = styled.div`
+  font-weight: ${props => props.isToday ? '700' : '500'};
+  color: ${props => props.isToday ? '#3b82f6' : '#111827'};
+  background-color: ${props => props.isToday ? '#dbeafe' : 'transparent'};
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-bottom: 0.5rem;
+`;
+
+const ScheduleList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: calc(100% - 30px);
+  overflow-y: auto;
+`;
+
+const ScheduleItem = styled.div`
+  background-color: #dbeafe;
+  border-left: 3px solid #3b82f6;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  position: relative;
+  
+  &:hover {
+    background-color: #bfdbfe;
+  }
+`;
+
+const ActionButtons = styled.div`
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+  
+  ${ScheduleItem}:hover & {
+    opacity: 1;
+  }
+`;
+
+const ActionButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background-color: ${props => props.delete ? '#fee2e2' : '#e0f2fe'};
+  color: ${props => props.delete ? '#b91c1c' : '#0369a1'};
+  cursor: pointer;
+  
+  &:hover {
+    background-color: ${props => props.delete ? '#fecaca' : '#bae6fd'};
+  }
+`;
+
+const ScheduleModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+`;
+
+const ModalTitle = styled.h3`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6b7280;
+  
+  &:hover {
+    color: #111827;
+  }
+`;
+
+const ModalForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const Label = styled.label`
+  font-weight: 500;
+  color: #4b5563;
+`;
+
+const Input = styled.input`
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+`;
+
+const Select = styled.select`
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+`;
+
+const Button = styled.button`
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  }
+`;
+
+const CancelButton = styled(Button)`
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  color: #4b5563;
+  
+  &:hover {
+    background-color: #e5e7eb;
+  }
+`;
+
+const SubmitButton = styled(Button)`
+  background-color: #3b82f6;
+  border: 1px solid #2563eb;
+  color: white;
+  
+  &:hover {
+    background-color: #2563eb;
+  }
+`;
+
+const DeleteButton = styled(Button)`
+  background-color: #ef4444;
+  border: 1px solid #dc2626;
+  color: white;
+  
+  &:hover {
+    background-color: #dc2626;
+  }
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+`;
+
 function AllSchedules() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -367,6 +669,12 @@ function AllSchedules() {
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
   const [selectedDays, setSelectedDays] = useState([]); // Array of selected day indices
   const [selectedTimezone, setSelectedTimezone] = useState('PHT'); // Default to PHT
+  
+  // Calendar state
+  const [currentDate, setCurrentDate] = useState(new Date(2025, 2, 1)); // March 2025
+  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('edit'); // 'edit' or 'delete'
 
   useEffect(() => {
     const fetchAllUsers = async () => {
@@ -774,6 +1082,146 @@ function AllSchedules() {
     setSelectedTimezone(e.target.value);
   };
 
+  // Calendar navigation functions
+  const goToPreviousMonth = () => {
+    setCurrentDate(prevDate => subMonths(prevDate, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentDate(prevDate => addMonths(prevDate, 1));
+  };
+
+  // Get calendar days for the current month
+  const getDaysInMonth = () => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    return eachDayOfInterval({ start: monthStart, end: monthEnd });
+  };
+
+  // Get day of week for the first day of the month (0 = Sunday, 6 = Saturday)
+  const getFirstDayOfMonth = () => {
+    return startOfMonth(currentDate).getDay();
+  };
+
+  // Check if a user has a schedule on a specific day
+  const getUserSchedulesForDay = (user, date) => {
+    if (!user.schedule) return [];
+    
+    const dayOfWeek = format(date, 'EEEE').toLowerCase();
+    
+    return Object.entries(user.schedule)
+      .filter(([_, shift]) => 
+        shift && 
+        shift.startDay && 
+        shift.startDay.toLowerCase() === dayOfWeek
+      )
+      .map(([shiftId, shift]) => ({
+        id: shiftId,
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        ...shift
+      }));
+  };
+
+  // Get all schedules for a specific day
+  const getAllSchedulesForDay = (date) => {
+    return users.flatMap(user => getUserSchedulesForDay(user, date));
+  };
+
+  // Handle schedule edit
+  const handleEditSchedule = (schedule) => {
+    setSelectedSchedule(schedule);
+    setModalMode('edit');
+    setIsModalOpen(true);
+  };
+
+  // Handle schedule delete
+  const handleDeleteSchedule = (schedule) => {
+    setSelectedSchedule(schedule);
+    setModalMode('delete');
+    setIsModalOpen(true);
+  };
+
+  // Close modal
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedSchedule(null);
+  };
+
+  // Save schedule changes
+  const handleSaveSchedule = async (e) => {
+    e.preventDefault();
+    
+    try {
+      const userRef = doc(db, 'users', selectedSchedule.userId);
+      
+      // Update the schedule in Firestore
+      await updateDoc(userRef, {
+        [`schedule.${selectedSchedule.id}.startTime`]: e.target.startTime.value,
+        [`schedule.${selectedSchedule.id}.endTime`]: e.target.endTime.value,
+      });
+      
+      // Update local state
+      setUsers(prevUsers => 
+        prevUsers.map(user => {
+          if (user.id === selectedSchedule.userId) {
+            return {
+              ...user,
+              schedule: {
+                ...user.schedule,
+                [selectedSchedule.id]: {
+                  ...user.schedule[selectedSchedule.id],
+                  startTime: e.target.startTime.value,
+                  endTime: e.target.endTime.value,
+                }
+              }
+            };
+          }
+          return user;
+        })
+      );
+      
+      handleCloseModal();
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      alert('Failed to update schedule: ' + error.message);
+    }
+  };
+
+  // Delete schedule
+  const handleConfirmDelete = async () => {
+    try {
+      const userRef = doc(db, 'users', selectedSchedule.userId);
+      
+      // Delete the schedule field in Firestore
+      await updateDoc(userRef, {
+        [`schedule.${selectedSchedule.id}`]: deleteField()
+      });
+      
+      // Update local state
+      setUsers(prevUsers => 
+        prevUsers.map(user => {
+          if (user.id === selectedSchedule.userId) {
+            const updatedSchedule = { ...user.schedule };
+            delete updatedSchedule[selectedSchedule.id];
+            
+            return {
+              ...user,
+              schedule: updatedSchedule
+            };
+          }
+          return user;
+        })
+      );
+      
+      handleCloseModal();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      alert('Failed to delete schedule: ' + error.message);
+    }
+  };
+
   if (loading) {
     return <Container>Loading...</Container>;
   }
@@ -783,6 +1231,9 @@ function AllSchedules() {
   }
 
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const daysInMonth = getDaysInMonth();
+  const firstDayOfMonth = getFirstDayOfMonth();
+  const today = new Date();
 
   return (
     <Container onClick={handleCloseTooltip}>
@@ -846,6 +1297,7 @@ function AllSchedules() {
         </SortContainer>
       </ControlsContainer>
       
+      {/* Weekly View (Original) */}
       {filteredUsers.length === 0 ? (
         <NoScheduleMessage>No users found matching your search criteria.</NoScheduleMessage>
       ) : (
@@ -919,6 +1371,158 @@ function AllSchedules() {
             </TableRow>
           ))}
         </ScheduleTable>
+      )}
+      
+      {/* Monthly Calendar View */}
+      <CalendarContainer>
+        <CalendarHeader>
+          <MonthNavigation>
+            <NavButton onClick={goToPreviousMonth}>
+              <Icon><CaretLeft size={16} /></Icon>
+            </NavButton>
+            <MonthTitle>
+              <Icon><Calendar size={18} /></Icon>
+              {format(currentDate, 'MMMM yyyy')}
+            </MonthTitle>
+            <NavButton onClick={goToNextMonth}>
+              <Icon><CaretRight size={16} /></Icon>
+            </NavButton>
+          </MonthNavigation>
+        </CalendarHeader>
+        
+        <CalendarGrid>
+          {days.map(day => (
+            <WeekdayHeader key={day}>{day.substring(0, 3)}</WeekdayHeader>
+          ))}
+          
+          {/* Empty cells for days before the first day of the month */}
+          {Array.from({ length: firstDayOfMonth }).map((_, index) => (
+            <CalendarDay key={`empty-${index}`} isCurrentMonth={false} />
+          ))}
+          
+          {/* Calendar days */}
+          {daysInMonth.map(day => {
+            const schedules = getAllSchedulesForDay(day);
+            return (
+              <CalendarDay key={day.toString()} isCurrentMonth={true}>
+                <DayNumber isToday={isSameDay(day, today)}>
+                  {getDate(day)}
+                </DayNumber>
+                
+                <ScheduleList>
+                  {schedules.map((schedule, index) => (
+                    <ScheduleItem key={`${schedule.userId}-${schedule.id}-${index}`}>
+                      <UserName>{schedule.userName}</UserName>
+                      <ShiftTime>
+                        {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                      </ShiftTime>
+                      
+                      <ActionButtons>
+                        <ActionButton 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditSchedule(schedule);
+                          }}
+                        >
+                          <PencilSimple size={14} />
+                        </ActionButton>
+                        <ActionButton 
+                          delete 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSchedule(schedule);
+                          }}
+                        >
+                          <Trash size={14} />
+                        </ActionButton>
+                      </ActionButtons>
+                    </ScheduleItem>
+                  ))}
+                </ScheduleList>
+              </CalendarDay>
+            );
+          })}
+        </CalendarGrid>
+      </CalendarContainer>
+      
+      {/* Schedule Edit/Delete Modal */}
+      {isModalOpen && selectedSchedule && (
+        <ScheduleModal onClick={handleCloseModal}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <ModalHeader>
+              <ModalTitle>
+                {modalMode === 'edit' ? 'Edit Schedule' : 'Delete Schedule'}
+              </ModalTitle>
+              <CloseButton onClick={handleCloseModal}>&times;</CloseButton>
+            </ModalHeader>
+            
+            {modalMode === 'edit' ? (
+              <ModalForm onSubmit={handleSaveSchedule}>
+                <FormGroup>
+                  <Label>User</Label>
+                  <Input 
+                    type="text" 
+                    value={selectedSchedule.userName} 
+                    disabled 
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Day</Label>
+                  <Input 
+                    type="text" 
+                    value={selectedSchedule.startDay} 
+                    disabled 
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Start Time</Label>
+                  <Input 
+                    type="time" 
+                    name="startTime" 
+                    defaultValue={selectedSchedule.startTime} 
+                    required 
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>End Time</Label>
+                  <Input 
+                    type="time" 
+                    name="endTime" 
+                    defaultValue={selectedSchedule.endTime} 
+                    required 
+                  />
+                </FormGroup>
+                
+                <ButtonGroup>
+                  <CancelButton type="button" onClick={handleCloseModal}>
+                    Cancel
+                  </CancelButton>
+                  <SubmitButton type="submit">
+                    Save Changes
+                  </SubmitButton>
+                </ButtonGroup>
+              </ModalForm>
+            ) : (
+              <>
+                <p>Are you sure you want to delete this schedule for {selectedSchedule.userName}?</p>
+                <p>Day: {selectedSchedule.startDay}</p>
+                <p>Time: {formatTime(selectedSchedule.startTime)} - {formatTime(selectedSchedule.endTime)}</p>
+                
+                <ButtonGroup>
+                  <CancelButton onClick={handleCloseModal}>
+                    Cancel
+                  </CancelButton>
+                  <DeleteButton onClick={handleConfirmDelete}>
+                    Delete Schedule
+                  </DeleteButton>
+                </ButtonGroup>
+              </>
+            )}
+          </ModalContent>
+        </ScheduleModal>
       )}
       
       {tooltipInfo.visible && tooltipInfo.shift && (
