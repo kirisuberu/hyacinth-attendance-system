@@ -674,6 +674,61 @@ const ScheduleCount = styled.div`
   width: fit-content;
 `;
 
+const DayScheduleModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+`;
+
+const DayScheduleContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow-y: auto;
+`;
+
+const DayScheduleHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+`;
+
+const DayScheduleTitle = styled.h3`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const ScheduleItemsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const NoSchedulesMessage = styled.p`
+  color: #6b7280;
+  font-style: italic;
+  text-align: center;
+  padding: 1rem 0;
+`;
+
 function AllSchedules() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -694,7 +749,8 @@ function AllSchedules() {
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('edit'); // 'edit' or 'delete'
-  const [expandedDays, setExpandedDays] = useState([]); // Track which days are expanded
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [isDayModalOpen, setIsDayModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchAllUsers = async () => {
@@ -1242,20 +1298,19 @@ function AllSchedules() {
     }
   };
 
-  // Toggle day expansion
-  const toggleDayExpansion = (dayStr) => {
-    setExpandedDays(prev => {
-      if (prev.includes(dayStr)) {
-        return prev.filter(d => d !== dayStr);
-      } else {
-        return [...prev, dayStr];
-      }
+  // Handle calendar day click to show popup
+  const handleCalendarDayClick = (day, schedules) => {
+    setSelectedDay({
+      date: day,
+      schedules
     });
+    setIsDayModalOpen(true);
   };
 
-  // Check if a day is expanded
-  const isDayExpanded = (dayStr) => {
-    return expandedDays.includes(dayStr);
+  // Close day schedules modal
+  const handleCloseDayModal = () => {
+    setIsDayModalOpen(false);
+    setSelectedDay(null);
   };
 
   if (loading) {
@@ -1438,66 +1493,82 @@ function AllSchedules() {
           
           {/* Calendar days */}
           {daysInMonth.map(day => {
-            const dayStr = day.toString();
             const schedules = getAllSchedulesForDay(day);
-            const isExpanded = isDayExpanded(dayStr);
             
             return (
               <CalendarDay 
-                key={dayStr} 
+                key={day.toString()} 
                 isCurrentMonth={true}
-                onClick={() => toggleDayExpansion(dayStr)}
+                onClick={() => handleCalendarDayClick(day, schedules)}
               >
                 <DayNumber isToday={isSameDay(day, today)}>
                   {getDate(day)}
                 </DayNumber>
                 
-                {schedules.length > 0 && !isExpanded && (
+                {schedules.length > 0 && (
                   <ScheduleCount>
                     {schedules.length} {schedules.length === 1 ? 'person' : 'people'} scheduled
                   </ScheduleCount>
-                )}
-                
-                {isExpanded && (
-                  <ScheduleList>
-                    {schedules.map((schedule, index) => (
-                      <ScheduleItem 
-                        key={`${schedule.userId}-${schedule.id}-${index}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <UserName>{schedule.userName}</UserName>
-                        <ShiftTime>
-                          {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
-                        </ShiftTime>
-                        
-                        <ActionButtons>
-                          <ActionButton 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditSchedule(schedule);
-                            }}
-                          >
-                            <PencilSimple size={14} />
-                          </ActionButton>
-                          <ActionButton 
-                            delete 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSchedule(schedule);
-                            }}
-                          >
-                            <Trash size={14} />
-                          </ActionButton>
-                        </ActionButtons>
-                      </ScheduleItem>
-                    ))}
-                  </ScheduleList>
                 )}
               </CalendarDay>
             );
           })}
         </CalendarGrid>
       </CalendarContainer>
+      
+      {/* Day Schedules Modal */}
+      {isDayModalOpen && selectedDay && (
+        <DayScheduleModal onClick={handleCloseDayModal}>
+          <DayScheduleContent onClick={e => e.stopPropagation()}>
+            <DayScheduleHeader>
+              <DayScheduleTitle>
+                <Icon><Calendar size={18} /></Icon>
+                {format(selectedDay.date, 'EEEE, MMMM d, yyyy')}
+              </DayScheduleTitle>
+              <CloseButton onClick={handleCloseDayModal}>&times;</CloseButton>
+            </DayScheduleHeader>
+            
+            {selectedDay.schedules.length === 0 ? (
+              <NoSchedulesMessage>No schedules for this day</NoSchedulesMessage>
+            ) : (
+              <ScheduleItemsList>
+                {selectedDay.schedules.map((schedule, index) => (
+                  <ScheduleItem 
+                    key={`${schedule.userId}-${schedule.id}-${index}`}
+                  >
+                    <UserName>{schedule.userName}</UserName>
+                    <ShiftTime>
+                      {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                    </ShiftTime>
+                    
+                    <ActionButtons>
+                      <ActionButton 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditSchedule(schedule);
+                          handleCloseDayModal();
+                        }}
+                      >
+                        <PencilSimple size={14} />
+                      </ActionButton>
+                      <ActionButton 
+                        delete 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSchedule(schedule);
+                          handleCloseDayModal();
+                        }}
+                      >
+                        <Trash size={14} />
+                      </ActionButton>
+                    </ActionButtons>
+                  </ScheduleItem>
+                ))}
+              </ScheduleItemsList>
+            )}
+          </DayScheduleContent>
+        </DayScheduleModal>
+      )}
       
       {/* Schedule Edit/Delete Modal */}
       {isModalOpen && selectedSchedule && (
