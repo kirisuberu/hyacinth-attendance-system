@@ -107,254 +107,6 @@ const SearchInput = styled.input`
   }
 `;
 
-const ScheduleTable = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-`;
-
-const TableHeader = styled.div`
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  background-color: #f3f4f6;
-  border-bottom: 2px solid #e5e7eb;
-`;
-
-const UserColumn = styled.div`
-  padding: 1.25rem;
-  font-weight: 700;
-  border-right: 1px solid #e5e7eb;
-  color: #111827;
-  font-size: 1rem;
-`;
-
-const DaysHeader = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  text-align: center;
-  font-weight: 700;
-`;
-
-const DayCell = styled.div`
-  padding: 1.25rem 0.5rem;
-  border-right: 1px solid #e5e7eb;
-  color: #111827;
-  font-size: 1rem;
-  cursor: pointer;
-  position: relative;
-  transition: background-color 0.2s;
-  
-  &:last-child {
-    border-right: none;
-  }
-  
-  &:hover {
-    background-color: #f3f4f6;
-  }
-  
-  &.active {
-    background-color: #dbeafe;
-    color: #1e40af;
-    font-weight: 700;
-  }
-  
-  &.active::after {
-    content: '';
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    width: 100%;
-    height: 3px;
-    background-color: #3b82f6;
-  }
-`;
-
-const FilterBadge = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: 1rem;
-  padding: 0.5rem 0.75rem;
-  background-color: #dbeafe;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #1e40af;
-`;
-
-const ClearFilterButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 9999px;
-  background-color: #bfdbfe;
-  color: #1e40af;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  
-  &:hover {
-    background-color: #93c5fd;
-  }
-`;
-
-const ShiftBlock = styled.div`
-  position: absolute;
-  height: 44px;
-  top: 38px;
-  background-color: ${props => props.isCurrentShift ? '#dbeafe' : '#f3f4f6'};
-  border-left: 4px solid ${props => props.isCurrentShift ? '#3b82f6' : '#9ca3af'};
-  border-radius: 6px;
-  padding: 0.375rem 0.75rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-width: 70px;
-  color: #111827;
-  text-shadow: 0 0 1px rgba(255, 255, 255, 0.7);
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    background-color: ${props => props.isCurrentShift ? '#bfdbfe' : '#e5e7eb'};
-  }
-`;
-
-const ShiftTime = styled.span`
-  font-weight: 700;
-  color: ${props => props.isCurrentShift ? '#1e3a8a' : '#111827'};
-  letter-spacing: 0.01em;
-`;
-
-const NoScheduleMessage = styled.p`
-  color: #4b5563;
-  font-style: italic;
-  padding: 1.5rem;
-  text-align: center;
-  background-color: #f9fafb;
-  border-radius: 6px;
-  font-size: 1.1rem;
-  margin: 1rem 0;
-  border: 1px dashed #d1d5db;
-`;
-
-const ShiftTooltip = styled.div`
-  position: absolute;
-  background-color: #ffffff;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  z-index: 20;
-  width: 220px;
-  top: ${props => props.top}px;
-  left: ${props => props.left}px;
-  font-size: 0.95rem;
-  visibility: ${props => props.visible ? 'visible' : 'hidden'};
-  opacity: ${props => props.visible ? 1 : 0};
-  transition: visibility 0s, opacity 0.2s linear;
-`;
-
-const TooltipHeader = styled.div`
-  font-weight: 700;
-  margin-bottom: 0.75rem;
-  color: #111827;
-  font-size: 1.1rem;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0.5rem;
-`;
-
-const TooltipRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  padding: 0.25rem 0;
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-`;
-
-const TooltipLabel = styled.span`
-  color: #4b5563;
-  font-weight: 500;
-`;
-
-const TooltipValue = styled.span`
-  color: #111827;
-  font-weight: 600;
-`;
-
-const TableRow = styled.div`
-  display: grid;
-  grid-template-columns: 250px 1fr;
-  border-bottom: 1px solid #e5e7eb;
-  min-height: 120px;
-  &:last-child {
-    border-bottom: none;
-  }
-  &:nth-child(even) {
-    background-color: #f9fafb;
-  }
-  &:hover {
-    background-color: #f3f4f6;
-  }
-`;
-
-const UserInfo = styled.div`
-  padding: 1.25rem;
-  border-right: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-`;
-
-const UserName = styled.div`
-  font-weight: 600;
-  color: #111827;
-  font-size: 1.1rem;
-  margin-bottom: 0.5rem;
-`;
-
-const UserEmail = styled.div`
-  font-size: 0.95rem;
-  color: #4b5563;
-`;
-
-const TimelineContainer = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  position: relative;
-  height: 100%;
-`;
-
-const DayColumn = styled.div`
-  position: relative;
-  border-right: 1px solid #e5e7eb;
-  min-height: 120px;
-  height: 100%;
-  &:last-child {
-    border-right: none;
-  }
-  &:nth-child(odd) {
-    background-color: rgba(249, 250, 251, 0.5);
-  }
-`;
-
 const CalendarContainer = styled.div`
   background: white;
   border-radius: 8px;
@@ -462,56 +214,73 @@ const DayNumber = styled.div`
   margin-bottom: 0.5rem;
 `;
 
-const ScheduleList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-height: calc(100% - 30px);
-  overflow-y: auto;
-`;
-
-const ScheduleItem = styled.div`
-  background-color: #dbeafe;
-  border-left: 3px solid #3b82f6;
-  padding: 0.5rem;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  position: relative;
-  
-  &:hover {
-    background-color: #bfdbfe;
-  }
-`;
-
-const ActionButtons = styled.div`
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  display: flex;
-  gap: 0.25rem;
-  opacity: 0;
-  transition: opacity 0.2s;
-  
-  ${ScheduleItem}:hover & {
-    opacity: 1;
-  }
-`;
-
-const ActionButton = styled.button`
+const ScheduleCount = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: none;
-  background-color: ${props => props.delete ? '#fee2e2' : '#e0f2fe'};
-  color: ${props => props.delete ? '#b91c1c' : '#0369a1'};
-  cursor: pointer;
-  
-  &:hover {
-    background-color: ${props => props.delete ? '#fecaca' : '#bae6fd'};
-  }
+  background-color: #dbeafe;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin-top: 0.5rem;
+  width: fit-content;
+`;
+
+const DayScheduleModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+`;
+
+const DayScheduleContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow-y: auto;
+`;
+
+const DayScheduleHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+`;
+
+const DayScheduleTitle = styled.h3`
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const ScheduleItemsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const NoSchedulesMessage = styled.p`
+  color: #6b7280;
+  font-style: italic;
+  text-align: center;
+  padding: 1rem 0;
 `;
 
 const ScheduleModal = styled.div`
@@ -660,73 +429,51 @@ const Icon = styled.span`
   margin-right: 0.5rem;
 `;
 
-const ScheduleCount = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #dbeafe;
-  border-radius: 9999px;
-  padding: 0.25rem 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #1e40af;
-  margin-top: 0.5rem;
-  width: fit-content;
-`;
-
-const DayScheduleModal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-`;
-
-const DayScheduleContent = styled.div`
-  background-color: white;
+const ShiftTooltip = styled.div`
+  position: absolute;
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
   border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 80vh;
-  padding: 1.5rem;
+  padding: 1rem;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  overflow-y: auto;
+  z-index: 20;
+  width: 220px;
+  top: ${props => props.top}px;
+  left: ${props => props.left}px;
+  font-size: 0.95rem;
+  visibility: ${props => props.visible ? 'visible' : 'hidden'};
+  opacity: ${props => props.visible ? 1 : 0};
+  transition: visibility 0s, opacity 0.2s linear;
 `;
 
-const DayScheduleHeader = styled.div`
+const TooltipHeader = styled.div`
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  color: #111827;
+  font-size: 1.1rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+`;
+
+const TooltipRow = styled.div`
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
+  padding: 0.25rem 0;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
 `;
 
-const DayScheduleTitle = styled.h3`
-  font-size: 1.25rem;
-  font-weight: 600;
+const TooltipLabel = styled.span`
+  color: #4b5563;
+  font-weight: 500;
+`;
+
+const TooltipValue = styled.span`
   color: #111827;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const ScheduleItemsList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-`;
-
-const NoSchedulesMessage = styled.p`
-  color: #6b7280;
-  font-style: italic;
-  text-align: center;
-  padding: 1rem 0;
+  font-weight: 600;
 `;
 
 function AllSchedules() {
@@ -1387,82 +1134,6 @@ function AllSchedules() {
           </TimezoneContainer>
         </SortContainer>
       </ControlsContainer>
-      
-      {/* Weekly View (Original) */}
-      {filteredUsers.length === 0 ? (
-        <NoScheduleMessage>No users found matching your search criteria.</NoScheduleMessage>
-      ) : (
-        <ScheduleTable>
-          <TableHeader>
-            <UserColumn>User</UserColumn>
-            <DaysHeader>
-              {days.map((day, index) => (
-                <DayCell 
-                  key={day} 
-                  className={selectedDays.includes(index) ? 'active' : ''}
-                  onClick={() => handleDayClick(index)}
-                >
-                  {day}
-                </DayCell>
-              ))}
-            </DaysHeader>
-          </TableHeader>
-          
-          {sortedUsers.map(user => (
-            <TableRow key={user.id}>
-              <UserInfo>
-                <UserName>{user.name || 'Unknown User'}</UserName>
-                <UserEmail>{user.email}</UserEmail>
-              </UserInfo>
-              
-              <TimelineContainer>
-                {days.map((day, index) => (
-                  <DayColumn key={day}>
-                    {user.schedule && Object.values(user.schedule)
-                      .filter(shift => {
-                        if (!shift || !shift.startDay || !shift.startTime) return false;
-                        
-                        // Get the original day index
-                        const originalDayIndex = getDayIndex(shift.startDay);
-                        
-                        // Get the day change from timezone conversion
-                        const convertedTime = convertTime(shift.startTime);
-                        const dayChange = convertedTime.dayChange;
-                        
-                        // Calculate the effective day after timezone conversion
-                        const effectiveDayIndex = (originalDayIndex + dayChange + 7) % 7;
-                        
-                        // Check if this shift should be displayed on this day
-                        return effectiveDayIndex === index;
-                      })
-                      .map((shift, shiftIndex) => {
-                        const { left, width } = calculateShiftPosition(shift);
-                        return (
-                          <ShiftBlock 
-                            key={shiftIndex}
-                            style={{ 
-                              left, 
-                              width,
-                              // Ensure minimum width for visibility
-                              minWidth: '70px'
-                            }}
-                            isCurrentShift={isCurrentShift(shift)}
-                            onClick={(e) => handleShiftClick(e, shift)}
-                          >
-                            <ShiftTime isCurrentShift={isCurrentShift(shift)}>
-                              {formatTimeWithDayInfo(shift.startTime)}
-                            </ShiftTime>
-                          </ShiftBlock>
-                        );
-                      })
-                    }
-                  </DayColumn>
-                ))}
-              </TimelineContainer>
-            </TableRow>
-          ))}
-        </ScheduleTable>
-      )}
       
       {/* Monthly Calendar View */}
       <CalendarContainer>
