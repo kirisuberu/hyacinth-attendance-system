@@ -320,6 +320,18 @@ const ActionButton = styled.button`
   }
 `;
 
+const UserName = styled.div`
+  font-weight: 600;
+  color: #111827;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+`;
+
+const ShiftTime = styled.div`
+  font-size: 0.8rem;
+  color: #4b5563;
+`;
+
 const NoSchedulesMessage = styled.p`
   color: #6b7280;
   font-style: italic;
