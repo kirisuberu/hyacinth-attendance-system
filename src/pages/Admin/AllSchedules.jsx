@@ -276,6 +276,50 @@ const ScheduleItemsList = styled.div`
   gap: 0.75rem;
 `;
 
+const ScheduleItem = styled.div`
+  background-color: #dbeafe;
+  border-left: 3px solid #3b82f6;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  position: relative;
+  
+  &:hover {
+    background-color: #bfdbfe;
+  }
+`;
+
+const ActionButtons = styled.div`
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+  
+  ${ScheduleItem}:hover & {
+    opacity: 1;
+  }
+`;
+
+const ActionButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background-color: ${props => props.delete ? '#fee2e2' : '#e0f2fe'};
+  color: ${props => props.delete ? '#b91c1c' : '#0369a1'};
+  cursor: pointer;
+  
+  &:hover {
+    background-color: ${props => props.delete ? '#fecaca' : '#bae6fd'};
+  }
+`;
+
 const NoSchedulesMessage = styled.p`
   color: #6b7280;
   font-style: italic;
