@@ -590,6 +590,22 @@ export const recordAttendance = async (userId, type, notes = '') => {
               expectedDurationMinutes += 1440;
             }
             
+            // Check if the shift has a custom duration specified
+            if (currentShift.duration) {
+              // If duration is a number (hours), convert it to minutes
+              if (typeof currentShift.duration === 'number') {
+                const durationHours = Math.floor(currentShift.duration);
+                const durationMinutes = Math.round((currentShift.duration - durationHours) * 60);
+                expectedDurationMinutes = durationHours * 60 + durationMinutes;
+                console.log('Using custom duration from shift:', expectedDurationMinutes);
+              } 
+              // If it's an object with totalMinutes, use that
+              else if (currentShift.duration.totalMinutes) {
+                expectedDurationMinutes = currentShift.duration.totalMinutes;
+                console.log('Using custom duration object from shift:', expectedDurationMinutes);
+              }
+            }
+            
             // Calculate actual duration between time-in and current time
             const timeInDate = safeTimestampToDate(latestRecord.timestamp);
             
@@ -647,17 +663,36 @@ export const recordAttendance = async (userId, type, notes = '') => {
                 correspondingInRecordId: latestRecord.id
               };
               
-              // Use actual duration to determine a basic status
-              if (actualDurationMinutes < 480) { // Less than 8 hours
+              // Try to get expected duration from the time-in record or its expected shift duration
+              let expectedDurationMinutes = 480; // Default to 8 hours
+              
+              // Check if the time-in record has expected shift duration information
+              if (latestRecord.expectedShiftDuration && latestRecord.expectedShiftDuration.totalMinutes) {
+                expectedDurationMinutes = latestRecord.expectedShiftDuration.totalMinutes;
+                console.log('Using expected duration from time-in record:', expectedDurationMinutes);
+              }
+              
+              // Use actual duration to determine status based on expected duration
+              const durationDiffMinutes = actualDurationMinutes - expectedDurationMinutes;
+              
+              console.log('Time-out duration calculation (fallback):', {
+                timeInTime: timeInDate.toISOString(),
+                currentTime: now.toISOString(),
+                expectedDurationMinutes,
+                actualDurationMinutes,
+                durationDiffMinutes
+              });
+              
+              // Determine status based on the duration difference
+              if (durationDiffMinutes < -15) {
                 status = 'Early Out';
-              } else if (actualDurationMinutes <= 540) { // 8-9 hours
+              } else if (durationDiffMinutes >= -15 && durationDiffMinutes <= 60) {
                 status = 'On Time';
               } else {
                 status = 'Overtime';
               }
               
-              // Set a default time difference based on 8 hours expected shift
-              const durationDiffMinutes = actualDurationMinutes - 480; // 8 hours = 480 minutes
+              // Format the time difference
               timeDiff = formatTimeDiff(durationDiffMinutes);
             }
           }
@@ -676,17 +711,36 @@ export const recordAttendance = async (userId, type, notes = '') => {
               correspondingInRecordId: latestRecord.id
             };
             
-            // Use actual duration to determine a basic status
-            if (actualDurationMinutes < 480) { // Less than 8 hours
+            // Try to get expected duration from the time-in record or its expected shift duration
+            let expectedDurationMinutes = 480; // Default to 8 hours
+            
+            // Check if the time-in record has expected shift duration information
+            if (latestRecord.expectedShiftDuration && latestRecord.expectedShiftDuration.totalMinutes) {
+              expectedDurationMinutes = latestRecord.expectedShiftDuration.totalMinutes;
+              console.log('Using expected duration from time-in record (no shift):', expectedDurationMinutes);
+            }
+            
+            // Use actual duration to determine status based on expected duration
+            const durationDiffMinutes = actualDurationMinutes - expectedDurationMinutes;
+            
+            console.log('Time-out duration calculation (no shift):', {
+              timeInTime: timeInDate.toISOString(),
+              currentTime: now.toISOString(),
+              expectedDurationMinutes,
+              actualDurationMinutes,
+              durationDiffMinutes
+            });
+            
+            // Determine status based on the duration difference
+            if (durationDiffMinutes < -15) {
               status = 'Early Out';
-            } else if (actualDurationMinutes <= 540) { // 8-9 hours
+            } else if (durationDiffMinutes >= -15 && durationDiffMinutes <= 60) {
               status = 'On Time';
             } else {
               status = 'Overtime';
             }
             
-            // Set a default time difference based on 8 hours expected shift
-            const durationDiffMinutes = actualDurationMinutes - 480; // 8 hours = 480 minutes
+            // Format the time difference
             timeDiff = formatTimeDiff(durationDiffMinutes);
           }
         }
