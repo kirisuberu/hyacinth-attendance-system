@@ -212,6 +212,7 @@ const AttendanceConfirmationModal = ({
   const formatTimeDifference = (minutes, type) => {
     if (minutes === null || minutes === undefined) return 'N/A';
     
+    // Use the timeDiff value directly as it's already calculated correctly in attendanceService.js
     const hours = Math.floor(Math.abs(minutes) / 60);
     const mins = Math.abs(minutes) % 60;
     

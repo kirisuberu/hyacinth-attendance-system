@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { auth, db } from '../firebase'
 import { collection, query, where, getDocs, Timestamp, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
-import { recordAttendance } from '../utils/attendanceService'
+import { recordAttendance, calculateAttendanceStatus } from '../utils/attendanceService'
 import { formatTime } from '../utils/dateUtils'
 import TopBar from '../components/TopBar'
 import AttendanceConfirmationModal from '../components/AttendanceConfirmationModal'
@@ -285,6 +285,7 @@ function TimeInOut() {
   });
   const [canTimeIn, setCanTimeIn] = useState(true)
   const [shiftDuration, setShiftDuration] = useState(null)
+  const [pendingTimeDiff, setPendingTimeDiff] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -412,7 +413,7 @@ function TimeInOut() {
   }
 
   // Calculate time difference for the confirmation modal
-  const calculateTimeDifference = (actionType) => {
+  const calculateTimeDifference = async (actionType) => {
     if (!auth.currentUser) return null;
     
     const now = new Date();
@@ -436,18 +437,27 @@ function TimeInOut() {
     
     const upperType = type.toUpperCase();
     
+    // Use the attendanceService's calculateAttendanceStatus function to ensure consistent calculation
     if (upperType === 'IN') {
-      const [scheduleHours, scheduleMinutes] = currentSchedule.startTime.split(':').map(Number);
-      const scheduleDate = new Date();
-      scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-      
-      return Math.round((now - scheduleDate) / (1000 * 60));
+      // For time-in, use the start time
+      const result = await calculateAttendanceStatus(
+        currentSchedule.startTime, 
+        now, 
+        'IN',
+        'PHT', // Default to PHT timezone
+        null // Let the function handle the date calculation
+      );
+      return result.timeDiff;
     } else { // OUT
-      const [scheduleHours, scheduleMinutes] = currentSchedule.endTime.split(':').map(Number);
-      const scheduleDate = new Date();
-      scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-      
-      return Math.round((now - scheduleDate) / (1000 * 60));
+      // For time-out, use the end time
+      const result = await calculateAttendanceStatus(
+        currentSchedule.endTime, 
+        now, 
+        'OUT',
+        'PHT', // Default to PHT timezone
+        null // Let the function handle the date calculation
+      );
+      return result.timeDiff;
     }
   };
 
@@ -470,7 +480,7 @@ function TimeInOut() {
     return null;
   };
 
-  const handleTimeButtonClick = (type) => {
+  const handleTimeButtonClick = async (type) => {
     // Determine the expected status based on the current time and user's schedule
     const determineExpectedStatus = () => {
       if (!auth.currentUser) return '';
@@ -548,9 +558,12 @@ function TimeInOut() {
     const expectedStatus = determineExpectedStatus();
     console.log('Calculated expected status for', type, ':', expectedStatus);
     
-    // Calculate time difference for the modal
-    const timeDifference = calculateTimeDifference(type);
+    // Calculate time difference for the modal (now async)
+    const timeDifference = await calculateTimeDifference(type);
     console.log('Calculated time difference for modal:', timeDifference);
+    
+    // Store the calculated time difference
+    setPendingTimeDiff(timeDifference);
     
     // Calculate shift duration for time-out
     if (type.toUpperCase() === 'OUT' && todayRecord && todayRecord.latestRecord) {
@@ -738,7 +751,7 @@ function TimeInOut() {
         onConfirm={(notes) => handleTimeRecord(pendingAction, notes)}
         type={pendingAction?.toUpperCase()}
         status={pendingStatus}
-        timeDiff={pendingAction ? calculateTimeDifference(pendingAction) : null}
+        timeDiff={pendingTimeDiff}
         userData={{ name: userName, email: userEmail }}
         shiftDuration={pendingAction?.toUpperCase() === 'OUT' ? shiftDuration : null}
       />
