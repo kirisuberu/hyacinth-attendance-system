@@ -347,114 +347,126 @@ export const recordAttendance = async (userId, type, notes = '') => {
     let shiftDuration = null;
     let expectedShiftDuration = null;
     
-    // For time-in, check the user's shift for the current day
+    // For time-in, check the user's shift for yesterday, today, and tomorrow
     if (type === 'IN') {
       const userSchedule = userData.schedule || {};
       
-      // Find shifts for today
-      const todayShifts = [];
-      Object.entries(userSchedule).forEach(([shiftId, shift]) => {
-        if (shift.startDay && shift.startDay.toLowerCase() === dayOfWeek) {
-          todayShifts.push({ ...shift, id: shiftId });
-        }
-      });
+      // Calculate yesterday and tomorrow
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const yesterdayOfWeek = yesterday.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       
-      // Sort shifts by start time
-      const sortedTodayShifts = todayShifts.sort((a, b) => {
-        const [aHours, aMinutes] = a.startTime.split(':').map(Number);
-        const [bHours, bMinutes] = b.startTime.split(':').map(Number);
-        return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
-      });
+      const tomorrow = new Date(now);
+      tomorrow.setDate(now.getDate() + 1);
+      const tomorrowOfWeek = tomorrow.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       
-      // Find the appropriate shift for the current time
-      const currentTime = now.getHours() * 60 + now.getMinutes(); // Current time in minutes
+      // Find shifts for yesterday, today, and tomorrow
+      const allShifts = [];
       
-      // Find the next upcoming shift or the most recent shift that started
-      for (const shift of sortedTodayShifts) {
-        const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
-        const shiftStartTime = startHours * 60 + startMinutes; // Shift start time in minutes
-        
-        // If this shift starts within the next hour or started in the last 2 hours, use it
-        if (shiftStartTime > currentTime - 120 && shiftStartTime <= currentTime + 60) {
-          currentShift = shift;
-          scheduleTime = shift.startTime;
-          shiftTimeRegion = shift.timeRegion || shiftTimeRegion;
-          
-          // Calculate scheduled shift duration
-          if (shift.startTime && shift.endTime) {
+      // Helper function to add shifts with day info
+      const addShiftsForDay = (day, date) => {
+        Object.entries(userSchedule).forEach(([shiftId, shift]) => {
+          if (shift.startDay && shift.startDay.toLowerCase() === day) {
+            // Calculate the absolute time in minutes for this shift's start time
             const [startHours, startMinutes] = shift.startTime.split(':').map(Number);
-            const [endHours, endMinutes] = shift.endTime.split(':').map(Number);
             
-            // Calculate expected shift duration (handling overnight shifts)
-            let expectedDurationMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
-            if (expectedDurationMinutes < 0) {
-              // This is an overnight shift, add 24 hours (1440 minutes)
-              expectedDurationMinutes += 1440;
-            }
+            // Create a date object for this shift's start time
+            const shiftDate = new Date(date);
+            shiftDate.setHours(startHours, startMinutes, 0, 0);
             
-            // Store the scheduled shift duration
-            shiftDuration = {
-              hours: Math.floor(expectedDurationMinutes / 60),
-              minutes: expectedDurationMinutes % 60,
-              totalMinutes: expectedDurationMinutes,
-              scheduled: true // Flag to indicate this is a scheduled duration, not actual
-            };
+            // Calculate time difference in minutes between now and shift start
+            const diffMinutes = Math.abs(now.getTime() - shiftDate.getTime()) / (1000 * 60);
             
-            console.log('Shift data for expectedShiftDuration:', {
-              shiftId: shift.id,
-              duration: shift.duration,
-              shiftData: shift
+            allShifts.push({
+              ...shift,
+              id: shiftId,
+              day,
+              diffMinutes,
+              shiftDate
             });
-            
-            // Add the expected shift duration from user's schedule if available
-            if (shift.duration) {
-              // If duration is a number (hours), convert it to the expected object format
-              if (typeof shift.duration === 'number') {
-                const durationHours = Math.floor(shift.duration);
-                const durationMinutes = Math.round((shift.duration - durationHours) * 60);
-                
-                expectedShiftDuration = {
-                  hours: durationHours,
-                  minutes: durationMinutes,
-                  totalMinutes: durationHours * 60 + durationMinutes
-                };
-                
-                console.log('Converted numeric duration to object:', expectedShiftDuration);
-              } else {
-                // If it's already an object, use it directly
-                expectedShiftDuration = shift.duration;
-                console.log('Using existing duration object:', expectedShiftDuration);
-              }
-            } else {
-              // If no explicit duration in the schedule, calculate it from start/end times
-              expectedShiftDuration = {
-                hours: Math.floor(expectedDurationMinutes / 60),
-                minutes: expectedDurationMinutes % 60,
-                totalMinutes: expectedDurationMinutes
-              };
-              console.log('Calculated expectedShiftDuration from times:', expectedShiftDuration);
-            }
           }
+        });
+      };
+      
+      // Add shifts for all three days
+      addShiftsForDay(yesterdayOfWeek, yesterday);
+      addShiftsForDay(dayOfWeek, now);
+      addShiftsForDay(tomorrowOfWeek, tomorrow);
+      
+      // Sort shifts by time difference (closest first)
+      const sortedShifts = allShifts.sort((a, b) => a.diffMinutes - b.diffMinutes);
+      
+      console.log('All shifts sorted by proximity to current time:', 
+        sortedShifts.map(s => ({
+          day: s.day,
+          startTime: s.startTime,
+          diffMinutes: s.diffMinutes,
+          date: s.shiftDate.toISOString()
+        }))
+      );
+      
+      // Find the shift closest to current time, but prioritize shifts that are about to start
+      // or have recently started (within 3 hours before or 1 hour after)
+      let closestShift = null;
+      
+      // First, check if there's a shift within the preferred window (-3 to +1 hours)
+      for (const shift of sortedShifts) {
+        const minutesDiff = (shift.shiftDate.getTime() - now.getTime()) / (1000 * 60);
+        
+        // If shift is starting within -180 to +60 minutes from now, use it
+        if (minutesDiff >= -180 && minutesDiff <= 60) {
+          closestShift = shift;
+          console.log('Found shift within preferred window:', {
+            day: shift.day,
+            startTime: shift.startTime,
+            minutesDiff
+          });
           break;
         }
       }
       
-      // If no suitable shift found, use the first shift of the day
-      if (!currentShift && sortedTodayShifts.length > 0) {
-        currentShift = sortedTodayShifts[0];
-        scheduleTime = currentShift.startTime;
-        shiftTimeRegion = currentShift.timeRegion || shiftTimeRegion;
+      // If no shift found in preferred window, use the closest one
+      if (!closestShift && sortedShifts.length > 0) {
+        closestShift = sortedShifts[0];
+        console.log('Using closest shift outside preferred window:', {
+          day: closestShift.day,
+          startTime: closestShift.startTime,
+          diffMinutes: closestShift.diffMinutes
+        });
+      }
+      
+      // Use the selected shift
+      if (closestShift) {
+        currentShift = closestShift;
+        scheduleTime = closestShift.startTime;
+        shiftTimeRegion = closestShift.timeRegion || shiftTimeRegion;
         
         // Calculate scheduled shift duration
-        if (currentShift.startTime && currentShift.endTime) {
-          const [startHours, startMinutes] = currentShift.startTime.split(':').map(Number);
-          const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
+        if (closestShift.startTime && closestShift.endTime) {
+          const [startHours, startMinutes] = closestShift.startTime.split(':').map(Number);
+          const [endHours, endMinutes] = closestShift.endTime.split(':').map(Number);
           
           // Calculate expected shift duration (handling overnight shifts)
           let expectedDurationMinutes = (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes);
           if (expectedDurationMinutes < 0) {
             // This is an overnight shift, add 24 hours (1440 minutes)
             expectedDurationMinutes += 1440;
+          }
+          
+          // Check if the shift has a custom duration specified
+          if (closestShift.duration) {
+            // If duration is a number (hours), convert it to minutes
+            if (typeof closestShift.duration === 'number') {
+              const durationHours = Math.floor(closestShift.duration);
+              const durationMinutes = Math.round((closestShift.duration - durationHours) * 60);
+              expectedDurationMinutes = durationHours * 60 + durationMinutes;
+              console.log('Using custom duration from shift:', expectedDurationMinutes);
+            } 
+            // If it's an object with totalMinutes, use that
+            else if (closestShift.duration.totalMinutes) {
+              expectedDurationMinutes = closestShift.duration.totalMinutes;
+              console.log('Using custom duration object from shift:', expectedDurationMinutes);
+            }
           }
           
           // Store the scheduled shift duration
@@ -465,18 +477,19 @@ export const recordAttendance = async (userId, type, notes = '') => {
             scheduled: true // Flag to indicate this is a scheduled duration, not actual
           };
           
-          console.log('Shift data for expectedShiftDuration (fallback):', {
-            shiftId: currentShift.id,
-            duration: currentShift.duration,
-            shiftData: currentShift
+          console.log('Shift data for expectedShiftDuration:', {
+            shiftId: closestShift.id,
+            day: closestShift.day,
+            duration: closestShift.duration,
+            shiftData: closestShift
           });
           
           // Add the expected shift duration from user's schedule if available
-          if (currentShift.duration) {
+          if (closestShift.duration) {
             // If duration is a number (hours), convert it to the expected object format
-            if (typeof currentShift.duration === 'number') {
-              const durationHours = Math.floor(currentShift.duration);
-              const durationMinutes = Math.round((currentShift.duration - durationHours) * 60);
+            if (typeof closestShift.duration === 'number') {
+              const durationHours = Math.floor(closestShift.duration);
+              const durationMinutes = Math.round((closestShift.duration - durationHours) * 60);
               
               expectedShiftDuration = {
                 hours: durationHours,
@@ -484,11 +497,11 @@ export const recordAttendance = async (userId, type, notes = '') => {
                 totalMinutes: durationHours * 60 + durationMinutes
               };
               
-              console.log('Converted numeric duration to object (fallback):', expectedShiftDuration);
+              console.log('Converted numeric duration to object:', expectedShiftDuration);
             } else {
               // If it's already an object, use it directly
-              expectedShiftDuration = currentShift.duration;
-              console.log('Using existing duration object (fallback):', expectedShiftDuration);
+              expectedShiftDuration = closestShift.duration;
+              console.log('Using existing duration object:', expectedShiftDuration);
             }
           } else {
             // If no explicit duration in the schedule, calculate it from start/end times
@@ -497,7 +510,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
               minutes: expectedDurationMinutes % 60,
               totalMinutes: expectedDurationMinutes
             };
-            console.log('Calculated expectedShiftDuration from times (fallback):', expectedShiftDuration);
+            console.log('Calculated expectedShiftDuration from times:', expectedShiftDuration);
           }
         }
       }
