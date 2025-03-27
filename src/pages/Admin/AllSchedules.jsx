@@ -599,7 +599,7 @@ function AllSchedules() {
     EST: -5  // UTC-5
   };
 
-  // Convert time from PHT (default storage format) to selected timezone
+  // Convert time from source timezone to selected timezone
   const convertTime = (timeString, fromTimezone = 'PHT', toTimezone = selectedTimezone) => {
     if (!timeString) return { time: 'Not set', dayChange: 0 };
     
@@ -636,11 +636,11 @@ function AllSchedules() {
     };
   };
 
-  const formatTimeWithDayInfo = (time) => {
+  const formatTimeWithDayInfo = (time, sourceTimezone = 'PHT') => {
     if (!time) return 'Not set';
     
     // Convert the time to the selected timezone
-    const result = convertTime(time);
+    const result = convertTime(time, sourceTimezone);
     
     // Add day change information if needed
     if (result.dayChange === -1) {
@@ -652,11 +652,11 @@ function AllSchedules() {
     }
   };
 
-  const formatTime = (time) => {
+  const formatTime = (time, sourceTimezone = 'PHT') => {
     if (!time) return 'Not set';
     
     // Convert the time to the selected timezone
-    const result = convertTime(time);
+    const result = convertTime(time, sourceTimezone);
     return result.time;
   };
 
@@ -680,8 +680,8 @@ function AllSchedules() {
     const endDayIndex = getDayIndex(shift.endDay);
     
     // Get timezone conversion information
-    const convertedStartTime = convertTime(shift.startTime);
-    const convertedEndTime = convertTime(shift.endTime);
+    const convertedStartTime = convertTime(shift.startTime, shift.sourceTimezone || 'PHT');
+    const convertedEndTime = convertTime(shift.endTime, shift.sourceTimezone || 'PHT');
     
     // Apply day changes from timezone conversion
     const effectiveStartDayIndex = (startDayIndex + convertedStartTime.dayChange + 7) % 7;
@@ -771,8 +771,8 @@ function AllSchedules() {
     }
 
     // Convert start and end times to the selected timezone
-    const convertedStartTime = convertTime(shift.startTime);
-    const convertedEndTime = convertTime(shift.endTime);
+    const convertedStartTime = convertTime(shift.startTime, shift.sourceTimezone || 'PHT');
+    const convertedEndTime = convertTime(shift.endTime, shift.sourceTimezone || 'PHT');
     
     // Parse the converted times
     const startTimeParts = convertedStartTime.time.split(' ');
@@ -837,7 +837,7 @@ function AllSchedules() {
     if (!shift || !shift.startTime) return { left: 0, width: 0 };
     
     // Convert the time to the selected timezone for positioning
-    const convertedTime = convertTime(shift.startTime);
+    const convertedTime = convertTime(shift.startTime, shift.sourceTimezone || 'PHT');
     
     // Get the day change information
     const dayChange = convertedTime.dayChange;
@@ -1011,15 +1011,21 @@ function AllSchedules() {
       const schedules = getUserSchedulesForDay(user, date);
       
       // Apply timezone conversion to each schedule
-      return schedules.map(schedule => ({
-        ...schedule,
-        // Store original times
-        originalStartTime: schedule.startTime,
-        originalEndTime: schedule.endTime,
-        // Add converted times
-        adjustedStartTime: formatTime(schedule.startTime),
-        adjustedEndTime: formatTime(schedule.endTime)
-      }));
+      return schedules.map(schedule => {
+        // Determine the source timezone (default to PHT if not specified)
+        const sourceTimezone = schedule.timezone || 'PHT';
+        
+        return {
+          ...schedule,
+          // Store original times and timezone
+          originalStartTime: schedule.startTime,
+          originalEndTime: schedule.endTime,
+          sourceTimezone: sourceTimezone,
+          // Add converted times
+          adjustedStartTime: formatTime(schedule.startTime, sourceTimezone),
+          adjustedEndTime: formatTime(schedule.endTime, sourceTimezone)
+        };
+      });
     });
   };
 
@@ -1054,6 +1060,7 @@ function AllSchedules() {
       await updateDoc(userRef, {
         [`schedule.${selectedSchedule.id}.startTime`]: e.target.startTime.value,
         [`schedule.${selectedSchedule.id}.endTime`]: e.target.endTime.value,
+        [`schedule.${selectedSchedule.id}.timezone`]: e.target.timezone.value,
       });
       
       // Update local state
@@ -1068,6 +1075,7 @@ function AllSchedules() {
                   ...user.schedule[selectedSchedule.id],
                   startTime: e.target.startTime.value,
                   endTime: e.target.endTime.value,
+                  timezone: e.target.timezone.value,
                 }
               }
             };
@@ -1281,6 +1289,11 @@ function AllSchedules() {
                     <UserName>{schedule.userName}</UserName>
                     <ShiftTime>
                       {schedule.adjustedStartTime} - {schedule.adjustedEndTime} ({selectedTimezone})
+                      {schedule.sourceTimezone !== 'PHT' && (
+                        <span style={{ fontSize: '0.7rem', display: 'block', color: '#6b7280' }}>
+                          Original: {schedule.originalStartTime} - {schedule.originalEndTime} ({schedule.sourceTimezone})
+                        </span>
+                      )}
                     </ShiftTime>
                     
                     <ActionButtons>
@@ -1344,7 +1357,19 @@ function AllSchedules() {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>Start Time (PHT)</Label>
+                  <Label>Source Timezone</Label>
+                  <Select
+                    name="timezone"
+                    defaultValue={selectedSchedule.sourceTimezone || 'PHT'}
+                  >
+                    <option value="PHT">PHT (UTC+8)</option>
+                    <option value="CST">CST (UTC-6)</option>
+                    <option value="EST">EST (UTC-5)</option>
+                  </Select>
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Start Time ({selectedSchedule.sourceTimezone || 'PHT'})</Label>
                   <Input 
                     type="time" 
                     name="startTime" 
@@ -1354,7 +1379,7 @@ function AllSchedules() {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>End Time (PHT)</Label>
+                  <Label>End Time ({selectedSchedule.sourceTimezone || 'PHT'})</Label>
                   <Input 
                     type="time" 
                     name="endTime" 
@@ -1365,8 +1390,8 @@ function AllSchedules() {
                 
                 <FormGroup>
                   <Label>Current Timezone ({selectedTimezone})</Label>
-                  <div>Start: {formatTime(selectedSchedule.originalStartTime || selectedSchedule.startTime)}</div>
-                  <div>End: {formatTime(selectedSchedule.originalEndTime || selectedSchedule.endTime)}</div>
+                  <div>Start: {formatTime(selectedSchedule.originalStartTime || selectedSchedule.startTime, selectedSchedule.sourceTimezone || 'PHT')}</div>
+                  <div>End: {formatTime(selectedSchedule.originalEndTime || selectedSchedule.endTime, selectedSchedule.sourceTimezone || 'PHT')}</div>
                 </FormGroup>
                 
                 <ButtonGroup>
@@ -1382,8 +1407,8 @@ function AllSchedules() {
               <>
                 <p>Are you sure you want to delete this schedule for {selectedSchedule.userName}?</p>
                 <p>Day: {selectedSchedule.startDay}</p>
-                <p>Time (PHT): {selectedSchedule.originalStartTime || selectedSchedule.startTime} - {selectedSchedule.originalEndTime || selectedSchedule.endTime}</p>
-                <p>Time ({selectedTimezone}): {formatTime(selectedSchedule.originalStartTime || selectedSchedule.startTime)} - {formatTime(selectedSchedule.originalEndTime || selectedSchedule.endTime)}</p>
+                <p>Source: {selectedSchedule.originalStartTime || selectedSchedule.startTime} - {selectedSchedule.originalEndTime || selectedSchedule.endTime} ({selectedSchedule.sourceTimezone || 'PHT'})</p>
+                <p>In {selectedTimezone}: {formatTime(selectedSchedule.originalStartTime || selectedSchedule.startTime, selectedSchedule.sourceTimezone || 'PHT')} - {formatTime(selectedSchedule.originalEndTime || selectedSchedule.endTime, selectedSchedule.sourceTimezone || 'PHT')}</p>
                 
                 <ButtonGroup>
                   <CancelButton onClick={handleCloseModal}>
@@ -1412,20 +1437,20 @@ function AllSchedules() {
               ` - ${formatDayName(tooltipInfo.shift.endDay)}`}
           </TooltipHeader>
           <TooltipRow>
-            <TooltipLabel>Start Time (PHT):</TooltipLabel>
+            <TooltipLabel>Start Time ({tooltipInfo.shift.sourceTimezone || 'PHT'}):</TooltipLabel>
             <TooltipValue>{tooltipInfo.shift.startTime}</TooltipValue>
           </TooltipRow>
           <TooltipRow>
-            <TooltipLabel>End Time (PHT):</TooltipLabel>
+            <TooltipLabel>End Time ({tooltipInfo.shift.sourceTimezone || 'PHT'}):</TooltipLabel>
             <TooltipValue>{tooltipInfo.shift.endTime}</TooltipValue>
           </TooltipRow>
           <TooltipRow>
             <TooltipLabel>Start Time ({selectedTimezone}):</TooltipLabel>
-            <TooltipValue>{formatTimeWithDayInfo(tooltipInfo.shift.startTime)}</TooltipValue>
+            <TooltipValue>{formatTimeWithDayInfo(tooltipInfo.shift.startTime, tooltipInfo.shift.sourceTimezone || 'PHT')}</TooltipValue>
           </TooltipRow>
           <TooltipRow>
             <TooltipLabel>End Time ({selectedTimezone}):</TooltipLabel>
-            <TooltipValue>{formatTimeWithDayInfo(tooltipInfo.shift.endTime)}</TooltipValue>
+            <TooltipValue>{formatTimeWithDayInfo(tooltipInfo.shift.endTime, tooltipInfo.shift.sourceTimezone || 'PHT')}</TooltipValue>
           </TooltipRow>
           <TooltipRow>
             <TooltipLabel>Duration:</TooltipLabel>
