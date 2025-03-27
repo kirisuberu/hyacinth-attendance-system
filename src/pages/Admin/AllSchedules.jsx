@@ -100,6 +100,7 @@ const SearchInput = styled.input`
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   font-size: 1rem;
+  
   &:focus {
     outline: none;
     border-color: #3b82f6;
@@ -1005,7 +1006,21 @@ function AllSchedules() {
 
   // Get all schedules for a specific day
   const getAllSchedulesForDay = (date) => {
-    return users.flatMap(user => getUserSchedulesForDay(user, date));
+    // Get schedules with timezone-adjusted times
+    return users.flatMap(user => {
+      const schedules = getUserSchedulesForDay(user, date);
+      
+      // Apply timezone conversion to each schedule
+      return schedules.map(schedule => ({
+        ...schedule,
+        // Store original times
+        originalStartTime: schedule.startTime,
+        originalEndTime: schedule.endTime,
+        // Add converted times
+        adjustedStartTime: formatTime(schedule.startTime),
+        adjustedEndTime: formatTime(schedule.endTime)
+      }));
+    });
   };
 
   // Handle schedule edit
@@ -1265,7 +1280,7 @@ function AllSchedules() {
                   >
                     <UserName>{schedule.userName}</UserName>
                     <ShiftTime>
-                      {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                      {schedule.adjustedStartTime} - {schedule.adjustedEndTime} ({selectedTimezone})
                     </ShiftTime>
                     
                     <ActionButtons>
@@ -1329,23 +1344,29 @@ function AllSchedules() {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>Start Time</Label>
+                  <Label>Start Time (PHT)</Label>
                   <Input 
                     type="time" 
                     name="startTime" 
-                    defaultValue={selectedSchedule.startTime} 
+                    defaultValue={selectedSchedule.originalStartTime || selectedSchedule.startTime} 
                     required 
                   />
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>End Time</Label>
+                  <Label>End Time (PHT)</Label>
                   <Input 
                     type="time" 
                     name="endTime" 
-                    defaultValue={selectedSchedule.endTime} 
+                    defaultValue={selectedSchedule.originalEndTime || selectedSchedule.endTime} 
                     required 
                   />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Current Timezone ({selectedTimezone})</Label>
+                  <div>Start: {formatTime(selectedSchedule.originalStartTime || selectedSchedule.startTime)}</div>
+                  <div>End: {formatTime(selectedSchedule.originalEndTime || selectedSchedule.endTime)}</div>
                 </FormGroup>
                 
                 <ButtonGroup>
@@ -1361,7 +1382,8 @@ function AllSchedules() {
               <>
                 <p>Are you sure you want to delete this schedule for {selectedSchedule.userName}?</p>
                 <p>Day: {selectedSchedule.startDay}</p>
-                <p>Time: {formatTime(selectedSchedule.startTime)} - {formatTime(selectedSchedule.endTime)}</p>
+                <p>Time (PHT): {selectedSchedule.originalStartTime || selectedSchedule.startTime} - {selectedSchedule.originalEndTime || selectedSchedule.endTime}</p>
+                <p>Time ({selectedTimezone}): {formatTime(selectedSchedule.originalStartTime || selectedSchedule.startTime)} - {formatTime(selectedSchedule.originalEndTime || selectedSchedule.endTime)}</p>
                 
                 <ButtonGroup>
                   <CancelButton onClick={handleCloseModal}>
