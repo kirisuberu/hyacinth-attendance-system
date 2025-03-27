@@ -434,6 +434,7 @@ const CalendarDay = styled.div`
   padding: 0.5rem;
   position: relative;
   background-color: ${props => props.isCurrentMonth ? 'white' : '#f9fafb'};
+  cursor: pointer;
   
   &:last-child {
     border-right: none;
@@ -441,6 +442,10 @@ const CalendarDay = styled.div`
   
   &:nth-last-child(-n+7) {
     border-bottom: none;
+  }
+  
+  &:hover {
+    background-color: #f3f4f6;
   }
 `;
 
@@ -655,6 +660,20 @@ const Icon = styled.span`
   margin-right: 0.5rem;
 `;
 
+const ScheduleCount = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #dbeafe;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e40af;
+  margin-top: 0.5rem;
+  width: fit-content;
+`;
+
 function AllSchedules() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -675,6 +694,7 @@ function AllSchedules() {
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('edit'); // 'edit' or 'delete'
+  const [expandedDays, setExpandedDays] = useState([]); // Track which days are expanded
 
   useEffect(() => {
     const fetchAllUsers = async () => {
@@ -861,7 +881,7 @@ function AllSchedules() {
     
     // Check if current time is within the shift time range
     if (today === effectiveStartDayIndex && today === effectiveEndDayIndex) {
-      // Same day shift
+      // Same day calculation
       if (startTime <= endTime) {
         return currentTime >= startTime && currentTime <= endTime;
       } else {
@@ -1222,6 +1242,22 @@ function AllSchedules() {
     }
   };
 
+  // Toggle day expansion
+  const toggleDayExpansion = (dayStr) => {
+    setExpandedDays(prev => {
+      if (prev.includes(dayStr)) {
+        return prev.filter(d => d !== dayStr);
+      } else {
+        return [...prev, dayStr];
+      }
+    });
+  };
+
+  // Check if a day is expanded
+  const isDayExpanded = (dayStr) => {
+    return expandedDays.includes(dayStr);
+  };
+
   if (loading) {
     return <Container>Loading...</Container>;
   }
@@ -1402,43 +1438,61 @@ function AllSchedules() {
           
           {/* Calendar days */}
           {daysInMonth.map(day => {
+            const dayStr = day.toString();
             const schedules = getAllSchedulesForDay(day);
+            const isExpanded = isDayExpanded(dayStr);
+            
             return (
-              <CalendarDay key={day.toString()} isCurrentMonth={true}>
+              <CalendarDay 
+                key={dayStr} 
+                isCurrentMonth={true}
+                onClick={() => toggleDayExpansion(dayStr)}
+              >
                 <DayNumber isToday={isSameDay(day, today)}>
                   {getDate(day)}
                 </DayNumber>
                 
-                <ScheduleList>
-                  {schedules.map((schedule, index) => (
-                    <ScheduleItem key={`${schedule.userId}-${schedule.id}-${index}`}>
-                      <UserName>{schedule.userName}</UserName>
-                      <ShiftTime>
-                        {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
-                      </ShiftTime>
-                      
-                      <ActionButtons>
-                        <ActionButton 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditSchedule(schedule);
-                          }}
-                        >
-                          <PencilSimple size={14} />
-                        </ActionButton>
-                        <ActionButton 
-                          delete 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSchedule(schedule);
-                          }}
-                        >
-                          <Trash size={14} />
-                        </ActionButton>
-                      </ActionButtons>
-                    </ScheduleItem>
-                  ))}
-                </ScheduleList>
+                {schedules.length > 0 && !isExpanded && (
+                  <ScheduleCount>
+                    {schedules.length} {schedules.length === 1 ? 'person' : 'people'} scheduled
+                  </ScheduleCount>
+                )}
+                
+                {isExpanded && (
+                  <ScheduleList>
+                    {schedules.map((schedule, index) => (
+                      <ScheduleItem 
+                        key={`${schedule.userId}-${schedule.id}-${index}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <UserName>{schedule.userName}</UserName>
+                        <ShiftTime>
+                          {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
+                        </ShiftTime>
+                        
+                        <ActionButtons>
+                          <ActionButton 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditSchedule(schedule);
+                            }}
+                          >
+                            <PencilSimple size={14} />
+                          </ActionButton>
+                          <ActionButton 
+                            delete 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSchedule(schedule);
+                            }}
+                          >
+                            <Trash size={14} />
+                          </ActionButton>
+                        </ActionButtons>
+                      </ScheduleItem>
+                    ))}
+                  </ScheduleList>
+                )}
               </CalendarDay>
             );
           })}
