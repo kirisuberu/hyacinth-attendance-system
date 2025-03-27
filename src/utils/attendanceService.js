@@ -187,10 +187,17 @@ const determineStatus = async (diffMinutes, type) => {
  * @param {Date} actualTime - Actual time as Date object
  * @param {string} type - Record type: 'IN' or 'OUT'
  * @param {string} timeRegion - Time region code
+ * @param {Date|null} shiftDate - Optional date object for the shift's start time
  * @returns {Object} - Status and time difference
  */
-export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, timeRegion = 'PHT') => {
-  console.log('Calculating attendance status:', { scheduleTime, type, actualTime: actualTime.toISOString(), timeRegion });
+export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, timeRegion = 'PHT', shiftDate = null) => {
+  console.log('Calculating attendance status:', { 
+    scheduleTime, 
+    type, 
+    actualTime: actualTime.toISOString(), 
+    timeRegion,
+    shiftDate: shiftDate ? shiftDate.toISOString() : null
+  });
   
   // Validate input parameters
   if (!actualTime || !(actualTime instanceof Date)) {
@@ -224,9 +231,44 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
   // Parse schedule time
   const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number);
   
-  // Create a date object for the schedule time on the same day as the actual time
-  const scheduleDate = new Date(localDate);
-  scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+  // Create a date object for the schedule time
+  let scheduleDate;
+  
+  if (shiftDate) {
+    // If a shift date is provided, use it as the base date but set the correct hours/minutes
+    scheduleDate = new Date(shiftDate);
+    scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+    console.log('Using provided shift date as base:', scheduleDate.toISOString());
+  } else {
+    // Otherwise create a date object for the schedule time on the same day as the actual time
+    scheduleDate = new Date(localDate);
+    scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+    
+    // Handle special cases for time-in without a provided shift date
+    if (type === 'IN') {
+      // Handle late night shifts (11 PM - 6 AM)
+      if (scheduleHours >= 22 || scheduleHours <= 6) {
+        // If actual time is in the morning and schedule is late night,
+        // the schedule might be from the previous day
+        if (localDate.getHours() <= 12 && scheduleHours >= 22) {
+          scheduleDate.setDate(scheduleDate.getDate() - 1);
+          console.log('Adjusted for late night shift (previous day):', scheduleDate.toISOString());
+        }
+      }
+    } 
+    // Handle special cases for time-out
+    else {
+      // Handle overnight shifts (ending between midnight and 8 AM)
+      if (scheduleHours < 8) {
+        // If actual time is in the evening and schedule is early morning,
+        // the schedule might be for the next day
+        if (localDate.getHours() >= 18 && scheduleHours < 8) {
+          scheduleDate.setDate(scheduleDate.getDate() + 1);
+          console.log('Adjusted for overnight shift (next day):', scheduleDate.toISOString());
+        }
+      }
+    }
+  }
   
   // Calculate the time difference in minutes
   let diffMinutes = Math.round((localDate.getTime() - scheduleDate.getTime()) / (1000 * 60));
@@ -237,45 +279,19 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     diffMinutes
   });
 
-  // Handle special cases for time-in
-  if (type === 'IN') {
-    // Handle late night shifts (11 PM - 6 AM)
-    if (scheduleHours >= 22 || scheduleHours <= 6) {
-      // If actual time is in the morning and schedule is late night,
-      // the schedule might be from the previous day
-      if (localDate.getHours() <= 12 && scheduleHours >= 22) {
-        scheduleDate.setDate(scheduleDate.getDate() - 1);
-        diffMinutes = Math.round((localDate.getTime() - scheduleDate.getTime()) / (1000 * 60));
-        console.log('Adjusted for late night shift (previous day):', diffMinutes);
-      }
-    }
+  // Handle day shift users timing in early (fix for large negative differences)
+  // Only apply this fix if we didn't have a shift date provided
+  if (!shiftDate && type === 'IN' && diffMinutes < -600) { // More than 10 hours early seems wrong
+    console.log('Detected unusually large negative time difference, recalculating');
     
-    // Handle day shift users timing in early (fix for large negative differences)
-    if (diffMinutes < -600) { // More than 10 hours early seems wrong
-      console.log('Detected unusually large negative time difference, recalculating');
-      
-      // Reset to same day comparison
-      const correctScheduleDate = new Date(localDate);
-      correctScheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-      
-      // If this makes the schedule time in the future, it's likely early arrival for today's shift
-      if (correctScheduleDate > localDate) {
-        diffMinutes = Math.round((localDate.getTime() - correctScheduleDate.getTime()) / (1000 * 60));
-        console.log('Corrected time difference for early arrival:', diffMinutes);
-      }
-    }
-  } 
-  // Handle special cases for time-out
-  else {
-    // Handle overnight shifts (ending between midnight and 8 AM)
-    if (scheduleHours < 8) {
-      // If actual time is in the evening and schedule is early morning,
-      // the schedule might be for the next day
-      if (localDate.getHours() >= 18 && scheduleHours < 8) {
-        scheduleDate.setDate(scheduleDate.getDate() + 1);
-        diffMinutes = Math.round((localDate.getTime() - scheduleDate.getTime()) / (1000 * 60));
-        console.log('Adjusted for overnight shift (next day):', diffMinutes);
-      }
+    // Reset to same day comparison
+    const correctScheduleDate = new Date(localDate);
+    correctScheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
+    
+    // If this makes the schedule time in the future, it's likely early arrival for today's shift
+    if (correctScheduleDate > localDate) {
+      diffMinutes = Math.round((localDate.getTime() - correctScheduleDate.getTime()) / (1000 * 60));
+      console.log('Corrected time difference for early arrival:', diffMinutes);
     }
   }
   
@@ -516,7 +532,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
       }
       
       // Calculate attendance status based on schedule time
-      const result = await calculateAttendanceStatus(scheduleTime, now, type, shiftTimeRegion);
+      const result = await calculateAttendanceStatus(scheduleTime, now, type, shiftTimeRegion, closestShift?.shiftDate);
       status = result.status;
       timeDiff = result.timeDiff;
     } 
