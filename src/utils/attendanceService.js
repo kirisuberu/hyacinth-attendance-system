@@ -16,13 +16,21 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { format, parseISO, differenceInMinutes, differenceInHours, addDays, subDays } from 'date-fns';
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone, zonedTimeToUtc } from 'date-fns-tz';
+import { getSystemConfig, getConfigSection } from './systemConfigService';
 
 // Time region offset in hours from UTC
 const TIME_REGION_OFFSETS = {
   'PHT': 8,   // UTC+8
   'CST': -6,  // UTC-6
   'EST': -5   // UTC-5
+};
+
+// Time region IANA timezone identifiers
+const TIME_REGION_ZONES = {
+  'PHT': 'Asia/Manila',     // UTC+8
+  'CST': 'America/Chicago', // UTC-6
+  'EST': 'America/New_York' // UTC-5
 };
 
 /**
@@ -32,16 +40,19 @@ const TIME_REGION_OFFSETS = {
  * @param {string} toRegion - Target time region code
  * @returns {string} - Converted time in "HH:MM" format
  */
-const convertTimeRegion = (time, fromRegion, toRegion) => {
+const convertTimeRegion = async (time, fromRegion, toRegion) => {
   if (!time || !fromRegion || !toRegion || fromRegion === toRegion) {
     return time;
   }
 
+  // Get time regions configuration
+  const timeRegionsConfig = await getConfigSection('timeRegions');
+  
   const [hours, minutes] = time.split(':').map(Number);
   
   // Calculate the time difference between regions
-  const fromOffset = TIME_REGION_OFFSETS[fromRegion] || 0;
-  const toOffset = TIME_REGION_OFFSETS[toRegion] || 0;
+  const fromOffset = timeRegionsConfig[fromRegion]?.offset || 0;
+  const toOffset = timeRegionsConfig[toRegion]?.offset || 0;
   const hourDifference = fromOffset - toOffset;
   
   // Apply the offset
@@ -119,23 +130,8 @@ const determineStatus = async (diffMinutes, type) => {
   }
   
   try {
-    // Get rules from admin user document
-    const rules = await getAttendanceRules();
-    
-    // Default rules
-    let defaultRules = {
-      timeIn: {
-        early: -60, // minutes before schedule to be considered "Early"
-        onTime: 5,  // minutes after schedule to still be considered "On Time"
-      },
-      timeOut: {
-        earlyOut: -15, // minutes before schedule to be considered "Early Out"
-        onTime: 60,    // minutes after schedule to still be considered "On Time"
-      }
-    };
-    
-    // Use custom rules if available, otherwise use defaults
-    const attendanceRules = rules || defaultRules;
+    // Get attendance rules from system configuration
+    const attendanceRules = await getConfigSection('attendanceRules');
     
     if (type === 'IN') {
       // For time-in:
@@ -211,8 +207,11 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     type = 'IN';
   }
   
+  // Get time regions configuration
+  const timeRegionsConfig = await getConfigSection('timeRegions');
+  
   // Validate timeRegion parameter
-  if (!TIME_REGION_OFFSETS[timeRegion]) {
+  if (!timeRegionsConfig[timeRegion]) {
     console.warn(`Invalid time region: ${timeRegion}, defaulting to PHT`);
     timeRegion = 'PHT';
   }
@@ -225,32 +224,44 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     };
   }
 
-  // Create a local date object for comparison
-  const localDate = new Date(actualTime);
+  // Get the IANA timezone for the specified time region
+  const timeZone = timeRegionsConfig[timeRegion]?.timezone || timeRegionsConfig['PHT'].timezone;
+  
+  // Convert the actual time to the specified time region
+  const zonedActualTime = actualTime;
+  console.log('Zoned actual time:', zonedActualTime.toISOString(), 'in timezone:', timeZone);
   
   // Parse schedule time
   const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number);
   
-  // Create a date object for the schedule time
+  // Create a date object for the schedule time in the correct timezone
   let scheduleDate;
   
+  // Get shift rules from system configuration
+  const shiftRules = await getConfigSection('shiftRules');
+  const minHoursBetweenShifts = shiftRules.minHoursBetweenShifts || 4;
+
   if (shiftDate) {
     // If a shift date is provided, use it as the base date but set the correct hours/minutes
-    scheduleDate = new Date(shiftDate);
+    const zonedShiftDate = shiftDate;
+    scheduleDate = new Date(zonedShiftDate);
     scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-    console.log('Using provided shift date as base:', scheduleDate.toISOString());
+    console.log('Using provided shift date as base in timezone:', scheduleDate.toISOString());
   } else {
     // Otherwise create a date object for the schedule time on the same day as the actual time
-    scheduleDate = new Date(localDate);
+    scheduleDate = new Date(zonedActualTime);
     scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
     
     // Handle special cases for time-in without a provided shift date
     if (type === 'IN') {
-      // Handle late night shifts (11 PM - 6 AM)
-      if (scheduleHours >= 22 || scheduleHours <= 6) {
+      // Handle late night shifts
+      const lateNightShiftStartHour = shiftRules.lateNightShiftStartHour || 22;
+      const earlyMorningEndHour = shiftRules.earlyMorningEndHour || 6;
+      
+      if (scheduleHours >= lateNightShiftStartHour || scheduleHours <= earlyMorningEndHour) {
         // If actual time is in the morning and schedule is late night,
         // the schedule might be from the previous day
-        if (localDate.getHours() <= 12 && scheduleHours >= 22) {
+        if (zonedActualTime.getHours() <= 12 && scheduleHours >= lateNightShiftStartHour) {
           scheduleDate.setDate(scheduleDate.getDate() - 1);
           console.log('Adjusted for late night shift (previous day):', scheduleDate.toISOString());
         }
@@ -258,11 +269,13 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     } 
     // Handle special cases for time-out
     else {
-      // Handle overnight shifts (ending between midnight and 8 AM)
-      if (scheduleHours < 8) {
+      // Handle overnight shifts (ending between midnight and early morning)
+      const earlyMorningEndHour = shiftRules.earlyMorningEndHour || 8;
+      
+      if (scheduleHours < earlyMorningEndHour) {
         // If actual time is in the evening and schedule is early morning,
         // the schedule might be for the next day
-        if (localDate.getHours() >= 18 && scheduleHours < 8) {
+        if (zonedActualTime.getHours() >= 18 && scheduleHours < earlyMorningEndHour) {
           scheduleDate.setDate(scheduleDate.getDate() + 1);
           console.log('Adjusted for overnight shift (next day):', scheduleDate.toISOString());
         }
@@ -270,27 +283,30 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     }
   }
   
-  // Calculate the time difference in minutes
-  let diffMinutes = Math.round((localDate.getTime() - scheduleDate.getTime()) / (1000 * 60));
+  // Calculate the time difference in minutes using the timezone-adjusted dates
+  let diffMinutes = Math.round((zonedActualTime.getTime() - scheduleDate.getTime()) / (1000 * 60));
   
-  console.log('Time comparison:', {
-    localDate: localDate.toISOString(),
+  console.log('Time comparison in timezone:', {
+    zonedActualTime: zonedActualTime.toISOString(),
     scheduleDate: scheduleDate.toISOString(),
-    diffMinutes
+    diffMinutes,
+    timeZone
   });
 
   // Handle day shift users timing in early (fix for large negative differences)
   // Only apply this fix if we didn't have a shift date provided
-  if (!shiftDate && type === 'IN' && diffMinutes < -600) { // More than 10 hours early seems wrong
+  const largeTimeDiffThreshold = shiftRules.largeTimeDiffThreshold || 600; // Default 10 hours (600 minutes)
+  
+  if (!shiftDate && type === 'IN' && diffMinutes < -largeTimeDiffThreshold) {
     console.log('Detected unusually large negative time difference, recalculating');
     
-    // Reset to same day comparison
-    const correctScheduleDate = new Date(localDate);
+    // Reset to same day comparison in the correct timezone
+    const correctScheduleDate = new Date(zonedActualTime);
     correctScheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
     
     // If this makes the schedule time in the future, it's likely early arrival for today's shift
-    if (correctScheduleDate > localDate) {
-      diffMinutes = Math.round((localDate.getTime() - correctScheduleDate.getTime()) / (1000 * 60));
+    if (correctScheduleDate > zonedActualTime) {
+      diffMinutes = Math.round((zonedActualTime.getTime() - correctScheduleDate.getTime()) / (1000 * 60));
       console.log('Corrected time difference for early arrival:', diffMinutes);
     }
   }
@@ -363,6 +379,10 @@ export const recordAttendance = async (userId, type, notes = '') => {
     let shiftDuration = null;
     let expectedShiftDuration = null;
     
+    // Get shift rules from system configuration
+    const shiftRules = await getConfigSection('shiftRules');
+    const minHoursBetweenShifts = shiftRules.minHoursBetweenShifts || 4;
+
     // For time-in, check the user's shift for yesterday, today, and tomorrow
     if (type === 'IN') {
       const userSchedule = userData.schedule || {};

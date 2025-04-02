@@ -6,7 +6,7 @@ import { UserType } from '../utils/userService';
 import { recordAttendance, getUserAttendanceStatus, calculateAttendanceStatus } from '../utils/attendanceService';
 import { useAuth } from '../contexts/AuthContext';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
-import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut, Gear } from 'phosphor-react';
+import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut, Gear, Sliders } from 'phosphor-react';
 import { doc, getDoc } from 'firebase/firestore';
 import PropTypes from 'prop-types';
 
@@ -62,6 +62,25 @@ const NavLink = styled(Link)`
 
   &.active {
     background: #3b82f6;
+  }
+`;
+
+const NavButton = styled.button`
+  display: block;
+  color: white;
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem -1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  text-align: left;
+  width: 100%;
+  font-size: 1rem;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
 `;
 
@@ -378,11 +397,18 @@ function AdminLayout({ isMemberView = false }) {
         <Logo>{layoutTitle}</Logo>
         <nav>
           {/* Admin-only links - hidden for member view */}
-          {!isMemberView && isAdmin && (
+          {!isMemberView && (
             <>
-              <NavLink to="/admin/users"><Icon><Users size={16} /></Icon>User Management</NavLink>
-              <NavLink to="/admin/rules" className={({ isActive }) => isActive ? 'active' : ''}>
-                <Icon><Gear size={16} /></Icon>Rules
+              {isAdmin && (
+                <>
+                  <NavLink to="/admin/users"><Icon><Users size={16} /></Icon>User Management</NavLink>
+                  <NavLink to="/admin/rules" className={({ isActive }) => isActive ? 'active' : ''}>
+                    <Icon><Gear size={16} /></Icon>Rules
+                  </NavLink>
+                </>
+              )}
+              <NavLink to="/admin/system-config" className={({ isActive }) => isActive ? 'active' : ''} style={{ color: '#10B981' }}>
+                <Icon><Sliders size={16} /></Icon>System Configuration
               </NavLink>
             </>
           )}

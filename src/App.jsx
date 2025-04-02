@@ -19,6 +19,7 @@ import AttendanceLogs from './pages/Admin/AttendanceLogs';
 import AllSchedules from './pages/Admin/AllSchedules';
 import UserCalendar from './pages/Admin/UserCalendar';
 import Rules from './pages/Admin/Rules';
+import SystemConfig from './pages/Admin/SystemConfig';
 import AbsenteeService from './components/AbsenteeService';
 import PropTypes from 'prop-types';
 import './App.css'
@@ -152,6 +153,14 @@ function App() {
               } 
             />
             <Route path="my-dashboard" element={<MemberDashboard />} />
+            <Route 
+              path="system-config" 
+              element={
+                <PrivateRoute requiredRole={UserType.ADMIN}>
+                  <SystemConfig />
+                </PrivateRoute>
+              } 
+            />
           </Route>
 
           {/* Member Routes - Now using AdminLayout instead of MemberLayout */}
