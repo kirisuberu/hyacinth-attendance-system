@@ -7,6 +7,7 @@ const PageContainer = styled.div`
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  color: #333;
 `;
 
 const PageHeader = styled.div`
@@ -57,7 +58,7 @@ const Tab = styled.button`
   border-bottom: ${props => props.active ? '2px solid #4a6cf7' : '2px solid transparent'};
   cursor: pointer;
   font-weight: ${props => props.active ? 'bold' : 'normal'};
-  color: ${props => props.active ? '#4a6cf7' : '#666'};
+  color: ${props => props.active ? '#4a6cf7' : '#333'};
   display: flex;
   align-items: center;
   gap: 8px;
@@ -89,6 +90,7 @@ const Label = styled.label`
   display: block;
   margin-bottom: 5px;
   font-weight: 500;
+  color: #333;
 `;
 
 const Input = styled.input`
@@ -97,6 +99,7 @@ const Input = styled.input`
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  color: #333;
 `;
 
 const Select = styled.select`
@@ -105,6 +108,8 @@ const Select = styled.select`
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  color: #333;
+  background-color: white;
 `;
 
 const Checkbox = styled.input`
@@ -122,6 +127,7 @@ const Card = styled.div`
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  color: #333;
 `;
 
 const NotificationBar = styled.div`
@@ -136,6 +142,7 @@ const NotificationBar = styled.div`
 const Icon = styled.span`
   display: inline-flex;
   align-items: center;
+  color: inherit;
 `;
 
 // Default configuration

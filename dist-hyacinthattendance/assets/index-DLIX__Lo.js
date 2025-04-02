@@ -6357,6 +6357,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  color: #333;
 `,QPe=te.div`
   display: flex;
   justify-content: space-between;
@@ -6397,7 +6398,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
   border-bottom: ${t=>t.active?"2px solid #4a6cf7":"2px solid transparent"};
   cursor: pointer;
   font-weight: ${t=>t.active?"bold":"normal"};
-  color: ${t=>t.active?"#4a6cf7":"#666"};
+  color: ${t=>t.active?"#4a6cf7":"#333"};
   display: flex;
   align-items: center;
   gap: 8px;
@@ -6421,18 +6422,22 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
   display: block;
   margin-bottom: 5px;
   font-weight: 500;
+  color: #333;
 `,iu=te.input`
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  color: #333;
 `,Yk=te.select`
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  color: #333;
+  background-color: white;
 `,au=te.input`
   margin-right: 8px;
 `,Kk=te.div`
@@ -6444,6 +6449,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  color: #333;
 `,t3e=te.div`
   padding: 12px;
   margin-bottom: 20px;
@@ -6454,6 +6460,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
 `,So=te.span`
   display: inline-flex;
   align-items: center;
+  color: inherit;
 `,r3e={attendance:{earlyThreshold:60,lateThreshold:5,earlyOutThreshold:5,overtimeThreshold:30,timeFormat:"24h",allowManualEntry:!1,requireNotes:{late:!0,earlyOut:!0,overtime:!1}},shifts:{defaultShiftDuration:8,minBreakBetweenShifts:8,maxConsecutiveWorkDays:6,allowShiftSwap:!0,requireApprovalForSwap:!0},system:{notifyAdminOnLate:!0,autoGenerateReports:!0,reportFrequency:"weekly",dataRetentionPeriod:365,backupFrequency:"daily"}},n3e=()=>{const[t,e]=z.useState("attendance"),[r,n]=z.useState(r3e),[i,a]=z.useState({show:!1,message:"",type:""}),o=(d,m="success")=>{a({show:!0,message:d,type:m}),setTimeout(()=>{a({show:!1,message:"",type:""})},3e3)},l=async()=>{try{o("System configuration saved successfully","success")}catch(d){console.error("Error saving system configuration:",d),o("Failed to save system configuration","error")}},c=(d,m,y)=>{n({...r,[d]:{...r[d],[m]:y}})},f=(d,m,y,v)=>{n({...r,[d]:{...r[d],[m]:{...r[d][m],[y]:v}}})};return g.jsxs(XPe,{children:[g.jsxs(QPe,{children:[g.jsxs(ZPe,{children:[g.jsx(So,{children:g.jsx(PD,{size:24})}),"System Configuration"]}),g.jsxs(JPe,{onClick:l,children:[g.jsx(So,{children:g.jsx(Jb,{size:18})}),"Save Changes"]})]}),i.show&&g.jsx(t3e,{type:i.type,children:i.message}),g.jsxs(e3e,{children:[g.jsxs(Gk,{active:t==="attendance",onClick:()=>e("attendance"),children:[g.jsx(So,{children:g.jsx(zc,{size:16})}),"Attendance Rules"]}),g.jsxs(Gk,{active:t==="shifts",onClick:()=>e("shifts"),children:[g.jsx(So,{children:g.jsx(Xa,{size:16})}),"Shift Rules"]}),g.jsxs(Gk,{active:t==="system",onClick:()=>e("system"),children:[g.jsx(So,{children:g.jsx(MO,{size:16})}),"System Behavior"]})]}),t==="attendance"&&g.jsxs(Kk,{children:[g.jsxs(Vh,{children:[g.jsxs($h,{children:[g.jsx(So,{children:g.jsx(zc,{size:20})}),"Time Thresholds"]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"earlyThreshold",children:"Early Time-in Threshold (minutes)"}),g.jsx(iu,{type:"number",id:"earlyThreshold",value:r.attendance.earlyThreshold,onChange:d=>c("attendance","earlyThreshold",parseInt(d.target.value))})]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"lateThreshold",children:"Late Time-in Threshold (minutes)"}),g.jsx(iu,{type:"number",id:"lateThreshold",value:r.attendance.lateThreshold,onChange:d=>c("attendance","lateThreshold",parseInt(d.target.value))})]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"earlyOutThreshold",children:"Early Time-out Threshold (minutes)"}),g.jsx(iu,{type:"number",id:"earlyOutThreshold",value:r.attendance.earlyOutThreshold,onChange:d=>c("attendance","earlyOutThreshold",parseInt(d.target.value))})]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"overtimeThreshold",children:"Overtime Threshold (minutes)"}),g.jsx(iu,{type:"number",id:"overtimeThreshold",value:r.attendance.overtimeThreshold,onChange:d=>c("attendance","overtimeThreshold",parseInt(d.target.value))})]})]}),g.jsxs(Vh,{children:[g.jsxs($h,{children:[g.jsx(So,{children:g.jsx(zc,{size:20})}),"Attendance Options"]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"timeFormat",children:"Time Format"}),g.jsxs(Yk,{id:"timeFormat",value:r.attendance.timeFormat,onChange:d=>c("attendance","timeFormat",d.target.value),children:[g.jsx("option",{value:"12h",children:"12-hour (AM/PM)"}),g.jsx("option",{value:"24h",children:"24-hour"})]})]}),g.jsx(ui,{children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.attendance.allowManualEntry,onChange:d=>c("attendance","allowManualEntry",d.target.checked)}),"Allow Manual Time Entry"]})}),g.jsxs(ui,{children:[g.jsx(Sn,{children:"Required Notes"}),g.jsx("div",{style:{marginLeft:"10px"},children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.attendance.requireNotes.late,onChange:d=>f("attendance","requireNotes","late",d.target.checked)}),"Require Notes for Late Time-in"]})}),g.jsx("div",{style:{marginLeft:"10px"},children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.attendance.requireNotes.earlyOut,onChange:d=>f("attendance","requireNotes","earlyOut",d.target.checked)}),"Require Notes for Early Time-out"]})}),g.jsx("div",{style:{marginLeft:"10px"},children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.attendance.requireNotes.overtime,onChange:d=>f("attendance","requireNotes","overtime",d.target.checked)}),"Require Notes for Overtime"]})})]})]})]}),t==="shifts"&&g.jsxs(Kk,{children:[g.jsxs(Vh,{children:[g.jsxs($h,{children:[g.jsx(So,{children:g.jsx(Xa,{size:20})}),"Shift Settings"]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"defaultShiftDuration",children:"Default Shift Duration (hours)"}),g.jsx(iu,{type:"number",id:"defaultShiftDuration",value:r.shifts.defaultShiftDuration,onChange:d=>c("shifts","defaultShiftDuration",parseInt(d.target.value))})]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"minBreakBetweenShifts",children:"Minimum Break Between Shifts (hours)"}),g.jsx(iu,{type:"number",id:"minBreakBetweenShifts",value:r.shifts.minBreakBetweenShifts,onChange:d=>c("shifts","minBreakBetweenShifts",parseInt(d.target.value))})]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"maxConsecutiveWorkDays",children:"Maximum Consecutive Work Days"}),g.jsx(iu,{type:"number",id:"maxConsecutiveWorkDays",value:r.shifts.maxConsecutiveWorkDays,onChange:d=>c("shifts","maxConsecutiveWorkDays",parseInt(d.target.value))})]})]}),g.jsxs(Vh,{children:[g.jsxs($h,{children:[g.jsx(So,{children:g.jsx(RD,{size:20})}),"Shift Swap Options"]}),g.jsx(ui,{children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.shifts.allowShiftSwap,onChange:d=>c("shifts","allowShiftSwap",d.target.checked)}),"Allow Shift Swapping"]})}),g.jsx(ui,{children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.shifts.requireApprovalForSwap,onChange:d=>c("shifts","requireApprovalForSwap",d.target.checked)}),"Require Admin Approval for Shift Swaps"]})})]})]}),t==="system"&&g.jsxs(Kk,{children:[g.jsxs(Vh,{children:[g.jsxs($h,{children:[g.jsx(So,{children:g.jsx(MO,{size:20})}),"Notifications"]}),g.jsx(ui,{children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.system.notifyAdminOnLate,onChange:d=>c("system","notifyAdminOnLate",d.target.checked)}),"Notify Admin on Late Time-ins"]})})]}),g.jsxs(Vh,{children:[g.jsxs($h,{children:[g.jsx(So,{children:g.jsx(ID,{size:20})}),"Reports & Data"]}),g.jsx(ui,{children:g.jsxs(Sn,{children:[g.jsx(au,{type:"checkbox",checked:r.system.autoGenerateReports,onChange:d=>c("system","autoGenerateReports",d.target.checked)}),"Auto-generate Reports"]})}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"reportFrequency",children:"Report Frequency"}),g.jsxs(Yk,{id:"reportFrequency",value:r.system.reportFrequency,onChange:d=>c("system","reportFrequency",d.target.value),disabled:!r.system.autoGenerateReports,children:[g.jsx("option",{value:"daily",children:"Daily"}),g.jsx("option",{value:"weekly",children:"Weekly"}),g.jsx("option",{value:"biweekly",children:"Bi-weekly"}),g.jsx("option",{value:"monthly",children:"Monthly"})]})]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"dataRetentionPeriod",children:"Data Retention Period (days)"}),g.jsx(iu,{type:"number",id:"dataRetentionPeriod",value:r.system.dataRetentionPeriod,onChange:d=>c("system","dataRetentionPeriod",parseInt(d.target.value))})]}),g.jsxs(ui,{children:[g.jsx(Sn,{htmlFor:"backupFrequency",children:"Backup Frequency"}),g.jsxs(Yk,{id:"backupFrequency",value:r.system.backupFrequency,onChange:d=>c("system","backupFrequency",d.target.value),children:[g.jsx("option",{value:"daily",children:"Daily"}),g.jsx("option",{value:"weekly",children:"Weekly"}),g.jsx("option",{value:"monthly",children:"Monthly"})]})]})]})]})]})},i3e="/assets/no-B8WXq9zP.gif",a3e=kD`
   from {
     opacity: 0;
