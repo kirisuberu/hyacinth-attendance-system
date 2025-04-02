@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { FloppyDisk, Sliders, Clock, Calendar, Bell, ArrowClockwise } from 'phosphor-react';
+import { FloppyDisk, Sliders, Clock, Calendar, Bell, ArrowClockwise, ChartBar } from 'phosphor-react';
 
 // Styled components
 const PageContainer = styled.div`
@@ -453,7 +453,7 @@ const SystemConfig = () => {
           
           <Card>
             <SectionTitle>
-              <Icon><LayoutGrid size={20} /></Icon>
+              <Icon><ChartBar size={20} /></Icon>
               Reports & Data
             </SectionTitle>
             <FormGroup>
