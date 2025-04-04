@@ -203,6 +203,7 @@ const FilterLabel = styled.label`
 
 const FilterSelect = styled.select`
   padding: 0.5rem;
+  color: #4b5563;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;
   background-color: white;
