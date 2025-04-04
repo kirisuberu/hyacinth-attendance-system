@@ -6381,7 +6381,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 600; 
   
   &:hover {
     background-color: #059669;

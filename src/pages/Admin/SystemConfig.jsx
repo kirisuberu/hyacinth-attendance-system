@@ -37,7 +37,7 @@ const SaveButton = styled.button`
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 600; 
   
   &:hover {
     background-color: #059669;
