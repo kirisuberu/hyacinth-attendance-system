@@ -1077,29 +1077,37 @@ const createAttendanceRecord = (
  * @param {string} name - User name
  * @returns {string} - Custom document ID
  */
-export const generateDocumentId = (now, type, name) => {
-  try {
-    // Format the date part of the ID
-    const dateStr = format(now, 'yyyyMMdd_HHmmss');
-    
-    // Clean up the name to make it URL-friendly
-    // Remove special characters and spaces, convert to lowercase
-    const cleanName = name ? name.replace(/[^\w\s]/gi, '').replace(/\s+/g, '_').toLowerCase() : 'unknown';
-    
-    // Generate a random string to ensure uniqueness
-    const randomStr = Math.random().toString(36).substring(2, 8);
-    
-    // Combine all parts to create a unique ID
-    // Format: type_name_date_random
-    // Example: in_john_doe_20230101_120000_a1b2c3
-    const documentId = `${type ? type.toLowerCase() : 'unknown'}_${cleanName}_${dateStr}_${randomStr}`;
-    
-    return documentId;
-  } catch (error) {
-    console.error('Error generating document ID:', error);
-    // Fallback to a simple ID if there's an error
-    return `${type || 'unknown'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+const generateDocumentId = (now, type, name) => {
+  // Ensure we have valid parameters
+  if (!now || !(now instanceof Date)) {
+    console.error('Invalid date provided to generateDocumentId');
+    now = new Date(); // Fallback to current time
   }
+  
+  // Ensure type is a valid string
+  type = (type || 'UNKNOWN').toString();
+  
+  // Ensure name is a valid string
+  name = (name || 'Unknown_User').toString();
+  
+  const formatNumber = (num) => num.toString().padStart(2, '0');
+  const year = now.getFullYear();
+  const month = formatNumber(now.getMonth() + 1);
+  const day = formatNumber(now.getDate());
+  const hours = formatNumber(now.getHours());
+  const minutes = formatNumber(now.getMinutes());
+  
+  // Format the time portion (tttt)
+  const timeFormat = `${hours}${minutes}`;
+  
+  // Format the date portion (yyyymmdd)
+  const dateFormat = `${year}${month}${day}`;
+  
+  // Create the custom document ID with sanitized name
+  // Replace spaces, special characters, and ensure it's not too long
+  const sanitizedName = name.replace(/[^\w]/g, '_').substring(0, 30);
+  
+  return `${dateFormat}_${timeFormat}_${type}_${sanitizedName}`;
 };
 
 export const updateAttendance = async (recordId, updateData) => {
@@ -1518,82 +1526,18 @@ export const getUserAttendanceStatus = async (userId) => {
     // Get the most recent record type
     const lastRecordType = lastRecord?.type;
     
-    // Get shift rules from system configuration
-    const shiftRules = await getConfigSection('shiftRules');
-    const minHoursBetweenShifts = shiftRules.minHoursBetweenShifts || 4;
+    // If the last record is a time in, user can time out but not time in again
+    // If the last record is a time out, user can time in but not time out again
+    const canTimeIn = !lastRecordType || lastRecordType === 'OUT';
+    const canTimeOut = lastRecordType === 'IN';
     
-    // If the last record is a time out, check if enough time has passed for the next shift
-    if (lastRecordType === 'OUT') {
-      const lastRecordTime = safeTimestampToDate(lastRecord.timestamp);
-      const now = new Date();
-      
-      // If the record has a valid timestamp
-      if (lastRecordTime) {
-        // Get the user's schedule
-        const userData = await getUserData(userId);
-        if (userData && userData.schedule) {
-          // Check if the user has a scheduled shift that ended
-          const currentShift = lastRecord.shiftId ? userData.schedule[lastRecord.shiftId] : null;
-          
-          if (currentShift && currentShift.endTime) {
-            // Calculate the scheduled end time of the shift
-            const [endHours, endMinutes] = currentShift.endTime.split(':').map(Number);
-            const shiftEndTime = new Date(lastRecordTime);
-            shiftEndTime.setHours(endHours, endMinutes, 0, 0);
-            
-            // If the user timed out before the scheduled end time, use the scheduled end time
-            // Otherwise, use the actual time out time
-            const referenceTime = lastRecordTime < shiftEndTime ? shiftEndTime : lastRecordTime;
-            
-            // Calculate hours since the shift ended
-            const hoursSinceShiftEnded = (now - referenceTime) / (1000 * 60 * 60);
-            
-            // If less than minHoursBetweenShifts hours have passed, don't allow time in yet
-            if (hoursSinceShiftEnded < minHoursBetweenShifts) {
-              console.log(`Only ${hoursSinceShiftEnded.toFixed(2)} hours since last shift ended, need ${minHoursBetweenShifts} hours`);
-              return {
-                success: true,
-                canTimeIn: false,
-                canTimeOut: false,
-                lastRecordType,
-                lastRecord,
-                nextTimeInAllowed: new Date(referenceTime.getTime() + minHoursBetweenShifts * 60 * 60 * 1000)
-              };
-            }
-          }
-        }
-        
-        // If we reach here, enough time has passed or we couldn't determine the shift end time
-        // Allow the user to time in for the next shift
-        return {
-          success: true,
-          canTimeIn: true,
-          canTimeOut: false,
-          lastRecordType,
-          lastRecord
-        };
-      }
-      
-      // If the last record is a time in, user can time out but not time in again
-      else if (lastRecordType === 'IN') {
-        return {
-          success: true,
-          canTimeIn: false,
-          canTimeOut: true,
-          lastRecordType,
-          lastRecord
-        };
-      }
-      
-      // Default case (should not reach here normally)
-      return {
-        success: true,
-        canTimeIn: !lastRecordType || lastRecordType === 'OUT',
-        canTimeOut: lastRecordType === 'IN',
-        lastRecordType,
-        lastRecord
-      };
-    }
+    return {
+      success: true,
+      canTimeIn,
+      canTimeOut,
+      lastRecordType,
+      lastRecord
+    };
   } catch (error) {
     console.error('Error getting user attendance status:', error);
     return {
