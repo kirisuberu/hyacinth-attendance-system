@@ -493,7 +493,7 @@ function AdminLayout({ isMemberView = false }) {
               <AttendanceButton
                 className="time-in"
                 onClick={() => handleAttendance('IN')}
-                //disabled={isRecording || !canTimeIn || !hasScheduleForToday}
+                disabled={isRecording || !canTimeIn || !hasScheduleForToday}
                 title={!hasScheduleForToday ? noScheduleMessage : (canTimeIn ? 'Time In' : 'Already timed in')}
               >
                 <Icon><Clock size={18} /></Icon>
@@ -502,7 +502,7 @@ function AdminLayout({ isMemberView = false }) {
               <AttendanceButton
                 className="time-out"
                 onClick={() => handleAttendance('OUT')}
-                //disabled={isRecording || !canTimeOut || !hasScheduleForToday}
+                disabled={isRecording || !canTimeOut || !hasScheduleForToday}
                 title={!hasScheduleForToday ? noScheduleMessage : (canTimeOut ? 'Time Out' : 'Need to time in first')}
               >
                 <Icon><Clock size={18} /></Icon>
