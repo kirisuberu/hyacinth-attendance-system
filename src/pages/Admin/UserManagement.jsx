@@ -3,13 +3,7 @@ import styled from 'styled-components';
 import { 
   getAllUsers, 
   createOrUpdateUser, 
-  deleteUser, 
   UserType, 
-  addApprovedEmail, 
-  removeApprovedEmail, 
-  getApprovedEmails, 
-  validateShiftTimes, 
-  updateUserSchedule, 
   updateUserWithDocumentRename, 
   getScheduleTemplates, 
   createScheduleTemplate, 
@@ -18,7 +12,6 @@ import {
   refreshUserAccessAfterRename
 } from '../../utils/userService';
 import { safeTimestampToDate } from '../../utils/dateUtils';
-import { auth } from '../../firebase';
 import { 
   PencilSimpleLine, 
   Calendar, 
@@ -325,15 +318,7 @@ function UserManagement() {
 
       // Check if email is being changed
       const isEmailChanged = user.email !== userData.email;
-      
-      // If email is being changed, check if it's already approved
-      if (isEmailChanged) {
-        const isApproved = approvedEmails.some(entry => entry.email === userData.email);
-        if (!isApproved) {
-          // Add the new email to approved emails first
-          await addApprovedEmail(userData.email);
-        }
-      }
+      // (Email approval logic removed)
 
       // Use the new function that handles document renaming when name changes
       const updatedUserId = await updateUserWithDocumentRename(userId, {

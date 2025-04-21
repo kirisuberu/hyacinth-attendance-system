@@ -296,48 +296,32 @@ function AttendanceLogs() {
         // Use our safe timestamp conversion utility
         const timestamp = safeTimestampToDate(data.timestamp) || new Date();
         
-        // Calculate time difference if schedule time is available
-        let timeDifference = null;
+        // Use backend-calculated time difference and status if available
+        let timeDifference = typeof data.timeDifference === 'number' ? data.timeDifference : null;
+        let status = data.status || 'Unknown';
         let scheduledShiftDuration = null;
         let expectedShiftDuration = null;
-        
-        if (data.type === 'OUT' && data.shiftDuration) {
-          // For time-out records, use shiftDuration data if available
-          timeDifference = data.shiftDuration.totalMinutes;
-        } else if (data.type === 'IN') {
-          // For time-in records, store the expected shift duration if available
-          if (data.expectedShiftDuration) {
-            expectedShiftDuration = data.expectedShiftDuration;
-          } else if (data.shiftDuration && data.shiftDuration.scheduled) {
-            // Fallback to shiftDuration if it exists and is scheduled
-            expectedShiftDuration = data.shiftDuration;
-          }
-          
-          // Still calculate the regular time difference for status display
-          if (data.scheduleTime && timestamp) {
-            try {
-              const [scheduleHours, scheduleMinutes] = data.scheduleTime.split(':').map(Number);
-              const scheduleDate = new Date(timestamp);
-              scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-              
-              // Calculate difference in minutes
-              timeDifference = differenceInMinutes(timestamp, scheduleDate);
-            } catch (error) {
-              console.error('Error calculating time difference:', error);
-              timeDifference = null;
-            }
-          }
-        } else if (data.scheduleTime && timestamp) {
+
+        // Only fallback to frontend calculation if backend value is missing
+        if (timeDifference === null && data.scheduleTime && timestamp) {
           try {
             const [scheduleHours, scheduleMinutes] = data.scheduleTime.split(':').map(Number);
             const scheduleDate = new Date(timestamp);
             scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-            
             // Calculate difference in minutes
             timeDifference = differenceInMinutes(timestamp, scheduleDate);
           } catch (error) {
             console.error('Error calculating time difference:', error);
             timeDifference = null;
+          }
+        }
+
+        // Get expected shift duration for display
+        if (data.type === 'IN') {
+          if (data.expectedShiftDuration) {
+            expectedShiftDuration = data.expectedShiftDuration;
+          } else if (data.shiftDuration && data.shiftDuration.scheduled) {
+            expectedShiftDuration = data.shiftDuration;
           }
         }
         
@@ -536,6 +520,7 @@ function AttendanceLogs() {
             <Tr>
               <Th>Date</Th>
               <Th>Time</Th>
+              <Th>User ID</Th>
               <Th>Name</Th>
               <Th>Email</Th>
               <Th>Type</Th>
@@ -552,6 +537,7 @@ function AttendanceLogs() {
                 <Tr key={log.id}>
                   <Td>{format(log.timestamp, 'MMM dd, yyyy')}</Td>
                   <Td>{format(log.timestamp, 'hh:mm a')}</Td>
+                  <Td style={{fontFamily: 'monospace', fontSize: '0.95em'}}>{log.userId || 'N/A'}</Td>
                   <Td>{log.name}</Td>
                   <Td>{log.email}</Td>
                   <Td>{log.type === 'IN' ? 'Time In' : 'Time Out'}</Td>

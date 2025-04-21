@@ -1,6 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { 
-  updateUserSchedule, 
   getScheduleTemplates,
   createScheduleTemplate,
   updateScheduleTemplate,
