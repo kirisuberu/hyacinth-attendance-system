@@ -414,114 +414,35 @@ function AdminLayout({ isMemberView = false }) {
       <Sidebar>
         <Logo>{layoutTitle}</Logo>
         <nav>
-          {/* Admin-only links - hidden for member view */}
-          {!isMemberView && (
-            <>
-              {isAdmin && (
-                <>
-                  <NavLink to="/admin/users"><Icon><Users size={16} /></Icon>User Management</NavLink>
-                  <NavLink to="/admin/rules" className={({ isActive }) => isActive ? 'active' : ''}>
-                    <Icon><Gear size={16} /></Icon>Rules
-                  </NavLink>
-                </>
-              )}
-              <NavLink to="/admin/system-config" className={({ isActive }) => isActive ? 'active' : ''} style={{ color: '#10B981' }}>
-                <Icon><Sliders size={16} /></Icon>System Configuration
-              </NavLink>
-              <NavLink to="/admin/dashboard"><House size={20}/> Dashboard</NavLink>
-              <NavLink to="/admin/attendance"><Clock size={20}/> Attendance</NavLink>
-              <NavLink to="/admin/users"><Users size={20}/> Users</NavLink>
-              <NavLink to="/admin/reports"><ChartBar size={20}/> Reports</NavLink>
-              <NavLink to="/admin/logs"><ListChecks size={20}/> Logs</NavLink>
-              <NavLink to="/admin/config"><Gear size={20}/> Config</NavLink>
-              <SignOutButton
-                onClick={async () => {
-                  setSigningOut(true);
-                  setSignOutError('');
-                  try {
-                    await dispatch(logoutUser()).unwrap();
-                  } catch (err) {
-                    setSignOutError('Failed to sign out. Please try again.');
-                  } finally {
-                    setSigningOut(false);
-                  }
-                }}
-                disabled={signingOut}
-              >
-                <SignOut size={20} /> {signingOut ? 'Signing out...' : 'Sign Out'}
-              </SignOutButton>
-              {signOutError && <div style={{color:'#ef4444',marginTop:'0.5rem'}}>{signOutError}</div>}
-            </>
-          )}
-          
-          {/* Admin Dashboard - hidden for member view */}
-          {!isMemberView && (
-            <NavLink to="/admin/dashboard" className={({ isActive }) => isActive ? 'active' : ''}>
-              <Icon><House size={16} /></Icon>
-              Admin Dashboard
-            </NavLink>
-          )}
-          
-          {/* My Dashboard - available for all */}
-          <NavLink 
-            to={isMemberView ? "/member/dashboard" : "/admin/my-dashboard"} 
-            className={({ isActive }) => isActive ? 'active' : ''}
-          >
-            <Icon><House size={16} /></Icon>
-            My Dashboard
-          </NavLink>
-          
-          {/* Schedule links - available for all */}
-          <NavLink 
-            to={isMemberView ? "/member/all-schedules" : "/admin/all-schedules"} 
-            className={({ isActive }) => isActive ? 'active' : ''}
-          >
-            <Icon><ListChecks size={16} /></Icon>
-            All Schedules
-          </NavLink>
-          
-          
-          
-          {/* My Schedule - available for all */}
-          <NavLink 
-            to={isMemberView ? "/member/my-schedule" : "/admin/my-schedule"} 
-            className={({ isActive }) => isActive ? 'active' : ''}
-          >
-            <Icon><Calendar size={16} /></Icon>
-            My Schedule
-          </NavLink>
-          
-          {/* Reports - available for all */}
-          <NavLink 
-            to={isMemberView ? "/member/reports" : "/admin/reports"} 
-            className={({ isActive }) => isActive ? 'active' : ''}
-          >
-            <Icon><ChartBar size={16} /></Icon>
-            Reports
-          </NavLink>
-          
-          {/* Real-Time Attendance - available for all */}
-          <NavLink 
-            to={isMemberView ? "/member/realtime-attendance" : "/admin/realtime-attendance"} 
-            className={({ isActive }) => isActive ? 'active' : ''}
-          >
-            <Icon><Clock size={16} /></Icon>
-            Real-Time Attendance
-          </NavLink>
-          
-          {/* Attendance Logs - admin only */}
-          {!isMemberView && (
-            <NavLink to="/admin/attendance-logs" className={({ isActive }) => isActive ? 'active' : ''}>
-              <Icon><ClockClockwise size={16} /></Icon>
-              Attendance Logs
-            </NavLink>
-          )}
-          
-          <LogoutButton onClick={handleLogout}>
-            <Icon><SignOut size={16} /></Icon>
-            Sign Out
-          </LogoutButton>
-        </nav>
+  {/* Admin Navigation - Only show valid, non-duplicated links for admin/accountant */}
+  {!isMemberView && (
+    <>
+      <NavLink to="/admin/dashboard"><Icon><House size={20} /></Icon>Dashboard</NavLink>
+      <NavLink to="/admin/attendance"><Icon><Clock size={20} /></Icon>Attendance</NavLink>
+      <NavLink to="/admin/users"><Icon><Users size={20} /></Icon>User Management</NavLink>
+      <NavLink to="/admin/reports"><Icon><ChartBar size={20} /></Icon>Reports</NavLink>
+      <NavLink to="/admin/logs"><Icon><ListChecks size={20} /></Icon>Logs</NavLink>
+      <NavLink to="/admin/system-config"><Icon><Sliders size={20} /></Icon>System Configuration</NavLink>
+      <SignOutButton
+        onClick={async () => {
+          setSigningOut(true);
+          setSignOutError('');
+          try {
+            await dispatch(logoutUser()).unwrap();
+          } catch (err) {
+            setSignOutError('Failed to sign out. Please try again.');
+          } finally {
+            setSigningOut(false);
+          }
+        }}
+        disabled={signingOut}
+      >
+        <SignOut size={20} /> {signingOut ? 'Signing out...' : 'Sign Out'}
+      </SignOutButton>
+      {signOutError && <div style={{color:'#ef4444',marginTop:'0.5rem'}}>{signOutError}</div>}
+    </>
+  )}
+</nav>
         {currentUser && (
           <>
             <AttendanceButtons>
