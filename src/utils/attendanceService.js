@@ -146,10 +146,8 @@ const determineStatus = async (diffMinutes, type) => {
       // For time-out:
       if (diffMinutes < attendanceRules.timeOut.earlyOut) {
         return 'Early Out';
-      } else if (diffMinutes >= attendanceRules.timeOut.earlyOut && diffMinutes <= attendanceRules.timeOut.onTime) {
-        return 'On Time';
       } else {
-        return 'Overtime';
+        return 'Completed';
       }
     }
   } catch (error) {
@@ -168,10 +166,8 @@ const determineStatus = async (diffMinutes, type) => {
       // For time-out:
       if (diffMinutes < -15) {
         return 'Early Out';
-      } else if (diffMinutes >= -15 && diffMinutes <= 60) {
-        return 'On Time';
       } else {
-        return 'Overtime';
+        return 'Completed';
       }
     }
   }
