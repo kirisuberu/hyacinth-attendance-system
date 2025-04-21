@@ -11,7 +11,7 @@ import { useDispatch } from 'react-redux';
 import { logoutUser } from '../redux/slices/authSlice';
 import { doc, getDoc } from 'firebase/firestore';
 import PropTypes from 'prop-types';
-import { zonedTimeToUtc } from 'date-fns-tz';
+
 import { format } from 'date-fns';
 
 const LayoutContainer = styled.div`

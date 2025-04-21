@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { loginWithGoogle, selectAuthLoading, selectAuthError, clearError, selectUserAccess, selectCurrentUser } from '../redux/slices/authSlice';
-import { isEmailApproved } from '../utils/userService';
+
 
 const LoginContainer = styled.div`
   display: flex;
