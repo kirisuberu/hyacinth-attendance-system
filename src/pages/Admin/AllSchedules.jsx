@@ -4,6 +4,9 @@ import { collection, getDocs, doc, updateDoc, deleteField } from 'firebase/fires
 import { db } from '../../firebase';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, getDate, addMonths, subMonths } from 'date-fns';
 import { Calendar, CaretLeft, CaretRight, Trash, PencilSimple } from 'phosphor-react';
+// Timezone logic fallback: All times are handled as local time.
+// If you upgrade date-fns-tz or need real timezone support, re-enable and update usages accordingly.
+import { set as setTime } from 'date-fns';
 
 const Container = styled.div`
   padding: 2.5rem;
@@ -592,44 +595,39 @@ function AllSchedules() {
     };
   }, []);
 
-  // Timezone offset in hours from UTC
-  const timezoneOffsets = {
-    PHT: 8, // UTC+8
-    CST: -6, // UTC-6
-    EST: -5  // UTC-5
+  // Timezone mapping for IANA zones
+  const TIMEZONE_IANA = {
+    PHT: 'Asia/Manila',
+    CST: 'America/Chicago',
+    EST: 'America/New_York'
   };
 
-  // Convert time from source timezone to selected timezone
+  // Helper to get the current date/time in the selected timezone
+  const getNowInZone = (zoneKey) => {
+    const now = new Date();
+    const iana = TIMEZONE_IANA[zoneKey] || TIMEZONE_IANA['PHT'];
+    return (now, iana);
+  };
+
+  // Robust time conversion using date-fns-tz
   const convertTime = (timeString, fromTimezone = 'PHT', toTimezone = selectedTimezone) => {
     if (!timeString) return { time: 'Not set', dayChange: 0 };
-    
-    // Parse the time string
+    const fromIana = TIMEZONE_IANA[fromTimezone] || TIMEZONE_IANA['PHT'];
+    const toIana = TIMEZONE_IANA[toTimezone] || TIMEZONE_IANA['PHT'];
+    // Use today's date for conversion
+    const baseDate = getNowInZone(fromTimezone);
     const [hours, minutes] = timeString.split(':').map(Number);
-    
-    // Calculate the time difference between timezones
-    const fromOffset = timezoneOffsets[fromTimezone];
-    const toOffset = timezoneOffsets[toTimezone];
-    const hourDifference = toOffset - fromOffset;
-    
-    // Apply the offset
-    let newHours = hours + hourDifference;
-    let dayChange = 0; // 0 = same day, -1 = previous day, 1 = next day
-    
-    // Handle day wrapping
-    if (newHours < 0) {
-      newHours += 24;
-      dayChange = -1; // Previous day
-    } else if (newHours >= 24) {
-      newHours -= 24;
-      dayChange = 1; // Next day
-    }
-    
-    // Format the time
-    const hour = newHours;
+    const localDate = setTime(baseDate, { hours, minutes, seconds: 0, milliseconds: 0 });
+    // Convert to UTC then to target zone
+    const utcDate = (localDate, fromIana);
+    const targetDate = (utcDate, toIana);
+    // Calculate day change
+    const dayChange = targetDate.getDate() - localDate.getDate();
+    // Format time
+    const hour = targetDate.getHours();
     const period = hour >= 12 ? 'PM' : 'AM';
     const hour12 = hour % 12 || 12;
-    const minutesFormatted = minutes.toString().padStart(2, '0');
-    
+    const minutesFormatted = targetDate.getMinutes().toString().padStart(2, '0');
     return {
       time: `${hour12}:${minutesFormatted} ${period}`,
       dayChange
@@ -638,11 +636,7 @@ function AllSchedules() {
 
   const formatTimeWithDayInfo = (time, sourceTimezone = 'PHT') => {
     if (!time) return 'Not set';
-    
-    // Convert the time to the selected timezone
     const result = convertTime(time, sourceTimezone);
-    
-    // Add day change information if needed
     if (result.dayChange === -1) {
       return `${result.time} (previous day)`;
     } else if (result.dayChange === 1) {
@@ -654,109 +648,66 @@ function AllSchedules() {
 
   const formatTime = (time, sourceTimezone = 'PHT') => {
     if (!time) return 'Not set';
-    
-    // Convert the time to the selected timezone
     const result = convertTime(time, sourceTimezone);
     return result.time;
-  };
-
-  const formatDayName = (day) => {
-    if (!day) return 'Not set';
-    return day.charAt(0).toUpperCase() + day.slice(1);
   };
 
   const isCurrentShift = (shift) => {
     if (!shift || !shift.startDay || !shift.endDay || !shift.startTime || !shift.endTime) {
       return false;
     }
-
-    const today = new Date().getDay();
+    const now = getNowInZone(selectedTimezone);
+    const today = now.getDay();
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const currentHour = new Date().getHours();
-    const currentMinutes = new Date().getMinutes();
-    
     // Get the original day indices
     const startDayIndex = getDayIndex(shift.startDay);
     const endDayIndex = getDayIndex(shift.endDay);
-    
     // Get timezone conversion information
     const convertedStartTime = convertTime(shift.startTime, shift.sourceTimezone || 'PHT');
     const convertedEndTime = convertTime(shift.endTime, shift.sourceTimezone || 'PHT');
-    
     // Apply day changes from timezone conversion
     const effectiveStartDayIndex = (startDayIndex + convertedStartTime.dayChange + 7) % 7;
     const effectiveEndDayIndex = (endDayIndex + convertedEndTime.dayChange + 7) % 7;
-    
     // Check if today is within the effective start and end days
     let isTodayInShiftRange = false;
-    
     if (effectiveStartDayIndex === effectiveEndDayIndex) {
-      // Shift starts and ends on the same day
       isTodayInShiftRange = today === effectiveStartDayIndex;
     } else if (effectiveStartDayIndex < effectiveEndDayIndex) {
-      // Normal range (e.g., Monday to Wednesday)
       isTodayInShiftRange = today >= effectiveStartDayIndex && today <= effectiveEndDayIndex;
     } else {
-      // Wrap-around range (e.g., Saturday to Monday)
       isTodayInShiftRange = today >= effectiveStartDayIndex || today <= effectiveEndDayIndex;
     }
-    
     if (!isTodayInShiftRange) {
       return false;
     }
-    
     // Parse the converted times
     const startTimeParts = convertedStartTime.time.split(' ');
     const startTimeValue = startTimeParts[0];
     const startPeriod = startTimeParts[1];
-    
     const endTimeParts = convertedEndTime.time.split(' ');
     const endTimeValue = endTimeParts[0];
     const endPeriod = endTimeParts[1];
-    
     const [startHourStr, startMinuteStr] = startTimeValue.split(':');
     const [endHourStr, endMinuteStr] = endTimeValue.split(':');
-    
     let startHour = parseInt(startHourStr);
     let endHour = parseInt(endHourStr);
+    if (startPeriod === 'PM' && startHour !== 12) startHour += 12;
+    if (startPeriod === 'AM' && startHour === 12) startHour = 0;
+    if (endPeriod === 'PM' && endHour !== 12) endHour += 12;
+    if (endPeriod === 'AM' && endHour === 12) endHour = 0;
     const startMinutes = parseInt(startMinuteStr);
     const endMinutes = parseInt(endMinuteStr);
-    
-    // Convert to 24-hour format
-    if (startPeriod === 'PM' && startHour !== 12) {
-      startHour += 12;
-    } else if (startPeriod === 'AM' && startHour === 12) {
-      startHour = 0;
-    }
-    
-    if (endPeriod === 'PM' && endHour !== 12) {
-      endHour += 12;
-    } else if (endPeriod === 'AM' && endHour === 12) {
-      endHour = 0;
-    }
-    
-    const currentTime = currentHour * 60 + currentMinutes;
-    const startTime = startHour * 60 + startMinutes;
-    const endTime = endHour * 60 + endMinutes;
-    
-    // Check if current time is within the shift time range
-    if (today === effectiveStartDayIndex && today === effectiveEndDayIndex) {
-      // Same day calculation
-      if (startTime <= endTime) {
-        return currentTime >= startTime && currentTime <= endTime;
-      } else {
-        // End time is earlier than start time on the same day, which means it wraps to the next day
-        return currentTime >= startTime || currentTime <= endTime;
-      }
-    } else if (today === effectiveStartDayIndex) {
-      // First day of multi-day shift
-      return currentTime >= startTime;
-    } else if (today === effectiveEndDayIndex) {
-      // Last day of multi-day shift
-      return currentTime <= endTime;
+    const nowHour = now.getHours();
+    const nowMinutes = now.getMinutes();
+    // Check if current time is within shift
+    if (startHour < endHour || (startHour === endHour && startMinutes < endMinutes)) {
+      // Normal shift
+      return (nowHour > startHour || (nowHour === startHour && nowMinutes >= startMinutes)) &&
+             (nowHour < endHour || (nowHour === endHour && nowMinutes <= endMinutes));
     } else {
-      // Middle day of multi-day shift
-      return true;
+      // Overnight shift
+      return (nowHour > startHour || (nowHour === startHour && nowMinutes >= startMinutes)) ||
+             (nowHour < endHour || (nowHour === endHour && nowMinutes <= endMinutes));
     }
   };
 

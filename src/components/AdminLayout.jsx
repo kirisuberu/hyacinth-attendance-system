@@ -9,6 +9,8 @@ import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut, Gear, Sliders } from 'phosphor-react';
 import { doc, getDoc } from 'firebase/firestore';
 import PropTypes from 'prop-types';
+import { zonedTimeToUtc } from 'date-fns-tz';
+import { format } from 'date-fns';
 
 const LayoutContainer = styled.div`
   display: flex;
@@ -198,6 +200,8 @@ function AdminLayout({ isMemberView = false }) {
   useEffect(() => {
     if (!currentUser) return;
 
+    const DEFAULT_TIMEZONE = 'Asia/Manila';
+
     const fetchUserData = async () => {
       try {
         // Get user document
@@ -208,16 +212,15 @@ function AdminLayout({ isMemberView = false }) {
           const userData = userSnapshot.data();
           setUserSchedule(userData.schedule || {});
           
-          // Check if user has a schedule for today
-          const now = new Date();
-          const dayOfWeek = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-          const previousDay = new Date(now);
-          previousDay.setDate(previousDay.getDate() - 1);
-          const previousDayOfWeek = previousDay.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-          
+          // Get today in the intended time zone
+          const now = utcToZonedTime(new Date(), DEFAULT_TIMEZONE);
+          const dayOfWeek = format(now, 'EEEE').toLowerCase();
+          const previousDay = utcToZonedTime(new Date(now.getTime() - 24 * 60 * 60 * 1000), DEFAULT_TIMEZONE);
+          const previousDayOfWeek = format(previousDay, 'EEEE').toLowerCase();
+
           let hasSchedule = false;
           let message = '';
-          
+
           // Check if user has any schedule entries
           if (Object.keys(userData.schedule || {}).length === 0) {
             hasSchedule = false;
@@ -232,12 +235,11 @@ function AdminLayout({ isMemberView = false }) {
                 hasSchedule = true;
               }
             });
-            
             if (!hasSchedule) {
               message = `No schedule configured for ${dayOfWeek}.`;
             }
           }
-          
+
           setHasScheduleForToday(hasSchedule);
           setNoScheduleMessage(message);
         }
@@ -266,38 +268,27 @@ function AdminLayout({ isMemberView = false }) {
       alert(`Cannot time ${type.toLowerCase()} - ${noScheduleMessage}`);
       return;
     }
-    
     try {
-      const now = new Date();
-      
-      // Get the current day of the week
-      const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-      
-      // Get the user's schedule for today
+      const DEFAULT_TIMEZONE = 'Asia/Manila';
+      const now = utcToZonedTime(new Date(), DEFAULT_TIMEZONE);
+      const dayOfWeek = format(now, 'EEEE').toLowerCase();
       let scheduleTime;
       if (userSchedule) {
         const todaySchedule = Object.values(userSchedule).find(
           shift => shift.startDay && shift.startDay.toLowerCase() === dayOfWeek
         );
-        
         if (todaySchedule) {
           scheduleTime = type === 'IN' ? todaySchedule.startTime : todaySchedule.endTime;
         }
       }
-      
       // Default schedule times if no schedule found
       if (!scheduleTime) {
         scheduleTime = type === 'IN' ? '09:00' : '18:00';
       }
-      
       console.log(`Using schedule time: ${scheduleTime} for ${type}`);
-      
       // Use the same calculation as in AttendanceLogs.jsx via attendanceService.js
-      const { status, timeDiff } = await calculateAttendanceStatus(scheduleTime, now, type, 'PHT');
-      
+      const { status, timeDiff } = await calculateAttendanceStatus(scheduleTime, now, type, DEFAULT_TIMEZONE);
       console.log(`Calculated status: ${status}, timeDiff:`, timeDiff);
-      
-      // Store the raw minutes for the modal to use with the same formatter as AttendanceLogs
       setPendingTimeDiff(timeDiff && timeDiff.totalMinutes !== undefined ? timeDiff.totalMinutes : 0);
       setPendingStatus(status);
       setPendingAttendanceType(type);

@@ -17,7 +17,7 @@ import MemberReports from './pages/Member/MemberReports';
 import RealTimeAttendance from './pages/Admin/RealTimeAttendance';
 import AttendanceLogs from './pages/Admin/AttendanceLogs';
 import AllSchedules from './pages/Admin/AllSchedules';
-import UserCalendar from './pages/Admin/UserCalendar';
+
 import Rules from './pages/Admin/Rules';
 import SystemConfig from './pages/Admin/SystemConfig';
 import AbsenteeService from './components/AbsenteeService';

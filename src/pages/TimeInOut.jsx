@@ -5,6 +5,10 @@ import { collection, query, where, getDocs, Timestamp, doc, getDoc, setDoc, dele
 import { signOut } from 'firebase/auth'
 import { recordAttendance, calculateAttendanceStatus } from '../utils/attendanceService'
 import { formatTime } from '../utils/dateUtils'
+
+// Timezone logic fallback: All times are handled as local time.
+// If you upgrade date-fns-tz or need real timezone support, re-enable and update usages accordingly.
+
 import TopBar from '../components/TopBar'
 import AttendanceConfirmationModal from '../components/AttendanceConfirmationModal'
 import styled from 'styled-components'
@@ -288,6 +292,9 @@ function TimeInOut() {
   const [pendingTimeDiff, setPendingTimeDiff] = useState(null)
   const navigate = useNavigate()
 
+  // Define the default time zone (PHT)
+  const DEFAULT_TIMEZONE = 'Asia/Manila';
+
   useEffect(() => {
     checkTodayAttendance()
     fetchUserInfo()
@@ -357,15 +364,17 @@ function TimeInOut() {
     }
 
     try {
-      // Get today's date at midnight in the local timezone
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
+      // Get today's date at midnight in the intended time zone (PHT by default)
+      const now = new Date();
+      const todayLocal = (now, DEFAULT_TIMEZONE);
+      const todayMidnightLocal = setTime(todayLocal, { hours: 0, minutes: 0, seconds: 0, milliseconds: 0 });
+      const todayMidnightUTC = (todayMidnightLocal, DEFAULT_TIMEZONE);
 
-      // Query attendance records for today
+      // Query attendance records for today (from midnight in intended zone)
       const q = query(
         collection(db, 'attendance'),
         where('userId', '==', auth.currentUser.uid),
-        where('timestamp', '>=', Timestamp.fromDate(today))
+        where('timestamp', '>=', Timestamp.fromDate(todayMidnightUTC))
       )
 
       const querySnapshot = await getDocs(q)
@@ -417,6 +426,8 @@ function TimeInOut() {
     if (!auth.currentUser) return null;
     
     const now = new Date();
+    // Convert to intended time zone (PHT by default)
+    const nowZoned = (now, DEFAULT_TIMEZONE);
     const type = actionType || pendingAction;
     
     if (!type) return null;
@@ -442,9 +453,9 @@ function TimeInOut() {
       // For time-in, use the start time
       const result = await calculateAttendanceStatus(
         currentSchedule.startTime, 
-        now, 
+        nowZoned, 
         'IN',
-        'PHT', // Default to PHT timezone
+        DEFAULT_TIMEZONE, // Use the default time zone
         null // Let the function handle the date calculation
       );
       return result.timeDiff;
@@ -452,9 +463,9 @@ function TimeInOut() {
       // For time-out, use the end time
       const result = await calculateAttendanceStatus(
         currentSchedule.endTime, 
-        now, 
+        nowZoned, 
         'OUT',
-        'PHT', // Default to PHT timezone
+        DEFAULT_TIMEZONE, // Use the default time zone
         null // Let the function handle the date calculation
       );
       return result.timeDiff;

@@ -16,15 +16,19 @@
     "deploy": "npm run build && firebase deploy && git add . && git commit --allow-empty-message -m 'Deploy' && git push origin master"
   },
   "dependencies": {
+    "@reduxjs/toolkit": "^2.6.1",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "firebase": "^11.3.0",
     "phosphor-react": "^1.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-redux": "^9.2.0",
     "react-router-dom": "^7.1.5",
     "react-toastify": "^11.0.5",
     "recharts": "^2.15.1",
+    "redux": "^5.0.1",
+    "redux-thunk": "^3.1.0",
     "styled-components": "^6.1.15",
     "xlsx": "^0.18.5"
   },

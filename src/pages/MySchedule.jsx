@@ -3,6 +3,9 @@ import styled from 'styled-components';
 import { auth } from '../firebase';
 import { getUserById } from '../utils/userService';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { addMinutes, format } from 'date-fns';
+// Timezone logic fallback: All times are handled as local time.
+// If you upgrade date-fns-tz or need real timezone support, re-enable and update usages accordingly.
 import { db } from '../firebase';
 
 const Container = styled.div`
@@ -167,7 +170,7 @@ const TimeGap = styled.div`
 `;
 
 function MySchedule() {
-  const [schedule, setSchedule] = useState(null);
+  const [shifts, setShifts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -212,14 +215,13 @@ function MySchedule() {
           };
         }
 
-        if (!userData.schedule) {
-          setError('No schedule found in your user profile');
+        if (!userData.shiftIDs) {
+          setError('No shifts found in your user profile');
           setLoading(false);
           return;
         }
-
-        console.log('Retrieved user schedule:', userData.schedule);
-        setSchedule(userData.schedule);
+        console.log('Retrieved user shifts:', userData.shiftIDs);
+        setShifts(userData.shiftIDs);
         setLoading(false);
       } catch (err) {
         console.error('Error fetching schedule:', err);
@@ -250,25 +252,26 @@ function MySchedule() {
     if (!shift || !shift.startDay || !shift.endDay || !shift.startTime || !shift.endTime) {
       return false;
     }
-
     const today = new Date().getDay();
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const currentHour = new Date().getHours();
-    const currentMinutes = new Date().getMinutes();
-    
-    // Check if the shift starts or ends today
     if (days[today] !== shift.startDay.toLowerCase() && days[today] !== shift.endDay.toLowerCase()) {
       return false;
     }
-    
+    // Use date-fns to compare current time in shift's region
+    const now = new Date();
+    const tz = shift.timeRegion || 'Asia/Manila';
+    const nowZoned = (now, tz);
     const [startHour, startMinutes] = shift.startTime.split(':').map(Number);
     const [endHour, endMinutes] = shift.endTime.split(':').map(Number);
-    
-    const currentTime = currentHour * 60 + currentMinutes;
-    const startTime = startHour * 60 + startMinutes;
-    const endTime = endHour * 60 + endMinutes;
-    
-    return currentTime >= startTime && currentTime <= endTime;
+    const startTime = new Date(nowZoned);
+    startTime.setHours(startHour, startMinutes, 0, 0);
+    const endTime = new Date(nowZoned);
+    endTime.setHours(endHour, endMinutes, 0, 0);
+    if (shift.startDay !== shift.endDay && days[today] === shift.endDay.toLowerCase()) {
+      // If today is the end day, endTime is on today, startTime is on previous day
+      startTime.setDate(startTime.getDate() - 1);
+    }
+    return nowZoned >= startTime && nowZoned <= endTime;
   };
 
   const getShiftOrder = (day) => {
@@ -290,24 +293,10 @@ function MySchedule() {
   };
 
   const calculateShiftDuration = (shift) => {
-    if (!shift || !shift.startDay || !shift.endDay || !shift.startTime || !shift.endTime) {
-      return 0;
-    }
-
-    const [startHour, startMinutes] = shift.startTime.split(':').map(Number);
-    const [endHour, endMinutes] = shift.endTime.split(':').map(Number);
-    
-    let duration;
-    if (shift.startDay === shift.endDay) {
-      // Same day calculation
-      duration = (endHour * 60 + endMinutes) - (startHour * 60 + startMinutes);
-    } else {
-      // Different day calculation (assuming next day)
-      duration = ((24 + endHour) * 60 + endMinutes) - (startHour * 60 + startMinutes);
-    }
-    
-    return Math.round(duration / 60 * 10) / 10; // Round to 1 decimal place
+    if (!shift || !shift.duration) return 0;
+    return Math.round(Number(shift.duration) / 60 * 10) / 10;
   };
+
 
   const calculateTimeBetweenShifts = (currentShift, nextShift) => {
     if (!currentShift || !nextShift || 
@@ -369,13 +358,42 @@ function MySchedule() {
     return <Container>{error}</Container>;
   }
 
-  if (!schedule) {
-    return <Container>No schedule found</Container>;
+  if (!shifts) {
+    return <Container>No shifts found</Container>;
   }
 
-  const sortedShifts = sortShifts(Object.values(schedule).filter(shift => 
-    shift && shift.startDay && shift.endDay && shift.startTime && shift.endTime
-  ));
+  // Convert shifts object to array and filter valid shifts
+  const shiftArr = Object.values(shifts).filter(shift => shift && shift.startDay && shift.startTime && shift.duration && shift.timeRegion);
+  if (shiftArr.length === 0) {
+    return <Container>No shifts found</Container>;
+  }
+
+
+
+  const computeShiftWithEnd = (shift) => {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    // Use a reference date for the start day
+    const refDate = new Date('2025-04-13T00:00:00'); // Sunday
+    const startDayIdx = days.indexOf(shift.startDay.toLowerCase());
+    const startDate = new Date(refDate.getTime() + startDayIdx * 24 * 60 * 60 * 1000);
+    const [h, m] = shift.startTime.split(':').map(Number);
+    startDate.setHours(h, m, 0, 0);
+    const tz = shift.timeRegion || 'Asia/Manila';
+    const zonedStart = (startDate, tz);
+    const endDate = addMinutes(zonedStart, Number(shift.duration));
+    const endDayIdx = endDate.getDay();
+    return {
+      ...shift,
+      startDay: days[startDayIdx],
+      endDay: days[endDayIdx],
+      startTime: format(zonedStart, 'HH:mm'),
+      endTime: format(endDate, 'HH:mm'),
+      timeRegion: tz
+    };
+  };
+
+  const computedShifts = shiftArr.map(computeShiftWithEnd);
+  const sortedShifts = sortShifts(computedShifts);
 
   return (
     <Container>
@@ -392,10 +410,10 @@ function MySchedule() {
                   </ShiftHeader>
                   <TimeInfo>
                     <TimePoint type="start">
-                      <TimeText>Starts at {formatTime(shift.startTime)}</TimeText>
+                      <TimeText>Starts at {formatTime(shift.startTime)} {shift.timeRegion}</TimeText>
                     </TimePoint>
                     <TimePoint type="end">
-                      <TimeText>Ends at {formatTime(shift.endTime)}</TimeText>
+                      <TimeText>Ends at {formatTime(shift.endTime)} {shift.timeRegion}</TimeText>
                     </TimePoint>
                   </TimeInfo>
                 </ShiftContent>

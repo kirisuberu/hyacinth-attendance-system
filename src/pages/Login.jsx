@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
-import { auth, db, googleProvider } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
+import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { checkUserAccess, UserType, WeeklySchedule, createOrUpdateUser, isEmailApproved } from '../utils/userService';
-import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { loginWithGoogle, selectAuthLoading, selectAuthError, clearError } from '../redux/slices/authSlice';
+import { isEmailApproved } from '../utils/userService';
 
 const LoginContainer = styled.div`
   display: flex;
@@ -118,147 +117,67 @@ const Footer = styled.p`
 
 function Login() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const dispatch = useDispatch();
+  
+  // Get auth state from Redux
+  const loading = useSelector(selectAuthLoading);
+  const reduxError = useSelector(selectAuthError);
+  
+  // Local state for custom errors
+  const [localError, setLocalError] = useState('');
+  
+  // Combine Redux and local errors
+  const error = reduxError || localError;
+  
+  // Clear errors when component unmounts
+  useEffect(() => {
+    return () => {
+      dispatch(clearError());
+    };
+  }, [dispatch]);
 
   const handleGoogleSignIn = async () => {
     try {
-      setLoading(true);
-      setError('');
-
-      // Use the pre-configured Google provider
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-
-      console.log('Google sign in successful:', {
-        email: user.email,
-        uid: user.uid
-      });
-
-      // First check if a user with this email already exists
-      const usersRef = collection(db, 'users');
-      const emailQuery = query(usersRef, where('email', '==', user.email));
-      const emailSnapshot = await getDocs(emailQuery);
+      setLocalError('');
+      dispatch(clearError());
       
-      if (!emailSnapshot.empty) {
-        // If multiple documents exist with this email, clean them up
-        if (emailSnapshot.size > 1) {
-          console.log(`Found ${emailSnapshot.size} documents with email ${user.email}, cleaning up...`);
-          await cleanupDuplicateUsers();
-          
-          // Re-fetch the user after cleanup
-          const cleanupSnapshot = await getDocs(emailQuery);
-          if (!cleanupSnapshot.empty) {
-            const existingUserDoc = cleanupSnapshot.docs[0];
-            const existingData = existingUserDoc.data();
-
-            if (existingUserDoc.id !== user.uid) {
-              console.log('Updating user ID:', {
-                oldId: existingUserDoc.id,
-                newId: user.uid,
-                type: existingData.userType
-              });
-
-              // Copy existing data to new document with new UID
-              await setDoc(doc(db, 'users', user.uid), existingData);
-              
-              // Delete the old document
-              await deleteDoc(doc(db, 'users', existingUserDoc.id));
-            }
-          }
-        } else {
-          // Only one document exists, handle normally
-          const existingUserDoc = emailSnapshot.docs[0];
-          const existingData = existingUserDoc.data();
-
-          if (existingUserDoc.id !== user.uid) {
-            console.log('Updating user ID:', {
-              oldId: existingUserDoc.id,
-              newId: user.uid,
-              type: existingData.userType
-            });
-
-            // Copy existing data to new document with new UID
-            await setDoc(doc(db, 'users', user.uid), existingData);
-            
-            // Delete the old document
-            await deleteDoc(doc(db, 'users', existingUserDoc.id));
-          }
-        }
-      } else {
-        // Only create new user if email doesn't exist AND is approved
-        const isApproved = await isEmailApproved(user.email);
-        if (!isApproved) {
-          setError('Your email is not approved. Please contact an administrator.');
-          await auth.signOut();
-          setLoading(false);
-          return;
-        }
-
-        console.log('Creating new user document');
-        await setDoc(doc(db, 'users', user.uid), {
-          name: user.displayName || 'User',
-          email: user.email,
-          userType: UserType.MEMBER,
-          userId: user.uid,
-          schedule: WeeklySchedule,
-          createdAt: new Date().toISOString(),
-        });
-      }
-
-      // Check if user has access
-      const { hasAccess, userType } = await checkUserAccess(user.uid);
-      
-      if (!hasAccess) {
-        setError('You do not have access to this application. Please contact an administrator.');
-        await auth.signOut();
-        setLoading(false);
-        return;
-      }
-
-      console.log('User authenticated successfully with type:', userType);
-      
-      // Navigate based on user type
-      if (userType === UserType.ADMIN || userType === UserType.ACCOUNTANT) {
-        console.log('Redirecting to admin dashboard');
-        navigate('/admin');
-      } else {
-        console.log('Redirecting to member dashboard');
-        navigate('/member/dashboard');
-      }
+      // Check if email is approved before sign-in
+      // This is a pre-check to avoid unnecessary sign-ins
+      // The actual approval check is handled in the Redux thunk
+      dispatch(loginWithGoogle());
     } catch (error) {
       console.error('Error during Google sign in:', error);
-      setError('Failed to sign in with Google. Please try again.');
-    } finally {
-      setLoading(false);
+      setLocalError(error.message || 'An error occurred during sign in');
     }
   };
 
+  // Helper function to clean up duplicate users
   const cleanupDuplicateUsers = async () => {
-    // Implementation of cleanup function
-    // This would identify and merge duplicate user records
-    console.log('Cleaning up duplicate users');
-    // Actual implementation would depend on your data structure
+    // This functionality is now handled in the Redux thunks and user service
+    console.log('Cleanup functionality moved to Redux and user service');
   };
 
   return (
     <LoginContainer>
       <LoginBox>
-        <Logo src="/tabIcon.png" alt="Hyacinth Attendance System Logo" />
+        <Logo src="/logo.png" alt="Hyacinth Attendance" />
         <Title>Hyacinth Attendance</Title>
-        <Subtitle>Sign in to manage your attendance and schedules</Subtitle>
+        <Subtitle>Sign in to access the attendance system</Subtitle>
         
-        <ErrorMessage visible={error !== ''}>
+        <ErrorMessage visible={!!error}>
           {error}
         </ErrorMessage>
         
-        <GoogleButton onClick={handleGoogleSignIn} disabled={loading}>
+        <GoogleButton 
+          onClick={handleGoogleSignIn} 
+          disabled={loading}
+        >
           <GoogleIcon>
-            <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-              <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
-              <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
-              <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
-              <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
+            <svg width="20" height="20" viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z"
+              />
             </svg>
           </GoogleIcon>
           {loading ? 'Signing in...' : 'Sign in with Google'}

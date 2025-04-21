@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { auth, db } from '../../firebase';
 import styled from 'styled-components';
 import { collection, query, where, getDocs, Timestamp, orderBy, onSnapshot } from 'firebase/firestore';
@@ -238,61 +238,47 @@ function MemberReports() {
   const [filteredReports, setFilteredReports] = useState([]);
   const [error, setError] = useState(null);
 
+  // Store unsubscribe function for the real-time listener
+  const unsubscribeRef = useRef(null);
+
   useEffect(() => {
     const setupRealtimeListener = () => {
       const user = auth.currentUser;
       if (!user) {
         console.log("No authenticated user found");
         setError("Please log in to view your reports");
-        return { unsubscribe: () => {} }; // Return empty unsubscribe function
+        return () => {};
       }
 
       console.log("Setting up real-time listener for user:", user.uid, user.email);
       setLoading(true);
-      
+
       try {
-        // Query all attendance records for the current user
         const attendanceRef = collection(db, 'attendance');
-        
-        // First try with userId filter
         const userIdQuery = query(
           attendanceRef,
           where('userId', '==', user.uid)
         );
-        
-        console.log("Setting up real-time listener for user ID:", user.uid);
-        
-        // Set up the real-time listener
+
+        let emailUnsubscribe = null;
         const unsubscribe = onSnapshot(
           userIdQuery,
           (querySnapshot) => {
-            console.log("Real-time update received, records:", querySnapshot.size);
-            
             if (querySnapshot.empty) {
               // If no records found with user ID, try with email as fallback
-              console.log("No records found with user ID, trying email fallback");
-              
-              // Clean up the first listener before creating a new one
-              unsubscribe();
-              
+              if (emailUnsubscribe) emailUnsubscribe();
               const emailQuery = query(
                 attendanceRef,
                 where('email', '==', user.email)
               );
-              
-              // Set up a new listener with the email query
-              return onSnapshot(
+              emailUnsubscribe = onSnapshot(
                 emailQuery,
                 (emailSnapshot) => {
-                  console.log("Email query real-time update, records:", emailSnapshot.size);
-                  
                   if (emailSnapshot.empty) {
-                    console.log("No records found with email either");
                     setError("No attendance records found for your account");
                     setLoading(false);
                     return;
                   }
-                  
                   processQueryResults(emailSnapshot);
                 },
                 (error) => {
@@ -302,6 +288,7 @@ function MemberReports() {
                 }
               );
             } else {
+              if (emailUnsubscribe) emailUnsubscribe();
               processQueryResults(querySnapshot);
             }
           },
@@ -311,103 +298,128 @@ function MemberReports() {
             setLoading(false);
           }
         );
-        
-        return unsubscribe;
+
+        // Return a cleanup function that unsubscribes both listeners if set
+        return () => {
+          if (unsubscribe) unsubscribe();
+          if (emailUnsubscribe) emailUnsubscribe();
+        };
       } catch (error) {
         console.error("Error setting up real-time listener:", error);
         setError(`Error loading reports: ${error.message}`);
         setLoading(false);
-        return { unsubscribe: () => {} }; // Return empty unsubscribe function
-      }
-    };
-    
-    const processQueryResults = (snapshot) => {
-      try {
-        const attendanceData = snapshot.docs.map(doc => {
-          const data = doc.data();
-          
-          // Convert Firestore timestamp to JavaScript Date
-          let timestamp;
-          if (data.timestamp && data.timestamp.seconds) {
-            timestamp = new Date(data.timestamp.seconds * 1000);
-          } else if (data.date) {
-            // Fallback to date field if timestamp is not available
-            timestamp = new Date(data.date);
-          } else {
-            timestamp = new Date(); // Default to current date if no timestamp
-          }
-          
-          // Debug log for time difference fields
-          console.log(`Record ${doc.id} time diff fields:`, {
-            hoursDiff: data.hoursDiff,
-            minutesDiff: data.minutesDiff,
-            timeDiffHours: data.timeDiffHours,
-            timeDiffMinutes: data.timeDiffMinutes,
-            totalMinutesDiff: data.totalMinutesDiff
-          });
-          
-          // Ensure time difference fields are available with consistent naming
-          const processedData = {
-            id: doc.id,
-            ...data,
-            formattedDate: format(timestamp, 'yyyy-MM-dd'),
-            formattedTime: format(timestamp, 'hh:mm a'),
-            dayOfWeek: format(timestamp, 'EEEE'), // Add day of week
-            timestamp
-          };
-          
-          // Ensure we have consistent naming for time difference fields
-          if (data.hoursDiff !== undefined && data.minutesDiff !== undefined) {
-            processedData.timeDiffHours = data.hoursDiff;
-            processedData.timeDiffMinutes = data.minutesDiff;
-            if (data.totalMinutesDiff !== undefined) {
-              processedData.totalMinutesDiff = data.totalMinutesDiff;
-            }
-          } else if (data.timeDiffHours !== undefined && data.timeDiffMinutes !== undefined) {
-            processedData.hoursDiff = data.timeDiffHours;
-            processedData.minutesDiff = data.timeDiffMinutes;
-            if (data.totalMinutesDiff !== undefined) {
-              processedData.totalMinutesDiff = data.totalMinutesDiff;
-            }
-          }
-          
-          return processedData;
-        });
-        
-        // Sort by timestamp, newest first (doing client-side sorting instead)
-        const sortedData = attendanceData.sort((a, b) => {
-          return b.timestamp - a.timestamp;
-        });
-        
-        console.log("Processed attendance data:", sortedData.length);
-        setReports(sortedData);
-        
-        // Apply any existing date filters to the new data
-        if (dateRange.start || dateRange.end) {
-          applyDateFilter(sortedData);
-        } else {
-          setFilteredReports(sortedData);
-        }
-        
-        setLoading(false);
-      } catch (err) {
-        console.error("Error processing query results:", err);
-        setError(`Error processing data: ${err.message}`);
-        setLoading(false);
+        return () => {};
       }
     };
 
-    // Set up the real-time listener and store the unsubscribe function
-    const unsubscribe = setupRealtimeListener();
-    
-    // Clean up the listener when the component unmounts
+    // Clean up previous listener if it exists
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+    }
+    unsubscribeRef.current = setupRealtimeListener();
+
+    // Clean up on unmount
     return () => {
-      console.log("Cleaning up real-time listener");
-      if (unsubscribe) {
-        unsubscribe();
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
     };
-  }, []); // Empty dependency array means this effect runs once on mount
+  }, []);
+
+  // Enhanced normalization for time difference fields
+const processQueryResults = (snapshot) => {
+    try {
+      const attendanceData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        // Convert Firestore timestamp to JavaScript Date
+        let timestamp;
+        if (data.timestamp && data.timestamp.seconds) {
+          timestamp = new Date(data.timestamp.seconds * 1000);
+        } else if (data.date) {
+          // Fallback to date field if timestamp is not available
+          timestamp = new Date(data.date);
+        } else {
+          timestamp = new Date(); // Default to current date if no timestamp
+        }
+        
+        // Debug log for time difference fields
+        console.log(`Record ${doc.id} time diff fields:`, {
+          hoursDiff: data.hoursDiff,
+          minutesDiff: data.minutesDiff,
+          timeDiffHours: data.timeDiffHours,
+          timeDiffMinutes: data.timeDiffMinutes,
+          totalMinutesDiff: data.totalMinutesDiff
+        });
+        
+        // Ensure time difference fields are available with consistent naming
+        const processedData = {
+          id: doc.id,
+          ...data,
+          formattedDate: format(timestamp, 'yyyy-MM-dd'),
+          formattedTime: format(timestamp, 'hh:mm a'),
+          dayOfWeek: format(timestamp, 'EEEE'), // Add day of week
+          timestamp
+        };
+
+        // Normalize all possible time difference field cases
+        // Case 1: hoursDiff/minutesDiff present
+        if (data.hoursDiff !== undefined && data.minutesDiff !== undefined) {
+          processedData.timeDiffHours = data.hoursDiff;
+          processedData.timeDiffMinutes = data.minutesDiff;
+          if (data.totalMinutesDiff !== undefined) {
+            processedData.totalMinutesDiff = data.totalMinutesDiff;
+          } else {
+            processedData.totalMinutesDiff = (data.hoursDiff * 60) + data.minutesDiff;
+          }
+        // Case 2: timeDiffHours/timeDiffMinutes present
+        } else if (data.timeDiffHours !== undefined && data.timeDiffMinutes !== undefined) {
+          processedData.hoursDiff = data.timeDiffHours;
+          processedData.minutesDiff = data.timeDiffMinutes;
+          processedData.timeDiffHours = data.timeDiffHours;
+          processedData.timeDiffMinutes = data.timeDiffMinutes;
+          if (data.totalMinutesDiff !== undefined) {
+            processedData.totalMinutesDiff = data.totalMinutesDiff;
+          } else {
+            processedData.totalMinutesDiff = (data.timeDiffHours * 60) + data.timeDiffMinutes;
+          }
+        // Case 3: only totalMinutesDiff present
+        } else if (data.totalMinutesDiff !== undefined) {
+          const h = Math.trunc(data.totalMinutesDiff / 60);
+          const m = data.totalMinutesDiff % 60;
+          processedData.timeDiffHours = h;
+          processedData.timeDiffMinutes = m;
+          processedData.hoursDiff = h;
+          processedData.minutesDiff = m;
+          processedData.totalMinutesDiff = data.totalMinutesDiff;
+        }
+
+        return processedData;
+      });
+      
+      // Sort by timestamp, newest first (doing client-side sorting instead)
+      const sortedData = attendanceData.sort((a, b) => {
+        return b.timestamp - a.timestamp;
+      });
+      
+      console.log("Processed attendance data:", sortedData.length);
+      setReports(sortedData);
+      
+      // Apply any existing date filters to the new data
+      if (dateRange.start || dateRange.end) {
+        applyDateFilter(sortedData);
+      } else {
+        setFilteredReports(sortedData);
+      }
+      
+      setLoading(false);
+    } catch (err) {
+      console.error("Error processing query results:", err);
+      setError(`Error processing data: ${err.message}`);
+      setLoading(false);
+    }
+  };
 
   const applyDateFilter = (reportsToFilter = reports) => {
     if (!dateRange.start && !dateRange.end) {
@@ -436,15 +448,22 @@ function MemberReports() {
     applyDateFilter();
   };
 
+  // Enhanced to use totalMinutes if hours/minutes missing
   const formatTimeDiff = (hours, minutes, totalMinutes) => {
+    // If hours/minutes missing, but totalMinutes present, calculate
     if ((hours === undefined || hours === null) && (minutes === undefined || minutes === null)) {
-      return 'N/A';
+      if (totalMinutes !== undefined && totalMinutes !== null) {
+        hours = Math.trunc(totalMinutes / 60);
+        minutes = totalMinutes % 60;
+      } else {
+        return 'N/A';
+      }
     }
-    
+
     // Convert to numbers to ensure proper handling
     hours = Number(hours) || 0;
     minutes = Number(minutes) || 0;
-    
+
     // Format the time difference
     const formattedTime = [];
     if (hours !== 0) {
@@ -453,15 +472,15 @@ function MemberReports() {
     if (minutes !== 0) {
       formattedTime.push(`${Math.abs(minutes)}m`);
     }
-    
+
     if (formattedTime.length === 0) {
       return '0m';
     }
-    
+
     // Determine if early or late based on the sign of hours/minutes
     const isEarly = (hours < 0 || (hours === 0 && minutes < 0));
     const suffix = isEarly ? ' early' : ' late';
-    
+
     return `${formattedTime.join(' ')}${suffix}`;
   };
 
@@ -528,11 +547,35 @@ function MemberReports() {
                       {report.status || 'Unknown'}
                     </StatusBadge>
                   </Td>
-                  <Td>{formatTimeDiff(
-                    report.hoursDiff || report.timeDiffHours, 
-                    report.minutesDiff || report.timeDiffMinutes,
-                    report.totalMinutesDiff
-                  )}</Td>
+                  <Td>{(() => {
+  // Debug: Log all fields for this report
+  console.debug('Rendering Time Diff for', report.id, {
+    hoursDiff: report.hoursDiff,
+    minutesDiff: report.minutesDiff,
+    timeDiffHours: report.timeDiffHours,
+    timeDiffMinutes: report.timeDiffMinutes,
+    totalMinutesDiff: report.totalMinutesDiff
+  });
+  // Pick the best available values
+  let h = report.hoursDiff;
+  let m = report.minutesDiff;
+  let total = report.totalMinutesDiff;
+  // Fallback to timeDiffHours/timeDiffMinutes if main fields missing
+  if ((h === undefined || h === null) && (m === undefined || m === null)) {
+    h = report.timeDiffHours;
+    m = report.timeDiffMinutes;
+  }
+  // Fallback to totalMinutesDiff if still missing
+  if ((h === undefined || h === null) && (m === undefined || m === null) && total !== undefined && total !== null) {
+    h = Math.trunc(total / 60);
+    m = total % 60;
+  }
+  // If still missing, show a debug warning
+  if ((h === undefined || h === null) && (m === undefined || m === null) && (total === undefined || total === null)) {
+    return <span style={{color: 'red'}}>No time diff</span>;
+  }
+  return formatTimeDiff(h, m, total);
+})()}</Td>
                   <Td>{report.notes || '-'}</Td>
                 </tr>
               ))}

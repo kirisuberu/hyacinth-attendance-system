@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { db } from '../firebase';
 import { collection, query, getDocs, orderBy, where, Timestamp, onSnapshot } from 'firebase/firestore';
@@ -322,7 +322,22 @@ function Reports() {
       };
     });
     
-    setupAttendanceListener(stats, users);
+    // Store unsubscribe function for attendance listener
+    const attendanceUnsubscribeRef = useRef(null);
+    
+    // Clean up previous attendance listener if it exists
+    if (attendanceUnsubscribeRef.current) {
+      attendanceUnsubscribeRef.current();
+    }
+    attendanceUnsubscribeRef.current = setupAttendanceListener(stats, users);
+    
+    // Cleanup on unmount or dependency change
+    return () => {
+      if (attendanceUnsubscribeRef.current) {
+        attendanceUnsubscribeRef.current();
+        attendanceUnsubscribeRef.current = null;
+      }
+    };
   }, [startDate, endDate, users]);
 
   const setupAttendanceListener = (stats, users) => {
@@ -456,10 +471,7 @@ function Reports() {
       });
       
       // Return cleanup function
-      return () => {
-        console.log("Cleaning up attendance stats listener");
-        unsubscribe();
-      };
+      return unsubscribe;
     } catch (error) {
       console.error('Error setting up attendance stats listener:', error);
       setLoading(false);
@@ -768,7 +780,7 @@ function Reports() {
                     <td style={{ color: '#4b5563' }}>{record.status || '-'}</td>
                     <td style={{ color: '#4b5563' }}>
                       {record.type === 'OUT' && record.shiftDuration 
-                        ? `${record.shiftDurationHours || 0}h ${record.shiftDurationMinutes || 0}m` 
+                        ? `${record.shiftDurationHours || 0}h ${record.shiftDurationMinutes || 0}m`
                         : '-'}
                     </td>
                     <td style={{ color: '#4b5563' }}>{record.notes || '-'}</td>

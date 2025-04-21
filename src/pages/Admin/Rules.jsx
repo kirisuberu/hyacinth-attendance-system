@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { FloppyDisk, ArrowClockwise } from 'phosphor-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -136,10 +136,28 @@ const DEFAULT_RULES = {
   timeIn: {
     early: -60, // minutes before schedule to be considered "Early"
     onTime: 5,  // minutes after schedule to still be considered "On Time"
+    late: 15,   // minutes after schedule to be considered "Late"
+    gracePeriod: 5 // minutes after scheduled start time where lateness is ignored
   },
   timeOut: {
     earlyOut: -15, // minutes before schedule to be considered "Early Out"
     onTime: 60,    // minutes after schedule to still be considered "On Time"
+    overtime: 30,  // minutes after schedule to be considered "Overtime"
+    gracePeriod: 5 // minutes before scheduled end time where early out is ignored
+  },
+  attendance: {
+    minWorkingHours: 8, // minimum hours for full day
+    maxLatesPerMonth: 3,
+    maxAbsencesPerMonth: 2
+  },
+  shift: {
+    allowEarlyTimeIn: true,
+    allowLateTimeOut: true,
+    minOvertimeMinutes: 15,
+    autoApproveOvertime: false
+  },
+  notes: {
+    requireForEarlyLate: true
   }
 };
 
@@ -157,26 +175,11 @@ function Rules() {
   const fetchRules = async () => {
     setLoading(true);
     try {
-      // Find admin user document
-      const usersRef = collection(db, 'users');
-      const adminQuery = query(usersRef, where("userType", "==", "admin"));
-      const adminSnapshot = await getDocs(adminQuery);
-      
-      if (adminSnapshot.empty) {
-        console.error('No admin user found');
-        setRules(DEFAULT_RULES);
-        setLoading(false);
-        return;
-      }
-      
-      // Get the first admin user document
-      const adminDoc = adminSnapshot.docs[0];
-      const adminData = adminDoc.data();
-      
-      if (adminData.attendanceRules) {
-        setRules(adminData.attendanceRules);
+      const docRef = doc(db, 'rules', 'attendance');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setRules(docSnap.data());
       } else {
-        // If no rules found in admin document, use defaults
         setRules(DEFAULT_RULES);
       }
     } catch (error) {
@@ -188,41 +191,38 @@ function Rules() {
     }
   };
 
-  const handleInputChange = (section, rule, value) => {
-    // Convert to number and validate
-    const numValue = parseInt(value, 10);
-    
-    if (isNaN(numValue)) return;
-    
+  const handleInputChange = (section, rule, value, isBoolean = false) => {
+    let newValue = value;
+    if (!isBoolean) {
+      newValue = parseInt(value, 10);
+      if (isNaN(newValue)) return;
+    }
     setRules(prevRules => ({
       ...prevRules,
       [section]: {
         ...prevRules[section],
-        [rule]: numValue
+        [rule]: isBoolean ? value : newValue
       }
     }));
   };
 
+  // Helper for boolean toggles
+  const handleToggle = (section, rule) => {
+    setRules(prevRules => ({
+      ...prevRules,
+      [section]: {
+        ...prevRules[section],
+        [rule]: !prevRules[section][rule]
+      }
+    }));
+  };
+
+
   const saveRules = async () => {
     setSaving(true);
     try {
-      // Find admin user document
-      const usersRef = collection(db, 'users');
-      const adminQuery = query(usersRef, where("userType", "==", "admin"));
-      const adminSnapshot = await getDocs(adminQuery);
-      
-      if (adminSnapshot.empty) {
-        throw new Error('No admin user found');
-      }
-      
-      // Get the first admin user document
-      const adminDoc = adminSnapshot.docs[0];
-      
-      // Update the admin document with the rules
-      await updateDoc(doc(db, 'users', adminDoc.id), {
-        attendanceRules: rules
-      });
-      
+      const docRef = doc(db, 'rules', 'attendance');
+      await setDoc(docRef, rules, { merge: true });
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
@@ -257,7 +257,6 @@ function Rules() {
 
       <RulesSection>
         <SectionTitle>Time In Rules</SectionTitle>
-        
         <RuleItem>
           <RuleLabel>Early Threshold</RuleLabel>
           <RuleDescription>
@@ -273,7 +272,6 @@ function Rules() {
             <UnitLabel>minutes before schedule</UnitLabel>
           </InputGroup>
         </RuleItem>
-
         <RuleItem>
           <RuleLabel>On Time Threshold</RuleLabel>
           <RuleDescription>
@@ -289,11 +287,40 @@ function Rules() {
             <UnitLabel>minutes after schedule</UnitLabel>
           </InputGroup>
         </RuleItem>
+        <RuleItem>
+          <RuleLabel>Late Threshold</RuleLabel>
+          <RuleDescription>
+            Users who time in this many minutes (or more) after their scheduled time will be marked as "Late".
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.timeIn.late} 
+              onChange={(e) => handleInputChange('timeIn', 'late', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>minutes after schedule</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Grace Period</RuleLabel>
+          <RuleDescription>
+            Lateness is ignored if within this many minutes after scheduled start time.
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.timeIn.gracePeriod} 
+              onChange={(e) => handleInputChange('timeIn', 'gracePeriod', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>minutes</UnitLabel>
+          </InputGroup>
+        </RuleItem>
       </RulesSection>
 
       <RulesSection>
         <SectionTitle>Time Out Rules</SectionTitle>
-        
         <RuleItem>
           <RuleLabel>Early Out Threshold</RuleLabel>
           <RuleDescription>
@@ -309,12 +336,10 @@ function Rules() {
             <UnitLabel>minutes before schedule</UnitLabel>
           </InputGroup>
         </RuleItem>
-
         <RuleItem>
           <RuleLabel>On Time Threshold</RuleLabel>
           <RuleDescription>
             Users who time out up to this many minutes after their scheduled end time will still be marked as "On Time".
-            Beyond this threshold, they will be marked as "Overtime".
           </RuleDescription>
           <InputGroup>
             <Input 
@@ -324,6 +349,148 @@ function Rules() {
               min="0"
             />
             <UnitLabel>minutes after schedule</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Overtime Threshold</RuleLabel>
+          <RuleDescription>
+            Users who time out this many minutes (or more) after their scheduled end time will be marked as "Overtime".
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.timeOut.overtime} 
+              onChange={(e) => handleInputChange('timeOut', 'overtime', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>minutes after schedule</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Grace Period</RuleLabel>
+          <RuleDescription>
+            Early out is ignored if within this many minutes before scheduled end time.
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.timeOut.gracePeriod} 
+              onChange={(e) => handleInputChange('timeOut', 'gracePeriod', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>minutes</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+      </RulesSection>
+
+      <RulesSection>
+        <SectionTitle>Attendance Policies</SectionTitle>
+        <RuleItem>
+          <RuleLabel>Minimum Working Hours</RuleLabel>
+          <RuleDescription>
+            Minimum number of hours required to be considered a full day.
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.attendance.minWorkingHours} 
+              onChange={(e) => handleInputChange('attendance', 'minWorkingHours', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>hours</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Max Lates Per Month</RuleLabel>
+          <RuleDescription>
+            Number of times a user can be late before triggering a warning.
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.attendance.maxLatesPerMonth} 
+              onChange={(e) => handleInputChange('attendance', 'maxLatesPerMonth', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>lates</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Max Absences Per Month</RuleLabel>
+          <RuleDescription>
+            Number of absences allowed before escalation.
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.attendance.maxAbsencesPerMonth} 
+              onChange={(e) => handleInputChange('attendance', 'maxAbsencesPerMonth', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>absences</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+      </RulesSection>
+
+      <RulesSection>
+        <SectionTitle>Shift & Overtime</SectionTitle>
+        <RuleItem>
+          <RuleLabel>Allow Early Time In</RuleLabel>
+          <RuleDescription>
+            Whether users can time in before their shift.
+          </RuleDescription>
+          <InputGroup>
+            <input type="checkbox" checked={rules.shift.allowEarlyTimeIn} onChange={() => handleToggle('shift', 'allowEarlyTimeIn')} />
+            <UnitLabel>{rules.shift.allowEarlyTimeIn ? 'Allowed' : 'Not Allowed'}</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Allow Late Time Out</RuleLabel>
+          <RuleDescription>
+            Whether users can time out after their shift.
+          </RuleDescription>
+          <InputGroup>
+            <input type="checkbox" checked={rules.shift.allowLateTimeOut} onChange={() => handleToggle('shift', 'allowLateTimeOut')} />
+            <UnitLabel>{rules.shift.allowLateTimeOut ? 'Allowed' : 'Not Allowed'}</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Minimum Overtime Minutes</RuleLabel>
+          <RuleDescription>
+            Minimum overtime duration to be counted as overtime.
+          </RuleDescription>
+          <InputGroup>
+            <Input 
+              type="number" 
+              value={rules.shift.minOvertimeMinutes} 
+              onChange={(e) => handleInputChange('shift', 'minOvertimeMinutes', e.target.value)}
+              min="0"
+            />
+            <UnitLabel>minutes</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+        <RuleItem>
+          <RuleLabel>Auto-approve Overtime</RuleLabel>
+          <RuleDescription>
+            Whether overtime is automatically approved.
+          </RuleDescription>
+          <InputGroup>
+            <input type="checkbox" checked={rules.shift.autoApproveOvertime} onChange={() => handleToggle('shift', 'autoApproveOvertime')} />
+            <UnitLabel>{rules.shift.autoApproveOvertime ? 'Enabled' : 'Disabled'}</UnitLabel>
+          </InputGroup>
+        </RuleItem>
+      </RulesSection>
+
+      <RulesSection>
+        <SectionTitle>Notes Policy</SectionTitle>
+        <RuleItem>
+          <RuleLabel>Require Notes for Early/Late</RuleLabel>
+          <RuleDescription>
+            Whether users must provide a note if they are early or late.
+          </RuleDescription>
+          <InputGroup>
+            <input type="checkbox" checked={rules.notes.requireForEarlyLate} onChange={() => handleToggle('notes', 'requireForEarlyLate')} />
+            <UnitLabel>{rules.notes.requireForEarlyLate ? 'Required' : 'Not Required'}</UnitLabel>
           </InputGroup>
         </RuleItem>
       </RulesSection>

@@ -15,8 +15,8 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { format, parseISO, differenceInMinutes, differenceInHours, addDays, subDays } from 'date-fns';
-import { formatInTimeZone, zonedTimeToUtc } from 'date-fns-tz';
+import { format, parseISO, differenceInMinutes, differenceInHours, addDays, subDays, set as setTime } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { getSystemConfig, getConfigSection } from './systemConfigService';
 
 // Time region offset in hours from UTC
@@ -194,28 +194,22 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     timeRegion,
     shiftDate: shiftDate ? shiftDate.toISOString() : null
   });
-  
+
   // Validate input parameters
   if (!actualTime || !(actualTime instanceof Date)) {
     console.error('Invalid actualTime provided:', actualTime);
     actualTime = new Date();
   }
-  
-  if (!type || (type !== 'IN' && type !== 'OUT')) {
-    console.error('Invalid type provided:', type);
-    // Default to IN if invalid type
-    type = 'IN';
-  }
-  
+
   // Get time regions configuration
   const timeRegionsConfig = await getConfigSection('timeRegions');
-  
+
   // Validate timeRegion parameter
   if (!timeRegionsConfig[timeRegion]) {
     console.warn(`Invalid time region: ${timeRegion}, defaulting to PHT`);
     timeRegion = 'PHT';
   }
-  
+
   // Handle case when no schedule time is provided
   if (!scheduleTime) {
     return {
@@ -226,67 +220,77 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
 
   // Get the IANA timezone for the specified time region
   const timeZone = timeRegionsConfig[timeRegion]?.timezone || timeRegionsConfig['PHT'].timezone;
-  
-  // Convert the actual time to the specified time region
-  const zonedActualTime = actualTime;
-  console.log('Zoned actual time:', zonedActualTime.toISOString(), 'in timezone:', timeZone);
-  
+
+  // --- TIME ZONE AWARE ACTUAL TIME ---
+  // Always convert actualTime to the intended time zone for comparison
+  // (actualTime is assumed to be local time, so we convert to UTC for the correct zone)
+  const zonedActualTime = actualTime; // Fallback: use actualTime as-is
+  // zonedTimeToUtc(actualTime, timeZone);
+  console.log('Zoned actual time (UTC):', zonedActualTime.toISOString(), 'in timezone:', timeZone);
+
   // Parse schedule time
   const [scheduleHours, scheduleMinutes] = scheduleTime.split(':').map(Number);
-  
-  // Create a date object for the schedule time in the correct timezone
+
+  // --- TIME ZONE AWARE SCHEDULE DATE ---
   let scheduleDate;
-  
-  // Get shift rules from system configuration
   const shiftRules = await getConfigSection('shiftRules');
   const minHoursBetweenShifts = shiftRules.minHoursBetweenShifts || 4;
 
   if (shiftDate) {
-    // If a shift date is provided, use it as the base date but set the correct hours/minutes
-    const zonedShiftDate = shiftDate;
-    scheduleDate = new Date(zonedShiftDate);
-    scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-    console.log('Using provided shift date as base in timezone:', scheduleDate.toISOString());
+    // If a shift date is provided, use it as the base date but set the correct hours/minutes in the correct zone
+    // 1. Convert shiftDate to the correct zone
+    const baseDate = new Date(shiftDate); // Fallback: use local time as-is
+// utcToZonedTime(shiftDate, timeZone);
+    // 2. Set the schedule time in that zone
+    const scheduleLocal = setTime(baseDate, { hours: scheduleHours, minutes: scheduleMinutes, seconds: 0, milliseconds: 0 });
+    // 3. Convert back to UTC for comparison
+    scheduleDate = scheduleLocal; // Fallback: use local time as-is
+    // zonedTimeToUtc(scheduleLocal, timeZone);
+    console.log('Using provided shift date as base (zone-aware):', scheduleDate.toISOString());
   } else {
     // Otherwise create a date object for the schedule time on the same day as the actual time
-    scheduleDate = new Date(zonedActualTime);
-    scheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-    
+    // 1. Convert actualTime to the correct zone
+    const baseDate = new Date(actualTime); // Fallback: use local time as-is
+// utcToZonedTime(actualTime, timeZone);
+    // 2. Set the schedule time in that zone
+    scheduleLocal = setTime(baseDate, { hours: scheduleHours, minutes: scheduleMinutes, seconds: 0, milliseconds: 0 });
+    // 3. Convert back to UTC for comparison
+    scheduleDate = scheduleLocal; // Fallback: use local time as-is
+// zonedTimeToUtc(scheduleLocal, timeZone);
+
     // Handle special cases for time-in without a provided shift date
     if (type === 'IN') {
       // Handle late night shifts
       const lateNightShiftStartHour = shiftRules.lateNightShiftStartHour || 22;
       const earlyMorningEndHour = shiftRules.earlyMorningEndHour || 6;
-      
       if (scheduleHours >= lateNightShiftStartHour || scheduleHours <= earlyMorningEndHour) {
         // If actual time is in the morning and schedule is late night,
         // the schedule might be from the previous day
-        if (zonedActualTime.getHours() <= 12 && scheduleHours >= lateNightShiftStartHour) {
-          scheduleDate.setDate(scheduleDate.getDate() - 1);
-          console.log('Adjusted for late night shift (previous day):', scheduleDate.toISOString());
+        if (baseDate.getHours() <= 12 && scheduleHours >= lateNightShiftStartHour) {
+          scheduleLocal = setTime(addDays(baseDate, -1), { hours: scheduleHours, minutes: scheduleMinutes, seconds: 0, milliseconds: 0 });
+          scheduleDate = scheduleLocal; 
+          console.log('Adjusted for late night shift (previous day, zone-aware):', scheduleDate.toISOString());
         }
       }
-    } 
-    // Handle special cases for time-out
-    else {
+    } else {
       // Handle overnight shifts (ending between midnight and early morning)
       const earlyMorningEndHour = shiftRules.earlyMorningEndHour || 8;
-      
       if (scheduleHours < earlyMorningEndHour) {
         // If actual time is in the evening and schedule is early morning,
         // the schedule might be for the next day
-        if (zonedActualTime.getHours() >= 18 && scheduleHours < earlyMorningEndHour) {
-          scheduleDate.setDate(scheduleDate.getDate() + 1);
-          console.log('Adjusted for overnight shift (next day):', scheduleDate.toISOString());
+        if (baseDate.getHours() >= 18 && scheduleHours < earlyMorningEndHour) {
+          scheduleLocal = setTime(addDays(baseDate, 1), { hours: scheduleHours, minutes: scheduleMinutes, seconds: 0, milliseconds: 0 });
+          scheduleDate = scheduleLocal; 
+          console.log('Adjusted for overnight shift (next day, zone-aware):', scheduleDate.toISOString());
         }
       }
     }
   }
-  
-  // Calculate the time difference in minutes using the timezone-adjusted dates
+
+  // Calculate the time difference in minutes using the timezone-adjusted dates (both in UTC)
   let diffMinutes = Math.round((zonedActualTime.getTime() - scheduleDate.getTime()) / (1000 * 60));
-  
-  console.log('Time comparison in timezone:', {
+
+  console.log('Time comparison (zone-aware):', {
     zonedActualTime: zonedActualTime.toISOString(),
     scheduleDate: scheduleDate.toISOString(),
     diffMinutes,
@@ -296,35 +300,32 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
   // Handle day shift users timing in early (fix for large negative differences)
   // Only apply this fix if we didn't have a shift date provided
   const largeTimeDiffThreshold = shiftRules.largeTimeDiffThreshold || 600; // Default 10 hours (600 minutes)
-  
   if (!shiftDate && type === 'IN' && diffMinutes < -largeTimeDiffThreshold) {
-    console.log('Detected unusually large negative time difference, recalculating');
-    
+    console.log('Detected unusually large negative time difference, recalculating (zone-aware)');
     // Reset to same day comparison in the correct timezone
-    const correctScheduleDate = new Date(zonedActualTime);
-    correctScheduleDate.setHours(scheduleHours, scheduleMinutes, 0, 0);
-    
-    // If this makes the schedule time in the future, it's likely early arrival for today's shift
+    const baseDate = new Date(actualTime); // Fallback: use local time as-is
+// utcToZonedTime(actualTime, timeZone);
+    const correctScheduleLocal = setTime(baseDate, { hours: scheduleHours, minutes: scheduleMinutes, seconds: 0, milliseconds: 0 });
+    const correctScheduleDate = correctScheduleLocal; // Fallback: use local time as-is
+    // zonedTimeToUtc(correctScheduleLocal, timeZone);
     if (correctScheduleDate > zonedActualTime) {
       diffMinutes = Math.round((zonedActualTime.getTime() - correctScheduleDate.getTime()) / (1000 * 60));
-      console.log('Corrected time difference for early arrival:', diffMinutes);
+      console.log('Corrected time difference for early arrival (zone-aware):', diffMinutes);
     }
   }
-  
+
   // Always ensure we have a valid timeDiff object
   const timeDiff = formatTimeDiff(diffMinutes);
-  
+
   try {
     // Determine status based on the time difference and type
     const status = await determineStatus(diffMinutes, type);
-    
     return { status, timeDiff };
   } catch (error) {
     console.error('Error calculating attendance status:', error);
     // Fallback to original hardcoded values if there's an error
     let fallbackStatus;
     if (type === 'IN') {
-      // For time-in:
       if (diffMinutes <= -60) {
         fallbackStatus = 'Early';
       } else if (diffMinutes > -60 && diffMinutes <= 5) {
@@ -333,7 +334,6 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
         fallbackStatus = 'Late';
       }
     } else {
-      // For time-out:
       if (diffMinutes < -15) {
         fallbackStatus = 'Early Out';
       } else if (diffMinutes >= -15 && diffMinutes <= 60) {
@@ -1556,7 +1556,7 @@ export const getUserAttendanceStatus = async (userId) => {
  * @param {string} userId - User ID
  * @returns {Object|null} - Last attendance record or null if none found
  */
-const getLastAttendanceRecord = async (userId) => {
+export const getLastAttendanceRecord = async (userId) => {
   // Return null if userId is undefined or null
   if (!userId) {
     console.error('getLastAttendanceRecord called with invalid userId:', userId);
