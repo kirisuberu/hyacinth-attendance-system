@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { logoutUser } from '../redux/slices/authSlice';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
@@ -423,6 +425,28 @@ const LogoutButton = styled.button`
   }
 `;
 
+const SignOutButton = styled.button`
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 1rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: none;
+  color: #ef4444;
+  font-size: 1rem;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+  &:hover {
+    background: rgba(239, 68, 68, 0.2);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
 const ConfirmationPopup = styled.div`
   position: fixed;
   top: 50%;
@@ -745,6 +769,9 @@ const formatCountdown = (targetDate) => {
 };
 
 function MemberLayout() {
+  const dispatch = useDispatch();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState('');
@@ -1290,9 +1317,23 @@ function MemberLayout() {
             <Icon><ChartBar size={16} /></Icon>
             Reports
           </NavLink>
-          <LogoutButton onClick={handleLogout}>
-            <Icon><SignOut size={16} /></Icon>
-            Logout
+          <SignOutButton
+            onClick={async () => {
+              setSigningOut(true);
+              setSignOutError('');
+              try {
+                await dispatch(logoutUser()).unwrap();
+              } catch (err) {
+                setSignOutError('Failed to sign out. Please try again.');
+              } finally {
+                setSigningOut(false);
+              }
+            }}
+            disabled={signingOut}
+          >
+            Sign Out {signingOut ? '...' : ''}
+          </SignOutButton>
+          {signOutError && <div style={{color:'#ef4444',marginTop:'0.5rem'}}>{signOutError}</div>}
           </LogoutButton>
         </Sidebar>
 

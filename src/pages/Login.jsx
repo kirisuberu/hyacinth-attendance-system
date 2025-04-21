@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { loginWithGoogle, selectAuthLoading, selectAuthError, clearError } from '../redux/slices/authSlice';
+import { loginWithGoogle, selectAuthLoading, selectAuthError, clearError, selectUserAccess, selectCurrentUser } from '../redux/slices/authSlice';
 import { isEmailApproved } from '../utils/userService';
 
 const LoginContainer = styled.div`
@@ -122,6 +122,8 @@ function Login() {
   // Get auth state from Redux
   const loading = useSelector(selectAuthLoading);
   const reduxError = useSelector(selectAuthError);
+  const userAccess = useSelector(selectUserAccess);
+  const currentUser = useSelector(selectCurrentUser);
   
   // Local state for custom errors
   const [localError, setLocalError] = useState('');
@@ -129,6 +131,19 @@ function Login() {
   // Combine Redux and local errors
   const error = reduxError || localError;
   
+  // Redirect after login if user is authenticated and has access
+  useEffect(() => {
+    if (currentUser && userAccess && userAccess.hasAccess) {
+      if (userAccess.userType === 'admin') {
+        navigate('/admin/dashboard', { replace: true });
+      } else if (userAccess.userType === 'accountant') {
+        navigate('/admin/dashboard', { replace: true });
+      } else if (userAccess.userType === 'member') {
+        navigate('/member/dashboard', { replace: true });
+      }
+    }
+  }, [currentUser, userAccess, navigate]);
+
   // Clear errors when component unmounts
   useEffect(() => {
     return () => {

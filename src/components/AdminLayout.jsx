@@ -7,6 +7,8 @@ import { recordAttendance, getUserAttendanceStatus, calculateAttendanceStatus } 
 import { useAuth } from '../contexts/AuthContext';
 import AttendanceConfirmationModal from './AttendanceConfirmationModal';
 import { Calendar, Clock, ClockClockwise, House, Users, ChartBar, ListChecks, SignOut, Gear, Sliders } from 'phosphor-react';
+import { useDispatch } from 'react-redux';
+import { logoutUser } from '../redux/slices/authSlice';
 import { doc, getDoc } from 'firebase/firestore';
 import PropTypes from 'prop-types';
 import { zonedTimeToUtc } from 'date-fns-tz';
@@ -111,6 +113,28 @@ const LogoutButton = styled.button`
   }
 `;
 
+const SignOutButton = styled.button`
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 1rem;
+  background-color: rgba(239, 68, 68, 0.1);
+  border: none;
+  color: #ef4444;
+  font-size: 1rem;
+  text-align: center;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s;
+  &:hover {
+    background: rgba(239, 68, 68, 0.2);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
 const UserInfo = styled.div`
   position: absolute;
   bottom: 0;
@@ -185,6 +209,9 @@ const Icon = styled.span`
 `;
 
 function AdminLayout({ isMemberView = false }) {
+  const dispatch = useDispatch();
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
   const { currentUser, userAccess, loading, isAdmin, isAccountant } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -401,6 +428,29 @@ function AdminLayout({ isMemberView = false }) {
               <NavLink to="/admin/system-config" className={({ isActive }) => isActive ? 'active' : ''} style={{ color: '#10B981' }}>
                 <Icon><Sliders size={16} /></Icon>System Configuration
               </NavLink>
+              <NavLink to="/admin/dashboard"><House size={20}/> Dashboard</NavLink>
+              <NavLink to="/admin/attendance"><Clock size={20}/> Attendance</NavLink>
+              <NavLink to="/admin/users"><Users size={20}/> Users</NavLink>
+              <NavLink to="/admin/reports"><ChartBar size={20}/> Reports</NavLink>
+              <NavLink to="/admin/logs"><ListChecks size={20}/> Logs</NavLink>
+              <NavLink to="/admin/config"><Gear size={20}/> Config</NavLink>
+              <SignOutButton
+                onClick={async () => {
+                  setSigningOut(true);
+                  setSignOutError('');
+                  try {
+                    await dispatch(logoutUser()).unwrap();
+                  } catch (err) {
+                    setSignOutError('Failed to sign out. Please try again.');
+                  } finally {
+                    setSigningOut(false);
+                  }
+                }}
+                disabled={signingOut}
+              >
+                <SignOut size={20} /> {signingOut ? 'Signing out...' : 'Sign Out'}
+              </SignOutButton>
+              {signOutError && <div style={{color:'#ef4444',marginTop:'0.5rem'}}>{signOutError}</div>}
             </>
           )}
           
