@@ -143,7 +143,6 @@ function App() {
             <Route path="attendance-logs" element={<AttendanceLogs />} />
             <Route path="my-schedule" element={<MySchedule />} />
             <Route path="all-schedules" element={<AllSchedules />} />
-            <Route path="user-calendar" element={<UserCalendar />} />
             <Route 
               path="rules" 
               element={
