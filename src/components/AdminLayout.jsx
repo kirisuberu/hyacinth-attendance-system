@@ -430,13 +430,7 @@ function AdminLayout({ isMemberView = false }) {
             All Schedules
           </NavLink>
           
-          {/* User Calendar - hidden for member view */}
-          {!isMemberView && (
-            <NavLink to="/admin/user-calendar" className={({ isActive }) => isActive ? 'active' : ''}>
-              <Icon><Calendar size={16} /></Icon>
-              User Calendar
-            </NavLink>
-          )}
+          
           
           {/* My Schedule - available for all */}
           <NavLink 
