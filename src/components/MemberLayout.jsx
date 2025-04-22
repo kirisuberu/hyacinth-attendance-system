@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navigate, Outlet, Link, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, Link, NavLink, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { logoutUser } from '../redux/slices/authSlice';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';

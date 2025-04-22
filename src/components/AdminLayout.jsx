@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate, Outlet, Link } from 'react-router-dom';
+import { Navigate, Outlet, Link, NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 import { auth, db } from '../firebase';
 import { UserType } from '../utils/userService';
@@ -51,7 +51,7 @@ const MainContent = styled.main`
   width: calc(100vw - 250px);
 `;
 
-const NavLink = styled(Link)`
+const StyledNavLink = styled(NavLink)`
   display: block;
   color: white;
   text-decoration: none;
@@ -212,6 +212,7 @@ function AdminLayout({ isMemberView = false }) {
   const dispatch = useDispatch();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState('');
+  // isMemberView is already defined as a prop with default value false
   const { currentUser, userAccess, loading, isAdmin, isAccountant } = useAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -417,12 +418,12 @@ function AdminLayout({ isMemberView = false }) {
   {/* Admin Navigation - Only show valid, non-duplicated links for admin/accountant */}
   {!isMemberView && (
     <>
-      <NavLink to="/admin/dashboard"><Icon><House size={20} /></Icon>Dashboard</NavLink>
-      <NavLink to="/admin/attendance"><Icon><Clock size={20} /></Icon>Attendance</NavLink>
-      <NavLink to="/admin/users"><Icon><Users size={20} /></Icon>User Management</NavLink>
-      <NavLink to="/admin/reports"><Icon><ChartBar size={20} /></Icon>Reports</NavLink>
-      <NavLink to="/admin/logs"><Icon><ListChecks size={20} /></Icon>Logs</NavLink>
-      <NavLink to="/admin/system-config"><Icon><Sliders size={20} /></Icon>System Configuration</NavLink>
+      <StyledNavLink to="/admin/dashboard"><Icon><House size={20} /></Icon>Dashboard</StyledNavLink>
+      <StyledNavLink to="/admin/attendance"><Icon><Clock size={20} /></Icon>Attendance</StyledNavLink>
+      <StyledNavLink to="/admin/users"><Icon><Users size={20} /></Icon>User Management</StyledNavLink>
+      <StyledNavLink to="/admin/reports"><Icon><ChartBar size={20} /></Icon>Reports</StyledNavLink>
+      <StyledNavLink to="/admin/logs"><Icon><ListChecks size={20} /></Icon>Logs</StyledNavLink>
+      <StyledNavLink to="/admin/system-config"><Icon><Sliders size={20} /></Icon>System Configuration</StyledNavLink>
       <SignOutButton
         onClick={async () => {
           setSigningOut(true);
