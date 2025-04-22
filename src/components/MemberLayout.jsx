@@ -1096,13 +1096,8 @@ function MemberLayout() {
   };
 
   const handleTimeButtonClick = async (type) => {
-    // If user has no schedule for today, show a warning message but allow them to continue
-    if (!hasScheduleForToday) {
-      const confirmContinue = window.confirm(`Warning: You don't have a scheduled shift today. Are you sure you want to time ${type.toLowerCase()} for emergency work?`);
-      if (!confirmContinue) {
-        return;
-      }
-    }
+    // Allow users without schedules to time in and out without showing a warning message
+    // The status will be set to "N/A" in the attendance record
     
     try {
       const now = new Date();

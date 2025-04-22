@@ -209,7 +209,7 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
   // Handle case when no schedule time is provided
   if (!scheduleTime) {
     return {
-      status: 'No Schedule',
+      status: 'N/A',
       timeDiff: formatTimeDiff(0)
     };
   }
@@ -370,7 +370,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
     let scheduleTime = null;
     let currentShift = null;
     let shiftTimeRegion = userData.timeRegion || 'PHT';
-    let status = 'No Schedule';
+    let status = 'N/A';
     let timeDiff = { hours: 0, minutes: 0, totalMinutes: 0 };
     let shiftDuration = null;
     let expectedShiftDuration = null;
