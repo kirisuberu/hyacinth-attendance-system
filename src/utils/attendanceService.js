@@ -249,7 +249,7 @@ export const calculateAttendanceStatus = async (scheduleTime, actualTime, type, 
     const baseDate = new Date(actualTime); // Fallback: use local time as-is
 // utcToZonedTime(actualTime, timeZone);
     // 2. Set the schedule time in that zone
-    scheduleLocal = setTime(baseDate, { hours: scheduleHours, minutes: scheduleMinutes, seconds: 0, milliseconds: 0 });
+    let scheduleLocal = setTime(baseDate, { hours: scheduleHours, minutes: scheduleMinutes, seconds: 0, milliseconds: 0 });
     // 3. Convert back to UTC for comparison
     scheduleDate = scheduleLocal; // Fallback: use local time as-is
 // zonedTimeToUtc(scheduleLocal, timeZone);
