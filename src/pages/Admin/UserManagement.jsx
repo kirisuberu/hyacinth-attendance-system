@@ -9,7 +9,8 @@ import {
   createScheduleTemplate, 
   updateScheduleTemplate, 
   deleteScheduleTemplate,
-  refreshUserAccessAfterRename
+  refreshUserAccessAfterRename,
+  getApprovedEmails
 } from '../../utils/userService';
 import { safeTimestampToDate } from '../../utils/dateUtils';
 import { 

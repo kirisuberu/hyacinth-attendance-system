@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, Timestamp, doc, getDoc, setDoc, dele
 import { signOut } from 'firebase/auth'
 import { recordAttendance, calculateAttendanceStatus } from '../utils/attendanceService'
 import { formatTime } from '../utils/dateUtils'
-import { utcToZonedTime, format as formatInTimeZone } from 'date-fns-tz'
+import { utcToZonedTime, formatInTimeZone } from 'date-fns-tz'
 
 // Timezone logic fallback: All times are handled as local time.
 // If you upgrade date-fns-tz or need real timezone support, re-enable and update usages accordingly.

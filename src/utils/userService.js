@@ -378,6 +378,46 @@ export const updateUserWithDocumentRename = async (userId, userData) => {
   }
 };
 
+// Get approved emails from Firestore
+export const getApprovedEmails = async () => {
+  try {
+    const approvedEmailsRef = collection(db, 'approved_emails');
+    const querySnapshot = await getDocs(approvedEmailsRef);
+    const emails = [];
+    querySnapshot.forEach((doc) => {
+      emails.push(doc.id);
+    });
+    return emails;
+  } catch (error) {
+    console.error('Error getting approved emails:', error);
+    throw error;
+  }
+};
+
+// Add an approved email to Firestore
+export const addApprovedEmail = async (email) => {
+  try {
+    const emailRef = doc(db, 'approved_emails', email);
+    await setDoc(emailRef, { approved: true, addedAt: serverTimestamp() });
+    return email;
+  } catch (error) {
+    console.error('Error adding approved email:', error);
+    throw error;
+  }
+};
+
+// Remove an approved email from Firestore
+export const removeApprovedEmail = async (email) => {
+  try {
+    const emailRef = doc(db, 'approved_emails', email);
+    await deleteDoc(emailRef);
+    return email;
+  } catch (error) {
+    console.error('Error removing approved email:', error);
+    throw error;
+  }
+};
+
 // Refresh the current user's access after document rename
 export const refreshUserAccessAfterRename = async (authUser, newDocumentId) => {
   try {

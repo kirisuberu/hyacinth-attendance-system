@@ -4,7 +4,10 @@ import {
   getUserById, 
   createOrUpdateUser, 
   updateUserWithDocumentRename,
-  refreshUserAccessAfterRename
+  refreshUserAccessAfterRename,
+  getApprovedEmails,
+  addApprovedEmail,
+  removeApprovedEmail
 } from '../../utils/userService';
 
 // Initial state
