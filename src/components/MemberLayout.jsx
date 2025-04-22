@@ -183,6 +183,12 @@ const Overlay = styled.div`
   }
 `;
 
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+`;
+
 const NavLink = styled(Link)`
   color: #f3f4f6;
   text-decoration: none;
@@ -1334,7 +1340,6 @@ function MemberLayout() {
             Sign Out {signingOut ? '...' : ''}
           </SignOutButton>
           {signOutError && <div style={{color:'#ef4444',marginTop:'0.5rem'}}>{signOutError}</div>}
-          </LogoutButton>
         </Sidebar>
 
         <Overlay isOpen={sidebarOpen} onClick={closeSidebar} />
