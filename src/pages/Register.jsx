@@ -370,16 +370,22 @@ function Register() {
     } catch (error) {
       console.error('Registration error:', error);
       
-      if (error.code === 'auth/email-already-in-use') {
+      // Handle specific Firebase auth errors
+      if (error.code === 'auth/email-already-in-use' || 
+          (typeof error === 'object' && error.code === 'auth/email-already-in-use')) {
         setErrors(prev => ({
           ...prev,
-          email: 'Email is already in use'
+          email: 'Email is already registered. Please use a different email or login instead.'
         }));
+        // Scroll to the email field and focus it
+        document.getElementById('email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('email')?.focus();
       } else if (error.code === 'auth/network-request-failed') {
         toast.error('Network error. Please check your connection and try again.');
       } else if (error.code?.includes('auth/')) {
         toast.error(`Authentication error: ${error.message || 'Please try again later'}`);
       } else {
+        console.error('Registration error details:', error);
         toast.error('Registration failed. Please try again.');
       }
     } finally {

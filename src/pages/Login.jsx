@@ -204,11 +204,19 @@ function Login() {
           toast.error('Login failed');
         } else {
           // Handle normal auth errors
-          if (authError.code === 'auth/invalid-credential' || authError.code === 'auth/invalid-email' || authError.code === 'auth/user-not-found' || authError.code === 'auth/wrong-password') {
-            setError('Invalid email or password');
+          if (authError.code === 'auth/invalid-credential' || 
+              authError.code === 'auth/invalid-email' || 
+              authError.code === 'auth/user-not-found' || 
+              authError.code === 'auth/wrong-password') {
+            setError('Invalid email or password. Please check your credentials and try again.');
+            // Focus the email field for better UX
+            document.getElementById('email')?.focus();
           } else if (authError.code === 'auth/network-request-failed') {
             setError('Network error. Please check your connection and try again.');
+          } else if (authError.code === 'auth/too-many-requests') {
+            setError('Too many failed login attempts. Please try again later or reset your password.');
           } else {
+            console.error('Login error details:', authError);
             setError('Failed to log in. Please try again.');
           }
           toast.error('Login failed');
