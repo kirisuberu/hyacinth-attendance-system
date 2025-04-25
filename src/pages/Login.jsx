@@ -152,14 +152,23 @@ const ForgotPasswordLink = styled.button`
   background: none;
   border: none;
   color: #6e8efb;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   text-align: right;
-  cursor: pointer;
   margin-top: 0.5rem;
-  padding: 0;
+  cursor: pointer;
+  align-self: flex-end;
   
   &:hover {
     text-decoration: underline;
+  }
+  
+  &:disabled {
+    color: #999;
+    cursor: not-allowed;
+  }
+  
+  &:focus {
+    outline: none;
   }
 `;
 
@@ -378,8 +387,10 @@ function Login() {
               </PasswordToggle>
             </InputWrapper>
             <ForgotPasswordLink 
+              type="button"
               onClick={handleForgotPassword} 
               disabled={resetLoading}
+              tabIndex="-1" // Prevent it from being focused with tab navigation
             >
               {resetLoading ? 'Sending...' : resetEmailSent ? 'Email sent!' : 'Forgot password?'}
             </ForgotPasswordLink>
@@ -388,7 +399,11 @@ function Login() {
           {error && <ErrorMessage>{error}</ErrorMessage>}
           
           <ButtonGroup>
-            <Button type="submit" disabled={loading}>
+            <Button 
+              type="submit" 
+              disabled={loading}
+              onClick={handleSubmit} // Add explicit click handler
+            >
               {loading ? 'Logging in...' : (
                 <>
                   <Icon><SignIn size={18} /></Icon>
