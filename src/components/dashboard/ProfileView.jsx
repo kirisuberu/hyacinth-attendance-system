@@ -28,13 +28,7 @@ const FieldLabel = styled.strong`
   color: #555;
 `;
 
-const AdditionalInfoContainer = styled.div`
-  margin-top: 20px;
-  padding: 20px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-`;
+// Removed AdditionalInfoContainer
 
 const SectionTitle = styled.h3`
   font-size: 1.1rem;
@@ -62,7 +56,7 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
             <ProfileSection>
               <SectionTitle>
                 <UserCircle size={20} weight="bold" />
-                Basic Information
+                User Information
               </SectionTitle>
               <ProfileField>
                 <FieldLabel>
@@ -99,78 +93,34 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
                 </FieldLabel>
                 <FieldValue>{userData?.role || 'Not specified'}</FieldValue>
               </ProfileField>
-            </ProfileSection>
-            
-            <AdditionalInfoContainer>
-              <SectionTitle>
-                <Clock size={20} weight="bold" />
-                Additional Information
-              </SectionTitle>
-              {userData ? (
-                Object.entries(userData)
-                  .filter(([key]) => !['position', 'role', 'uid', 'userId', 'id'].includes(key))
-                  .map(([key, value]) => {
-                    // Format timestamp fields (createdAt, updatedAt, etc.)
-                    let displayValue = value;
-                    let icon = null;
-                    
-                    // Determine icon based on field name
-                    if (key.toLowerCase().includes('time') || key.toLowerCase().includes('date') || key.toLowerCase().includes('created') || key.toLowerCase().includes('updated')) {
-                      icon = <Calendar size={18} />;
-                    } else if (key.toLowerCase().includes('email')) {
-                      icon = <Envelope size={18} />;
-                    } else if (key.toLowerCase().includes('name')) {
-                      icon = <User size={18} />;
-                    } else {
-                      icon = <IdentificationCard size={18} />;
-                    }
-                    
-                    // Check if it's a Firebase timestamp
-                    if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
+              
+              {userData?.createdAt && (
+                <ProfileField>
+                  <FieldLabel>
+                    <Calendar size={18} />
+                    Created At:
+                  </FieldLabel>
+                  <FieldValue>
+                    {(() => {
                       try {
-                        const date = new Date(value.seconds * 1000);
-                        displayValue = date.toLocaleString('en-US', {
+                        const date = new Date(userData.createdAt.seconds * 1000);
+                        return date.toLocaleString('en-US', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit',
-                          second: '2-digit',
                           hour12: true
                         });
-                        icon = <Calendar size={18} />;
                       } catch (error) {
                         console.error('Error formatting timestamp:', error);
-                        displayValue = 'Invalid date';
+                        return 'Invalid date';
                       }
-                    } else if (typeof value === 'object') {
-                      try {
-                        displayValue = JSON.stringify(value, null, 2);
-                      } catch (error) {
-                        console.error('Error stringifying object:', error);
-                        displayValue = 'Complex object';
-                      }
-                    }
-                    
-                    // Format field name
-                    const formattedKey = key.replace(/([A-Z])/g, ' $1')
-                      .replace(/^./, str => str.toUpperCase())
-                      .replace(/([a-z])([A-Z])/g, '$1 $2');
-                    
-                    return (
-                      <ProfileField key={key}>
-                        <FieldLabel>
-                          {icon}
-                          {formattedKey}:
-                        </FieldLabel>
-                        <FieldValue>{displayValue}</FieldValue>
-                      </ProfileField>
-                    );
-                  })
-              ) : (
-                <p>No additional information available</p>
+                    })()
+                  }</FieldValue>
+                </ProfileField>
               )}
-            </AdditionalInfoContainer>
+            </ProfileSection>
           </>
         )}
       </CardContent>
