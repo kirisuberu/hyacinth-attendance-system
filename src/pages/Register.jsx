@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { Envelope, Lock, User, ArrowLeft, CheckCircle, IdentificationCard } from 'phosphor-react';
+import { Envelope, Lock, User, ArrowLeft, CheckCircle, IdentificationCard, Eye, EyeSlash, SpinnerGap } from 'phosphor-react';
 
 const RegisterContainer = styled.div`
   display: flex;
@@ -79,6 +79,7 @@ const InputWrapper = styled.div`
   border-radius: 4px;
   padding: 0 1rem;
   background-color: #f9f9f9;
+  position: relative;
   
   &:focus-within {
     border-color: #6e8efb;
@@ -150,6 +151,32 @@ const Button = styled.button`
   }
 `;
 
+const PasswordToggle = styled.button`
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  
+  &:hover {
+    color: #6e8efb;
+  }
+`;
+
+const Spinner = styled(SpinnerGap)`
+  animation: spin 1s linear infinite;
+  
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+`;
+
 const BackLink = styled(Link)`
   display: flex;
   align-items: center;
@@ -196,7 +223,17 @@ function Register() {
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
   const navigate = useNavigate();
+  
+  // Clear errors when form data changes
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      setErrors({});
+    }
+  }, [formData]);
 
   // Password requirements
   const passwordRequirements = {
@@ -223,12 +260,49 @@ function Register() {
       }));
     }
     
-    // Clear error when field is being edited
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+    // Check email availability with debounce
+    if (name === 'email' && value.includes('@') && value.includes('.')) {
+      setCheckingEmail(true);
+      const timer = setTimeout(() => {
+        checkEmailAvailability(value);
+      }, 800);
+      
+      return () => clearTimeout(timer);
+    }
+  };
+  
+  // Check if email is already registered
+  const checkEmailAvailability = async (email) => {
+    try {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        setCheckingEmail(false);
+        return;
+      }
+      
+      // Check if email exists using Firebase Auth REST API
+      const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${import.meta.env.VITE_FIREBASE_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          continueUri: window.location.href,
+          identifier: email
+        })
+      }).then(res => res.json());
+      
+      if (response.registered) {
+        setErrors(prev => ({
+          ...prev,
+          email: 'This email is already registered. Please use a different email or login instead.'
+        }));
+      }
+    } catch (error) {
+      console.error('Error checking email:', error);
+    } finally {
+      setCheckingEmail(false);
     }
   };
 
@@ -290,7 +364,28 @@ function Register() {
       let userId, userCredential;
       
       try {
-        // Create user with Firebase Authentication
+        // First check if email exists to provide a better error message
+        // This is a workaround for the auth/email-already-in-use error
+        const emailCheckResult = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${import.meta.env.VITE_FIREBASE_API_KEY}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            continueUri: window.location.href,
+            identifier: formData.email
+          })
+        }).then(res => res.json());
+        
+        // If email exists, show a friendly error message without attempting to create the user
+        if (emailCheckResult.registered) {
+          throw { 
+            code: 'auth/email-already-in-use',
+            message: 'This email is already registered. Please use a different email or try logging in instead.'
+          };
+        }
+        
+        // If email doesn't exist, proceed with user creation
         userCredential = await createUserWithEmailAndPassword(
           auth, 
           formData.email, 
@@ -300,8 +395,12 @@ function Register() {
       } catch (authError) {
         console.error('Firebase auth error:', authError);
         
-        if (authError.code === 'auth/email-already-in-use') {
-          throw { code: 'auth/email-already-in-use' };
+        if (authError.code === 'auth/email-already-in-use' || 
+            authError.message?.includes('email-already-in-use')) {
+          throw { 
+            code: 'auth/email-already-in-use',
+            message: authError.message || 'This email is already registered. Please use a different email or try logging in instead.'
+          };
         }
         
         if (isEmulatorMode && (authError.code === 'auth/network-request-failed' || authError.message?.includes('network'))) {
@@ -373,15 +472,31 @@ function Register() {
       // Handle specific Firebase auth errors
       if (error.code === 'auth/email-already-in-use' || 
           (typeof error === 'object' && error.code === 'auth/email-already-in-use')) {
+        const errorMessage = error.message || 'Email is already registered. Please use a different email or login instead.';
         setErrors(prev => ({
           ...prev,
-          email: 'Email is already registered. Please use a different email or login instead.'
+          email: errorMessage
         }));
+        
+        // Show a toast with a link to login
+        toast.error(
+          <div>
+            Email already exists. <a href="/" style={{color: 'white', textDecoration: 'underline'}}>Login instead?</a>
+          </div>,
+          { autoClose: 5000 }
+        );
+        
         // Scroll to the email field and focus it
         document.getElementById('email')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         document.getElementById('email')?.focus();
       } else if (error.code === 'auth/network-request-failed') {
         toast.error('Network error. Please check your connection and try again.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setErrors(prev => ({
+          ...prev,
+          email: 'Email/password registration is not enabled. Please contact the administrator.'
+        }));
+        console.error('Firebase email/password authentication is not enabled in the Firebase Console');
       } else if (error.code?.includes('auth/')) {
         toast.error(`Authentication error: ${error.message || 'Please try again later'}`);
       } else {
@@ -467,6 +582,11 @@ function Register() {
                 onChange={handleChange}
                 placeholder="Enter your email"
               />
+              {checkingEmail && (
+                <PasswordToggle as="span" aria-label="Checking email">
+                  <Spinner size={18} />
+                </PasswordToggle>
+              )}
             </InputWrapper>
             {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
           </FormGroup>
@@ -496,11 +616,18 @@ function Register() {
               <Input
                 id="password"
                 name="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="Create a password"
               />
+              <PasswordToggle 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+              </PasswordToggle>
             </InputWrapper>
             {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
             
@@ -531,11 +658,18 @@ function Register() {
               <Input
                 id="confirmPassword"
                 name="confirmPassword"
-                type="password"
+                type={showConfirmPassword ? "text" : "password"}
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 placeholder="Confirm your password"
               />
+              <PasswordToggle 
+                type="button" 
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              >
+                {showConfirmPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+              </PasswordToggle>
             </InputWrapper>
             {errors.confirmPassword && <ErrorMessage>{errors.confirmPassword}</ErrorMessage>}
             
@@ -547,8 +681,17 @@ function Register() {
             )}
           </FormGroup>
           
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Creating Account...' : 'Register'}
+          <Button type="submit" disabled={loading || checkingEmail}>
+            {loading ? (
+              <>
+                <Spinner size={18} />
+                Creating Account...
+              </>
+            ) : checkingEmail ? (
+              'Checking email...'
+            ) : (
+              'Register'
+            )}
           </Button>
         </Form>
       </RegisterCard>

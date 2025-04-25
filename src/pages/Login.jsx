@@ -1,17 +1,18 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { Envelope, Lock, SignIn, UserPlus } from 'phosphor-react';
+import { Envelope, Lock, SignIn, UserPlus, Eye, EyeSlash, ArrowCounterClockwise } from 'phosphor-react';
 
 const LoginContainer = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100vh;
+  min-height: 100vh;
+  padding: 2rem 1rem;
   background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
 `;
 
@@ -55,6 +56,7 @@ const InputWrapper = styled.div`
   border-radius: 4px;
   padding: 0 1rem;
   background-color: #f9f9f9;
+  position: relative;
   
   &:focus-within {
     border-color: #6e8efb;
@@ -146,6 +148,38 @@ const ButtonGroup = styled.div`
   width: 100%;
 `;
 
+const ForgotPasswordLink = styled.button`
+  background: none;
+  border: none;
+  color: #6e8efb;
+  font-size: 0.85rem;
+  text-align: right;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  padding: 0;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const PasswordToggle = styled.button`
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  
+  &:hover {
+    color: #6e8efb;
+  }
+`;
+
 const Logo = styled.div`
   font-size: 2.5rem;
   font-weight: bold;
@@ -159,13 +193,61 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
+  
+  // Clear error when inputs change
+  useEffect(() => {
+    if (error) setError('');
+  }, [email, password]);
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Please enter your email address to reset your password');
+      document.getElementById('email')?.focus();
+      return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address');
+      document.getElementById('email')?.focus();
+      return;
+    }
+    
+    try {
+      setResetLoading(true);
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+      toast.success('Password reset email sent! Check your inbox.');
+    } catch (error) {
+      console.error('Password reset error:', error);
+      if (error.code === 'auth/user-not-found') {
+        setError('No account found with this email address');
+      } else {
+        setError('Failed to send password reset email. Please try again.');
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!email || !password) {
       setError('Please enter both email and password');
+      return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address');
+      document.getElementById('email')?.focus();
       return;
     }
     
@@ -208,13 +290,35 @@ function Login() {
               authError.code === 'auth/invalid-email' || 
               authError.code === 'auth/user-not-found' || 
               authError.code === 'auth/wrong-password') {
-            setError('Invalid email or password. Please check your credentials and try again.');
+            console.log('Authentication failed:', authError.code, authError.message);
+            
+            // Check if it's likely a registration issue
+            const isLikelyNotRegistered = 
+              authError.code === 'auth/user-not-found' || 
+              (authError.code === 'auth/invalid-credential' && email.includes('@'));
+              
+            if (isLikelyNotRegistered) {
+              setError(
+                <span>
+                  Account not found. Please check your email or 
+                  <a href="/register" style={{color: '#6e8efb', marginLeft: '4px', textDecoration: 'underline'}}>
+                    register here
+                  </a>
+                </span>
+              );
+            } else {
+              setError('Invalid email or password. Please check your credentials and try again.');
+            }
+            
             // Focus the email field for better UX
             document.getElementById('email')?.focus();
           } else if (authError.code === 'auth/network-request-failed') {
             setError('Network error. Please check your connection and try again.');
           } else if (authError.code === 'auth/too-many-requests') {
             setError('Too many failed login attempts. Please try again later or reset your password.');
+          } else if (authError.code === 'auth/operation-not-allowed') {
+            setError('Email/password sign-in is not enabled. Please contact the administrator.');
+            console.error('Firebase email/password authentication is not enabled in the Firebase Console');
           } else {
             console.error('Login error details:', authError);
             setError('Failed to log in. Please try again.');
@@ -259,13 +363,26 @@ function Login() {
               <Icon><Lock size={18} /></Icon>
               <Input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 required
               />
+              <PasswordToggle 
+                type="button" 
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeSlash size={18} /> : <Eye size={18} />}
+              </PasswordToggle>
             </InputWrapper>
+            <ForgotPasswordLink 
+              onClick={handleForgotPassword} 
+              disabled={resetLoading}
+            >
+              {resetLoading ? 'Sending...' : resetEmailSent ? 'Email sent!' : 'Forgot password?'}
+            </ForgotPasswordLink>
           </FormGroup>
           
           {error && <ErrorMessage>{error}</ErrorMessage>}
