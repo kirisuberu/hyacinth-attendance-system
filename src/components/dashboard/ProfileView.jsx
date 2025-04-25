@@ -56,7 +56,7 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
               <h4 style={{ marginTop: 0 }}>Additional Information</h4>
               {userData ? (
                 Object.entries(userData)
-                  .filter(([key]) => !['position', 'role'].includes(key))
+                  .filter(([key]) => !['position', 'role', 'uid', 'userId', 'id'].includes(key))
                   .map(([key, value]) => (
                     <ProfileField key={key}>
                       <FieldLabel>{key.charAt(0).toUpperCase() + key.slice(1)}:</FieldLabel> 
