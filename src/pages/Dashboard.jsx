@@ -294,27 +294,87 @@ function Dashboard() {
     try {
       // Query the latest attendance record for the user
       const attendanceRef = collection(db, 'attendance');
-      const q = query(
-        attendanceRef,
-        where('userId', '==', user.uid),
-        orderBy('timestamp', 'desc'),
-        limit(1)
-      );
       
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const latestRecord = querySnapshot.docs[0].data();
-        setLastRecord(latestRecord);
-        setAttendanceStatus(latestRecord.type);
-      } else {
-        // No attendance records found
-        setAttendanceStatus(null);
-        setLastRecord(null);
+      try {
+        // First try with the index-dependent query
+        const q = query(
+          attendanceRef,
+          where('userId', '==', user.uid),
+          orderBy('timestamp', 'desc'),
+          limit(1)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const latestRecord = querySnapshot.docs[0].data();
+          setLastRecord(latestRecord);
+          setAttendanceStatus(latestRecord.type);
+        } else {
+          // No attendance records found
+          setAttendanceStatus(null);
+          setLastRecord(null);
+        }
+      } catch (indexError) {
+        // Check if this is an index building error
+        if (indexError.message && indexError.message.includes('index is currently building')) {
+          console.log('Index is still building, using fallback method');
+          
+          // Fallback: Get all attendance records for the user without ordering
+          const fallbackQuery = query(
+            attendanceRef,
+            where('userId', '==', user.uid)
+          );
+          
+          const fallbackSnapshot = await getDocs(fallbackQuery);
+          
+          if (!fallbackSnapshot.empty) {
+            // Manually find the latest record by comparing timestamps
+            let latestRecord = null;
+            let latestTime = new Date(0); // Start with oldest possible date
+            
+            fallbackSnapshot.forEach(doc => {
+              const data = doc.data();
+              const recordTime = data.timestamp?.toDate() || new Date(0);
+              
+              if (recordTime > latestTime) {
+                latestTime = recordTime;
+                latestRecord = data;
+              }
+            });
+            
+            if (latestRecord) {
+              setLastRecord(latestRecord);
+              setAttendanceStatus(latestRecord.type);
+            } else {
+              setAttendanceStatus(null);
+              setLastRecord(null);
+            }
+          } else {
+            // No attendance records found
+            setAttendanceStatus(null);
+            setLastRecord(null);
+          }
+          
+          // Show a more user-friendly message
+          toast.info('System is updating. Some features may be temporarily limited.', {
+            autoClose: 5000,
+            hideProgressBar: false,
+          });
+        } else {
+          // This is some other error, rethrow it
+          throw indexError;
+        }
       }
     } catch (error) {
       console.error('Error fetching attendance status:', error);
-      toast.error('Failed to fetch attendance status');
+      
+      // More user-friendly error message
+      if (error.message && error.message.includes('index')) {
+        toast.warning('System is updating attendance records. Please try again in a few minutes.');
+      } else {
+        toast.error('Unable to fetch your attendance status. Please refresh the page.');
+      }
     }
   };
   
