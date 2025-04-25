@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
@@ -249,6 +249,8 @@ function Dashboard() {
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [lastRecord, setLastRecord] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [loadingUserData, setLoadingUserData] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -256,11 +258,13 @@ function Dashboard() {
     const currentUser = auth.currentUser;
     
     if (currentUser) {
-      setUser({
+      const userObj = {
         uid: currentUser.uid,
         email: currentUser.email,
         displayName: currentUser.displayName || currentUser.email.split('@')[0]
-      });
+      };
+      setUser(userObj);
+      fetchUserData(currentUser.uid);
     } else {
       // Check for development fallback user
       const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
@@ -269,11 +273,13 @@ function Dashboard() {
         if (devUser) {
           try {
             const parsedUser = JSON.parse(devUser);
-            setUser({
+            const userObj = {
               uid: parsedUser.uid,
               email: parsedUser.email,
               displayName: parsedUser.displayName || parsedUser.email.split('@')[0]
-            });
+            };
+            setUser(userObj);
+            fetchUserData(parsedUser.uid);
             console.log('Using development user:', parsedUser.email);
           } catch (error) {
             console.error('Error parsing development user:', error);
@@ -282,6 +288,27 @@ function Dashboard() {
       }
     }
   }, []);
+  
+  // Fetch additional user data from Firestore
+  const fetchUserData = async (userId) => {
+    if (!userId) return;
+    
+    try {
+      setLoadingUserData(true);
+      const userDocRef = doc(db, 'users', userId);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (userDocSnap.exists()) {
+        setUserData(userDocSnap.data());
+      } else {
+        console.log('No user data found in Firestore');
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setLoadingUserData(false);
+    }
+  };
   
   // Fetch user's attendance status
   useEffect(() => {
@@ -600,8 +627,32 @@ function Dashboard() {
           <Card>
             <CardTitle>User Profile</CardTitle>
             <CardContent>
-              <p><strong>Email:</strong> {user?.email}</p>
-              <p><strong>Name:</strong> {user?.displayName}</p>
+              {loadingUserData ? (
+                <p>Loading user data...</p>
+              ) : (
+                <>
+                  <p><strong>Email:</strong> {user?.email}</p>
+                  <p><strong>Name:</strong> {user?.displayName}</p>
+                  <p><strong>User ID:</strong> {user?.uid}</p>
+                  <p><strong>Position:</strong> {userData?.position || 'Not specified'}</p>
+                  <p><strong>Role:</strong> {userData?.role || 'Not specified'}</p>
+                  
+                  <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                    <h4 style={{ marginTop: 0 }}>Additional Information</h4>
+                    {userData ? (
+                      Object.entries(userData)
+                        .filter(([key]) => !['position', 'role'].includes(key))
+                        .map(([key, value]) => (
+                          <p key={key}><strong>{key.charAt(0).toUpperCase() + key.slice(1)}:</strong> {
+                            typeof value === 'object' ? JSON.stringify(value) : value
+                          }</p>
+                        ))
+                    ) : (
+                      <p>No additional information available</p>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         )}
