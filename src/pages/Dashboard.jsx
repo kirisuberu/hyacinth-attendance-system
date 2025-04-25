@@ -10,6 +10,7 @@ import DashboardHome from '../components/dashboard/DashboardHome';
 import AttendanceView from '../components/dashboard/AttendanceView';
 import ScheduleView from '../components/dashboard/ScheduleView';
 import ProfileView from '../components/dashboard/ProfileView';
+import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
 
 function Dashboard() {
   const [user, setUser] = useState(null);
@@ -215,6 +216,7 @@ function Dashboard() {
       loading={loading}
       handleTimeInOut={handleTimeInOut}
       lastRecord={lastRecord}
+      isSuperAdmin={userData?.role === 'super_admin'}
     >
       {activeTab === 'dashboard' && (
         <DashboardHome 
@@ -237,6 +239,10 @@ function Dashboard() {
           userData={userData} 
           loadingUserData={loadingUserData} 
         />
+      )}
+
+      {activeTab === 'registration_requests' && userData?.role === 'super_admin' && (
+        <RegistrationRequestsView />
       )}
     </DashboardLayout>
   );

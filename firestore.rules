@@ -1,22 +1,41 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to all users for all collections
-    // Note: In production, you should restrict this to authenticated users
-    // and implement proper security rules
+    // Helper function to check if user is a super_admin
+    function isSuperAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+    }
+    
+    // Allow read/write access to authenticated users
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
     
-    // Allow public read access to specific collections if needed
+    // User collection rules
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
     }
     
+    // Attendance collection rules
     match /attendance/{document} {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
+    }
+    
+    // Registration requests collection rules
+    match /registration_requests/{requestId} {
+      allow read: if isSuperAdmin();
+      allow create: if request.auth != null;
+      allow update, delete: if isSuperAdmin();
+    }
+    
+    // Declined registrations collection rules
+    match /declined_registrations/{requestId} {
+      allow read: if isSuperAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
   }
 }

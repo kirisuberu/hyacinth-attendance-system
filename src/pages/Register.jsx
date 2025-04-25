@@ -6,6 +6,7 @@ import { auth, db } from '../firebase';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, User, ArrowLeft, CheckCircle, IdentificationCard, Eye, EyeSlash, SpinnerGap } from 'phosphor-react';
+import { submitRegistrationRequest } from '../services/registrationService';
 
 const RegisterContainer = styled.div`
   display: flex;
@@ -393,11 +394,11 @@ function Register() {
         );
         userId = userCredential.user.uid;
       } catch (authError) {
-        console.error('Firebase auth error:', authError);
+        console.error('Auth error:', authError);
         
-        if (authError.code === 'auth/email-already-in-use' || 
-            authError.message?.includes('email-already-in-use')) {
-          throw { 
+        // Handle specific auth errors
+        if (authError.code === 'auth/email-already-in-use') {
+          throw {
             code: 'auth/email-already-in-use',
             message: authError.message || 'This email is already registered. Please use a different email or try logging in instead.'
           };
@@ -427,22 +428,23 @@ function Register() {
         }
       }
       
-      // Create user document in Firestore
+      // Create registration request document
       const userDoc = {
         userId: userId,
         lastName: formData.lastName,
         firstName: formData.firstName,
         middleInitial: formData.middleInitial,
-        fullName: fullName,
+        name: fullName,
         email: formData.email,
         position: formData.position,
-        role: 'member', // Default role for new registrations
-        createdAt: new Date().toISOString(),
+        role: 'user', // Default role for new registrations
+        status: 'pending',
         userID: `uid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` // Permanent userID
       };
       
       try {
-        await setDoc(doc(db, 'users', userId), userDoc);
+        // Submit registration request instead of creating user directly
+        await submitRegistrationRequest(userDoc);
       } catch (firestoreError) {
         console.error('Firestore error:', firestoreError);
         
@@ -454,7 +456,7 @@ function Register() {
         }
       }
       
-      toast.success('Registration successful!');
+      toast.success('Registration request submitted! An administrator will review your request.');
       
       // Store user info in localStorage for development fallback
       if (isEmulatorMode && !userCredential) {
@@ -463,9 +465,15 @@ function Register() {
           email: formData.email,
           displayName: fullName
         }));
+        navigate('/dashboard'); // Only in dev mode we can proceed to dashboard
+      } else {
+        // In production, redirect to a confirmation page or login
+        navigate('/login', { 
+          state: { 
+            message: 'Your registration request has been submitted. You will be notified when your account is approved.'
+          } 
+        });
       }
-      
-      navigate('/dashboard');
     } catch (error) {
       console.error('Registration error:', error);
       

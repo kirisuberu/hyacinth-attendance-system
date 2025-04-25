@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
-import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon } from 'phosphor-react';
+import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus } from 'phosphor-react';
 import { auth } from '../../firebase';
 import { toast } from 'react-toastify';
 
@@ -152,6 +152,7 @@ const DashboardLayout = ({
   loading, 
   handleTimeInOut, 
   lastRecord,
+  isSuperAdmin,
   children 
 }) => {
   const navigate = useNavigate();
@@ -203,6 +204,16 @@ const DashboardLayout = ({
           Profile
         </NavItem>
         
+        {isSuperAdmin && (
+          <NavItem 
+            className={activeTab === 'registration_requests' ? 'active' : ''} 
+            onClick={() => setActiveTab('registration_requests')}
+          >
+            <Icon><UserPlus size={16} /></Icon>
+            Registration Requests
+          </NavItem>
+        )}
+        
         <div style={{ marginTop: 'auto' }}>
           <div style={{ marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Attendance Actions</p>
@@ -244,6 +255,7 @@ const DashboardLayout = ({
             {activeTab === 'attendance' && 'Attendance'}
             {activeTab === 'schedule' && 'Schedule'}
             {activeTab === 'profile' && 'Profile'}
+            {activeTab === 'registration_requests' && 'Registration Requests'}
           </Title>
           
           <UserInfo>
