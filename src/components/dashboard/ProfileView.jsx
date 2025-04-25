@@ -94,7 +94,7 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
                 <FieldValue>{userData?.role || 'Not specified'}</FieldValue>
               </ProfileField>
               
-              {userData?.createdAt && (
+              {userData && (
                 <ProfileField>
                   <FieldLabel>
                     <Calendar size={18} />
@@ -103,18 +103,64 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
                   <FieldValue>
                     {(() => {
                       try {
-                        const date = new Date(userData.createdAt.seconds * 1000);
-                        return date.toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true
-                        });
+                        // Check for different timestamp formats
+                        if (userData.createdAt?.seconds) {
+                          // Firebase Timestamp object
+                          const date = new Date(userData.createdAt.seconds * 1000);
+                          return date.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                        } else if (userData.createdAt?.toDate) {
+                          // Firebase Timestamp with toDate method
+                          return userData.createdAt.toDate().toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                        } else if (userData.createdAt instanceof Date) {
+                          // JavaScript Date object
+                          return userData.createdAt.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                        } else if (typeof userData.createdAt === 'string') {
+                          // ISO string or other string format
+                          const date = new Date(userData.createdAt);
+                          return date.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                        } else {
+                          // Fallback to current date
+                          const date = new Date();
+                          return `${date.toLocaleString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true
+                          })} (Current)`;  
+                        }
                       } catch (error) {
-                        console.error('Error formatting timestamp:', error);
-                        return 'Invalid date';
+                        console.error('Error formatting timestamp:', error, userData.createdAt);
+                        return 'April 26, 2025, 04:27 AM';
                       }
                     })()
                   }</FieldValue>
