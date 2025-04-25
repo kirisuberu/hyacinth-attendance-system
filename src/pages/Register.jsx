@@ -365,27 +365,6 @@ function Register() {
       let userId, userCredential;
       
       try {
-        // First check if email exists to provide a better error message
-        // This is a workaround for the auth/email-already-in-use error
-        const emailCheckResult = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=${import.meta.env.VITE_FIREBASE_API_KEY}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            continueUri: window.location.href,
-            identifier: formData.email
-          })
-        }).then(res => res.json());
-        
-        // If email exists, show a friendly error message without attempting to create the user
-        if (emailCheckResult.registered) {
-          throw { 
-            code: 'auth/email-already-in-use',
-            message: 'This email is already registered. Please use a different email or try logging in instead.'
-          };
-        }
-        
         // If email doesn't exist, proceed with user creation
         userCredential = await createUserWithEmailAndPassword(
           auth, 
@@ -398,19 +377,22 @@ function Register() {
         
         // Handle specific auth errors
         if (authError.code === 'auth/email-already-in-use') {
-          throw {
-            code: 'auth/email-already-in-use',
-            message: authError.message || 'This email is already registered. Please use a different email or try logging in instead.'
-          };
-        }
-        
-        if (isEmulatorMode && (authError.code === 'auth/network-request-failed' || authError.message?.includes('network'))) {
-          // In development with emulator issues, generate a mock user ID
-          console.warn('Firebase emulator not available, using mock authentication');
-          userId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          // Special handling for email-already-in-use error
+          // Instead of throwing an error, we'll use this email for registration request
+          console.log('Email already exists in Auth but proceeding with registration request');
+          
+          // Generate a temporary userId for the registration request
+          userId = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         } else {
-          // For other auth errors, rethrow
-          throw authError;
+        
+          if (isEmulatorMode && (authError.code === 'auth/network-request-failed' || authError.message?.includes('network'))) {
+            // In development with emulator issues, generate a mock user ID
+            console.warn('Firebase emulator not available, using mock authentication');
+            userId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+          } else {
+            // For other auth errors, rethrow
+            throw authError;
+          }
         }
       }
       
