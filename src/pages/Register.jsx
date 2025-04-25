@@ -1,0 +1,553 @@
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import styled from 'styled-components';
+import { toast } from 'react-toastify';
+import { Envelope, Lock, User, ArrowLeft, CheckCircle, IdentificationCard } from 'phosphor-react';
+
+const RegisterContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  padding: 2rem 1rem;
+`;
+
+const RegisterCard = styled.div`
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  padding: 2rem;
+  width: 100%;
+  max-width: 550px;
+  animation: fadeIn 0.3s ease-in-out;
+`;
+
+const Title = styled.h1`
+  color: #333;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+`;
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const NameRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+`;
+
+const NameField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: ${props => props.flex || 1};
+  min-width: ${props => props.minWidth || '0'};
+`;
+
+const Label = styled.label`
+  font-size: 0.9rem;
+  color: #555;
+`;
+
+const InputWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0 1rem;
+  background-color: #f9f9f9;
+  
+  &:focus-within {
+    border-color: #6e8efb;
+    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
+  }
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+  color: #888;
+`;
+
+const Input = styled.input`
+  flex: 1;
+  padding: 0.75rem 0;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+  }
+`;
+
+const Select = styled.select`
+  flex: 1;
+  padding: 0.75rem 0;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  appearance: none;
+  
+  &:focus {
+    outline: none;
+  }
+  
+  option {
+    padding: 0.5rem;
+  }
+`;
+
+const Button = styled.button`
+  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
+  }
+  
+  &:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+const BackLink = styled(Link)`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6e8efb;
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+
+const ErrorMessage = styled.p`
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+`;
+
+const PasswordRequirements = styled.div`
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #666;
+`;
+
+const RequirementItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  color: ${props => props.met ? '#27ae60' : '#666'};
+`;
+
+function Register() {
+  const [formData, setFormData] = useState({
+    lastName: '',
+    firstName: '',
+    middleInitial: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    position: ''
+  });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  // Password requirements
+  const passwordRequirements = {
+    length: formData.password.length >= 4,
+    alphanumeric: /^[a-zA-Z0-9]+$/.test(formData.password),
+    hasLetter: /[a-zA-Z]/.test(formData.password),
+    hasNumber: /[0-9]/.test(formData.password),
+    match: formData.password === formData.confirmPassword && formData.confirmPassword !== ''
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    
+    // Handle middle initial uppercase conversion
+    if (name === 'middleInitial') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value.toUpperCase()
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    
+    // Clear error when field is being edited
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'Last name is required';
+    }
+    
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+    
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = 'Email is invalid';
+    }
+    
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (!passwordRequirements.length) {
+      newErrors.password = 'Password must be at least 4 characters';
+    } else if (!passwordRequirements.alphanumeric) {
+      newErrors.password = 'Password must contain only letters and numbers';
+    } else if (!passwordRequirements.hasLetter) {
+      newErrors.password = 'Password must contain at least one letter';
+    } else if (!passwordRequirements.hasNumber) {
+      newErrors.password = 'Password must contain at least one number';
+    }
+    
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+    
+    if (!formData.position) {
+      newErrors.position = 'Please select your position';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Check if we're in development mode and Firebase emulator is not available
+      const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
+      let userId, userCredential;
+      
+      try {
+        // Create user with Firebase Authentication
+        userCredential = await createUserWithEmailAndPassword(
+          auth, 
+          formData.email, 
+          formData.password
+        );
+        userId = userCredential.user.uid;
+      } catch (authError) {
+        console.error('Firebase auth error:', authError);
+        
+        if (authError.code === 'auth/email-already-in-use') {
+          throw { code: 'auth/email-already-in-use' };
+        }
+        
+        if (isEmulatorMode && (authError.code === 'auth/network-request-failed' || authError.message?.includes('network'))) {
+          // In development with emulator issues, generate a mock user ID
+          console.warn('Firebase emulator not available, using mock authentication');
+          userId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        } else {
+          // For other auth errors, rethrow
+          throw authError;
+        }
+      }
+      
+      // Create full name from parts
+      const fullName = `${formData.lastName}, ${formData.firstName}${formData.middleInitial ? ' ' + formData.middleInitial + '.' : ''}`;
+      
+      // Update profile with display name if we have a user credential
+      if (userCredential?.user) {
+        try {
+          await updateProfile(userCredential.user, {
+            displayName: fullName
+          });
+        } catch (profileError) {
+          console.warn('Could not update profile, continuing with registration:', profileError);
+        }
+      }
+      
+      // Create user document in Firestore
+      const userDoc = {
+        userId: userId,
+        lastName: formData.lastName,
+        firstName: formData.firstName,
+        middleInitial: formData.middleInitial,
+        fullName: fullName,
+        email: formData.email,
+        position: formData.position,
+        role: 'member', // Default role for new registrations
+        createdAt: new Date().toISOString(),
+        userID: `uid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` // Permanent userID
+      };
+      
+      try {
+        await setDoc(doc(db, 'users', userId), userDoc);
+      } catch (firestoreError) {
+        console.error('Firestore error:', firestoreError);
+        
+        if (isEmulatorMode) {
+          console.warn('Firebase emulator not available, skipping Firestore operation');
+          // In development, we can still proceed without Firestore
+        } else {
+          throw firestoreError;
+        }
+      }
+      
+      toast.success('Registration successful!');
+      
+      // Store user info in localStorage for development fallback
+      if (isEmulatorMode && !userCredential) {
+        localStorage.setItem('dev_user', JSON.stringify({
+          uid: userId,
+          email: formData.email,
+          displayName: fullName
+        }));
+      }
+      
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Registration error:', error);
+      
+      if (error.code === 'auth/email-already-in-use') {
+        setErrors(prev => ({
+          ...prev,
+          email: 'Email is already in use'
+        }));
+      } else if (error.code === 'auth/network-request-failed') {
+        toast.error('Network error. Please check your connection and try again.');
+      } else if (error.code?.includes('auth/')) {
+        toast.error(`Authentication error: ${error.message || 'Please try again later'}`);
+      } else {
+        toast.error('Registration failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <RegisterContainer>
+      <RegisterCard>
+        <BackLink to="/">
+          <Icon><ArrowLeft size={16} /></Icon>
+          Back to Login
+        </BackLink>
+        
+        <Title>Create Account</Title>
+        
+        <Form onSubmit={handleSubmit}>
+          <FormGroup>
+            <Label>Full Name</Label>
+            <NameRow>
+              <NameField flex="2" minWidth="150px">
+                <Label htmlFor="lastName">Last Name</Label>
+                <InputWrapper>
+                  <Icon><User size={18} /></Icon>
+                  <Input
+                    id="lastName"
+                    name="lastName"
+                    type="text"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    placeholder="Last name"
+                  />
+                </InputWrapper>
+                {errors.lastName && <ErrorMessage>{errors.lastName}</ErrorMessage>}
+              </NameField>
+              
+              <NameField flex="2" minWidth="150px">
+                <Label htmlFor="firstName">First Name</Label>
+                <InputWrapper>
+                  <Input
+                    id="firstName"
+                    name="firstName"
+                    type="text"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    placeholder="First name"
+                  />
+                </InputWrapper>
+                {errors.firstName && <ErrorMessage>{errors.firstName}</ErrorMessage>}
+              </NameField>
+              
+              <NameField flex="1" minWidth="80px">
+                <Label htmlFor="middleInitial">M.I.</Label>
+                <InputWrapper>
+                  <Input
+                    id="middleInitial"
+                    name="middleInitial"
+                    type="text"
+                    value={formData.middleInitial}
+                    onChange={handleChange}
+                    placeholder="M.I."
+                    maxLength="1"
+                  />
+                </InputWrapper>
+              </NameField>
+            </NameRow>
+          </FormGroup>
+          
+          <FormGroup>
+            <Label htmlFor="email">Email</Label>
+            <InputWrapper>
+              <Icon><Envelope size={18} /></Icon>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Enter your email"
+              />
+            </InputWrapper>
+            {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
+          </FormGroup>
+          
+          <FormGroup>
+            <Label htmlFor="position">Position</Label>
+            <InputWrapper>
+              <Icon><IdentificationCard size={18} /></Icon>
+              <Select
+                id="position"
+                name="position"
+                value={formData.position}
+                onChange={handleChange}
+              >
+                <option value="" disabled>Select your position</option>
+                <option value="Intern/OJT">Intern/OJT</option>
+                <option value="Employed/Onboarded">Employed/Onboarded</option>
+              </Select>
+            </InputWrapper>
+            {errors.position && <ErrorMessage>{errors.position}</ErrorMessage>}
+          </FormGroup>
+          
+          <FormGroup>
+            <Label htmlFor="password">Password</Label>
+            <InputWrapper>
+              <Icon><Lock size={18} /></Icon>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Create a password"
+              />
+            </InputWrapper>
+            {errors.password && <ErrorMessage>{errors.password}</ErrorMessage>}
+            
+            <PasswordRequirements>
+              <RequirementItem met={passwordRequirements.length}>
+                <Icon><CheckCircle size={14} weight={passwordRequirements.length ? "fill" : "regular"} /></Icon>
+                At least 4 characters
+              </RequirementItem>
+              <RequirementItem met={passwordRequirements.alphanumeric}>
+                <Icon><CheckCircle size={14} weight={passwordRequirements.alphanumeric ? "fill" : "regular"} /></Icon>
+                Only letters and numbers
+              </RequirementItem>
+              <RequirementItem met={passwordRequirements.hasLetter}>
+                <Icon><CheckCircle size={14} weight={passwordRequirements.hasLetter ? "fill" : "regular"} /></Icon>
+                At least one letter
+              </RequirementItem>
+              <RequirementItem met={passwordRequirements.hasNumber}>
+                <Icon><CheckCircle size={14} weight={passwordRequirements.hasNumber ? "fill" : "regular"} /></Icon>
+                At least one number
+              </RequirementItem>
+            </PasswordRequirements>
+          </FormGroup>
+          
+          <FormGroup>
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <InputWrapper>
+              <Icon><Lock size={18} /></Icon>
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Confirm your password"
+              />
+            </InputWrapper>
+            {errors.confirmPassword && <ErrorMessage>{errors.confirmPassword}</ErrorMessage>}
+            
+            {formData.confirmPassword && (
+              <RequirementItem met={passwordRequirements.match}>
+                <Icon><CheckCircle size={14} weight={passwordRequirements.match ? "fill" : "regular"} /></Icon>
+                Passwords match
+              </RequirementItem>
+            )}
+          </FormGroup>
+          
+          <Button type="submit" disabled={loading}>
+            {loading ? 'Creating Account...' : 'Register'}
+          </Button>
+        </Form>
+      </RegisterCard>
+    </RegisterContainer>
+  );
+}
+
+export default Register;

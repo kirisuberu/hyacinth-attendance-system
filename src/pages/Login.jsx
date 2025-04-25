@@ -1,205 +1,284 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../firebase';
 import styled from 'styled-components';
-import { loginWithGoogle, selectAuthLoading, selectAuthError, clearError, selectUserAccess, selectCurrentUser } from '../redux/slices/authSlice';
-
+import { toast } from 'react-toastify';
+import { Envelope, Lock, SignIn, UserPlus } from 'phosphor-react';
 
 const LoginContainer = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  width: 100%;
   height: 100vh;
-  margin: 0;
-  padding: 0;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
   background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
-  overflow: hidden;
 `;
 
-const LoginBox = styled.div`
-  background: white;
-  padding: 2.5rem;
-  border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-  text-align: center;
-  max-width: 450px;
-  width: 90%;
-  transition: transform 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-5px);
-  }
-`;
-
-const Logo = styled.img`
-  width: 120px;
-  height: auto;
-  margin-bottom: 1.5rem;
+const LoginCard = styled.div`
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  padding: 2rem;
+  width: 100%;
+  max-width: 400px;
 `;
 
 const Title = styled.h1`
   color: #333;
-  margin-bottom: 1rem;
-  font-weight: 600;
   font-size: 2rem;
-`;
-
-const Subtitle = styled.p`
-  color: #666;
   margin-bottom: 2rem;
-  font-size: 1rem;
+  text-align: center;
 `;
 
-const GoogleButton = styled.button`
-  background: #4285f4;
-  color: white;
-  padding: 0.85rem 1.75rem;
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const Label = styled.label`
+  font-size: 0.9rem;
+  color: #555;
+`;
+
+const InputWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0 1rem;
+  background-color: #f9f9f9;
+  
+  &:focus-within {
+    border-color: #6e8efb;
+    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
+  }
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+  color: #888;
+`;
+
+const Input = styled.input`
+  flex: 1;
+  padding: 0.75rem 0;
   border: none;
-  border-radius: 50px;
-  cursor: pointer;
+  background: transparent;
   font-size: 1rem;
-  font-weight: 500;
+  
+  &:focus {
+    outline: none;
+  }
+`;
+
+const Button = styled.button`
+  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
-  margin: 0 auto;
-  transition: all 0.3s ease;
-  width: 80%;
-  box-shadow: 0 4px 6px rgba(66, 133, 244, 0.3);
-
+  gap: 0.5rem;
+  margin-top: 1rem;
+  width: 100%;
+  
   &:hover {
-    background: #357ae8;
     transform: translateY(-2px);
-    box-shadow: 0 6px 8px rgba(66, 133, 244, 0.4);
+    box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
   }
-
-  &:active {
-    transform: translateY(0);
-  }
-
+  
   &:disabled {
     background: #ccc;
     cursor: not-allowed;
+    transform: none;
     box-shadow: none;
   }
 `;
 
-const GoogleIcon = styled.span`
+const ErrorMessage = styled.p`
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+`;
+
+const RegisterButton = styled(Link)`
   display: flex;
   align-items: center;
   justify-content: center;
-`;
-
-const ErrorMessage = styled.div`
-  color: #dc2626;
-  margin-bottom: 1.5rem;
+  gap: 0.5rem;
+  background-color: transparent;
+  color: #6e8efb;
+  border: 1px solid #6e8efb;
+  border-radius: 4px;
   padding: 0.75rem;
-  border-radius: 8px;
-  background-color: #fee2e2;
-  display: ${props => props.visible ? 'block' : 'none'};
-  font-size: 0.9rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  margin-top: 1rem;
+  width: 100%;
+  
+  &:hover {
+    background-color: rgba(110, 142, 251, 0.1);
+    transform: translateY(-2px);
+  }
 `;
 
-const Footer = styled.p`
-  color: #666;
-  margin-top: 2rem;
-  font-size: 0.85rem;
+const ButtonGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+`;
+
+const Logo = styled.div`
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #6e8efb;
+  margin-bottom: 1rem;
+  text-align: center;
 `;
 
 function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  
-  // Get auth state from Redux
-  const loading = useSelector(selectAuthLoading);
-  const reduxError = useSelector(selectAuthError);
-  const userAccess = useSelector(selectUserAccess);
-  const currentUser = useSelector(selectCurrentUser);
-  
-  // Local state for custom errors
-  const [localError, setLocalError] = useState('');
-  
-  // Combine Redux and local errors
-  const error = reduxError || localError;
-  
-  // Redirect after login if user is authenticated and has access
-  useEffect(() => {
-    if (currentUser && userAccess && userAccess.hasAccess) {
-      if (userAccess.userType === 'admin') {
-        navigate('/admin/dashboard', { replace: true });
-      } else if (userAccess.userType === 'accountant') {
-        navigate('/admin/dashboard', { replace: true });
-      } else if (userAccess.userType === 'member') {
-        navigate('/member/dashboard', { replace: true });
-      }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
     }
-  }, [currentUser, userAccess, navigate]);
-
-  // Clear errors when component unmounts
-  useEffect(() => {
-    return () => {
-      dispatch(clearError());
-    };
-  }, [dispatch]);
-
-  const handleGoogleSignIn = async () => {
+    
     try {
-      setLocalError('');
-      dispatch(clearError());
+      setError('');
+      setLoading(true);
       
-      // Check if email is approved before sign-in
-      // This is a pre-check to avoid unnecessary sign-ins
-      // The actual approval check is handled in the Redux thunk
-      dispatch(loginWithGoogle());
+      // Check if we're in development mode and Firebase emulator is not available
+      const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
+      
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        toast.success('Login successful!');
+        navigate('/dashboard');
+      } catch (authError) {
+        console.error('Firebase auth error:', authError);
+        
+        // Check for development mode with emulator issues
+        if (isEmulatorMode && (authError.code === 'auth/network-request-failed' || authError.message?.includes('network'))) {
+          console.warn('Firebase emulator not available, using development login');
+          
+          // Check if this email/password matches the dev user in localStorage
+          const devUser = localStorage.getItem('dev_user');
+          if (devUser) {
+            const parsedUser = JSON.parse(devUser);
+            if (parsedUser.email === email) {
+              // Simulate successful login
+              toast.success('Development login successful!');
+              navigate('/dashboard');
+              return;
+            }
+          }
+          
+          // If no matching dev user, show invalid credential error
+          setError('Invalid email or password');
+          toast.error('Login failed');
+        } else {
+          // Handle normal auth errors
+          if (authError.code === 'auth/invalid-credential' || authError.code === 'auth/invalid-email' || authError.code === 'auth/user-not-found' || authError.code === 'auth/wrong-password') {
+            setError('Invalid email or password');
+          } else if (authError.code === 'auth/network-request-failed') {
+            setError('Network error. Please check your connection and try again.');
+          } else {
+            setError('Failed to log in. Please try again.');
+          }
+          toast.error('Login failed');
+        }
+      }
     } catch (error) {
-      console.error('Error during Google sign in:', error);
-      setLocalError(error.message || 'An error occurred during sign in');
+      console.error('Unexpected login error:', error);
+      setError('An unexpected error occurred. Please try again.');
+      toast.error('Login failed');
+    } finally {
+      setLoading(false);
     }
-  };
-
-  // Helper function to clean up duplicate users
-  const cleanupDuplicateUsers = async () => {
-    // This functionality is now handled in the Redux thunks and user service
-    console.log('Cleanup functionality moved to Redux and user service');
   };
 
   return (
     <LoginContainer>
-      <LoginBox>
-        <Logo src="/logo.png" alt="Hyacinth Attendance" />
-        <Title>Hyacinth Attendance</Title>
-        <Subtitle>Sign in to access the attendance system</Subtitle>
+      <LoginCard>
+        <Logo>Hyacinth</Logo>
+        <Title>Attendance System</Title>
         
-        <ErrorMessage visible={!!error}>
-          {error}
-        </ErrorMessage>
-        
-        <GoogleButton 
-          onClick={handleGoogleSignIn} 
-          disabled={loading}
-        >
-          <GoogleIcon>
-            <svg width="20" height="20" viewBox="0 0 24 24">
-              <path
-                fill="currentColor"
-                d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.2,4.73 12.2,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.1,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.25,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z"
+        <Form onSubmit={handleSubmit}>
+          <FormGroup>
+            <Label htmlFor="email">Email</Label>
+            <InputWrapper>
+              <Icon><Envelope size={18} /></Icon>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
               />
-            </svg>
-          </GoogleIcon>
-          {loading ? 'Signing in...' : 'Sign in with Google'}
-        </GoogleButton>
-        
-        <Footer> {new Date().getFullYear()} Hyacinth Attendance System</Footer>
-      </LoginBox>
+            </InputWrapper>
+          </FormGroup>
+          
+          <FormGroup>
+            <Label htmlFor="password">Password</Label>
+            <InputWrapper>
+              <Icon><Lock size={18} /></Icon>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+              />
+            </InputWrapper>
+          </FormGroup>
+          
+          {error && <ErrorMessage>{error}</ErrorMessage>}
+          
+          <ButtonGroup>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Logging in...' : (
+                <>
+                  <Icon><SignIn size={18} /></Icon>
+                  Login
+                </>
+              )}
+            </Button>
+            
+            <RegisterButton to="/register">
+              <Icon><UserPlus size={18} /></Icon>
+              Register
+            </RegisterButton>
+          </ButtonGroup>
+        </Form>
+      </LoginCard>
     </LoginContainer>
   );
 }
