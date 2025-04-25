@@ -57,12 +57,33 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
               {userData ? (
                 Object.entries(userData)
                   .filter(([key]) => !['position', 'role', 'uid', 'userId', 'id'].includes(key))
-                  .map(([key, value]) => (
-                    <ProfileField key={key}>
-                      <FieldLabel>{key.charAt(0).toUpperCase() + key.slice(1)}:</FieldLabel> 
-                      {typeof value === 'object' ? JSON.stringify(value) : value}
-                    </ProfileField>
-                  ))
+                  .map(([key, value]) => {
+                    // Format timestamp fields (createdAt, updatedAt, etc.)
+                    let displayValue = value;
+                    
+                    // Check if it's a Firebase timestamp
+                    if (value && typeof value === 'object' && value.seconds !== undefined && value.nanoseconds !== undefined) {
+                      const date = new Date(value.seconds * 1000);
+                      displayValue = date.toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: true
+                      });
+                    } else if (typeof value === 'object') {
+                      displayValue = JSON.stringify(value, null, 2);
+                    }
+                    
+                    return (
+                      <ProfileField key={key}>
+                        <FieldLabel>{key.charAt(0).toUpperCase() + key.slice(1)}:</FieldLabel> 
+                        {displayValue}
+                      </ProfileField>
+                    );
+                  })
               ) : (
                 <p>No additional information available</p>
               )}
