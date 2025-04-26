@@ -424,9 +424,33 @@ function UserManagementView() {
     
     try {
       const userRef = doc(db, 'users', selectedUser.id);
-      await updateDoc(userRef, {
-        schedule: scheduleData
-      });
+      
+      try {
+        // Try to update the document first
+        await updateDoc(userRef, {
+          schedule: scheduleData
+        });
+      } catch (updateError) {
+        // If the document doesn't exist, create it
+        if (updateError.code === 'not-found' || updateError.message.includes('No document to update')) {
+          console.log('Document does not exist, creating it...');
+          await setDoc(userRef, {
+            // Include all necessary user fields
+            id: selectedUser.id,
+            email: selectedUser.email,
+            name: selectedUser.name || '',
+            position: selectedUser.position || '',
+            role: selectedUser.role || 'member',
+            status: selectedUser.status || 'active',
+            schedule: scheduleData,
+            createdAt: new Date()
+          });
+          toast.info('Created new user document with schedule');
+        } else {
+          // If it's a different error, rethrow it
+          throw updateError;
+        }
+      }
       
       // Update local state
       setUsers(users.map(user => 
@@ -437,7 +461,7 @@ function UserManagementView() {
       setShowScheduleModal(false);
     } catch (error) {
       console.error('Error updating schedule:', error);
-      toast.error('Failed to update schedule');
+      toast.error(`Failed to update schedule: ${error.message}`);
     }
   };
 
