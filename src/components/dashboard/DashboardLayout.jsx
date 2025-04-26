@@ -73,20 +73,20 @@ const SidebarTimeButton = styled.button`
 `;
 
 const TimeInSidebarButton = styled(SidebarTimeButton)`
-  background-color: #4caf50;
+  background-color: #333333;
   color: white;
   
   &:hover:not(:disabled) {
-    background-color: #43a047;
+    background-color: #000000;
   }
 `;
 
 const TimeOutSidebarButton = styled(SidebarTimeButton)`
-  background-color: #f44336;
+  background-color: #800000;
   color: white;
   
   &:hover:not(:disabled) {
-    background-color: #e53935;
+    background-color: #600000;
   }
 `;
 
@@ -170,7 +170,7 @@ const DashboardLayout = ({
   return (
     <DashboardContainer>
       <Sidebar>
-        <Logo>Hyacinth</Logo>
+        <Logo>HyAttend</Logo>
         
         <NavItem 
           className={activeTab === 'dashboard' ? 'active' : ''} 
