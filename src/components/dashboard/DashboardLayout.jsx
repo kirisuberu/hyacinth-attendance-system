@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
-import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus } from 'phosphor-react';
+import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users } from 'phosphor-react';
 import { auth } from '../../firebase';
 import { toast } from 'react-toastify';
 
@@ -205,13 +205,23 @@ const DashboardLayout = ({
         </NavItem>
         
         {isSuperAdmin && (
-          <NavItem 
-            className={activeTab === 'registration_requests' ? 'active' : ''} 
-            onClick={() => setActiveTab('registration_requests')}
-          >
-            <Icon><UserPlus size={16} /></Icon>
-            Registration Requests
-          </NavItem>
+          <>
+            <NavItem 
+              className={activeTab === 'registration_requests' ? 'active' : ''} 
+              onClick={() => setActiveTab('registration_requests')}
+            >
+              <Icon><UserPlus size={16} /></Icon>
+              Registration Requests
+            </NavItem>
+            
+            <NavItem 
+              className={activeTab === 'user_management' ? 'active' : ''} 
+              onClick={() => setActiveTab('user_management')}
+            >
+              <Icon><Users size={16} /></Icon>
+              User Management
+            </NavItem>
+          </>
         )}
         
         <div style={{ marginTop: 'auto' }}>
@@ -256,6 +266,7 @@ const DashboardLayout = ({
             {activeTab === 'schedule' && 'Schedule'}
             {activeTab === 'profile' && 'Profile'}
             {activeTab === 'registration_requests' && 'Registration Requests'}
+            {activeTab === 'user_management' && 'User Management'}
           </Title>
           
           <UserInfo>

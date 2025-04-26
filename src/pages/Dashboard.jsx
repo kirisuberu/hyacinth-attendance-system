@@ -11,6 +11,7 @@ import AttendanceView from '../components/dashboard/AttendanceView';
 import ScheduleView from '../components/dashboard/ScheduleView';
 import ProfileView from '../components/dashboard/ProfileView';
 import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
+import UserManagementView from '../components/dashboard/UserManagementView';
 
 function Dashboard() {
   const [user, setUser] = useState(null);
@@ -292,6 +293,10 @@ function Dashboard() {
 
       {activeTab === 'registration_requests' && userData?.role === 'super_admin' && (
         <RegistrationRequestsView />
+      )}
+      
+      {activeTab === 'user_management' && userData?.role === 'super_admin' && (
+        <UserManagementView />
       )}
     </DashboardLayout>
   );
