@@ -5,6 +5,7 @@ import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
 import { format, addHours, parse } from 'date-fns';
 import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
+import { useTimeFormat } from '../../contexts/TimeFormatContext';
 
 const ScheduleTable = styled.table`
   width: 100%;
@@ -51,14 +52,11 @@ const EmptyState = styled.div`
 const ScheduleView = ({ user, userData }) => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [userTimeRegion, setUserTimeRegion] = useState('Asia/Manila');
+  const [error, setError] = useState(null);
+  const { use24HourFormat } = useTimeFormat();
+  const userTimeRegion = userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila';
 
-  // Update user time region when userData changes
-  useEffect(() => {
-    if (userData?.timeRegion) {
-      setUserTimeRegion(userData.timeRegion);
-    }
-  }, [userData]);
+  // No need to update userTimeRegion as it's now derived from userData directly
 
   useEffect(() => {
     const fetchUserSchedule = async () => {
@@ -130,7 +128,11 @@ const ScheduleView = ({ user, userData }) => {
         date.setHours(parseInt(hours, 10));
         date.setMinutes(parseInt(minutes, 10));
         
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        return date.toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          hour12: !use24HourFormat 
+        });
       }
       
       // Convert time from source time region to target time region
@@ -146,8 +148,9 @@ const ScheduleView = ({ user, userData }) => {
       const sourceZonedDate = zonedTimeToUtc(sourceDate, sourceTimeRegion);
       const targetZonedDate = utcToZonedTime(sourceZonedDate, targetTimeRegion);
       
-      // Format with 12-hour clock and AM/PM indicator
-      return formatTZ(targetZonedDate, 'h:mm a', { timeZone: targetTimeRegion });
+      // Format based on user's time format preference
+      const formatString = use24HourFormat ? 'HH:mm' : 'h:mm a';
+      return formatTZ(targetZonedDate, formatString, { timeZone: targetTimeRegion });
     } catch (error) {
       console.error('Error formatting time:', error);
       return timeString;

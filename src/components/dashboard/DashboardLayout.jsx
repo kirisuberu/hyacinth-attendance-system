@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
-import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users, GlobeHemisphereWest } from 'phosphor-react';
+import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users, GlobeHemisphereWest, ClockClockwise } from 'phosphor-react';
 import { auth, db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
+import { useTimeFormat } from '../../contexts/TimeFormatContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Styled components for layout
 const DashboardContainer = styled.div`
@@ -45,6 +47,27 @@ const NavItem = styled.div`
   &.active {
     background-color: rgba(255, 255, 255, 0.2);
     font-weight: bold;
+  }
+`;
+
+const TimeFormatToggle = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background-color: ${props => props.active ? '#e6f0ff' : 'white'};
+  border-color: ${props => props.active ? '#bbd6fb' : '#ddd'};
+  color: ${props => props.active ? '#1a73e8' : '#666'};
+  font-weight: ${props => props.active ? 'bold' : 'normal'};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.active ? '#e6f0ff' : '#f5f5f5'};
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
   }
 `;
 
@@ -266,10 +289,13 @@ const DashboardLayout = ({
   children 
 }) => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
   const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
   const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila');
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
+  const [updatingTimeFormat, setUpdatingTimeFormat] = useState(false);
   
   // Function to get UTC offset for a time zone
   const getUTCOffset = (timeZone) => {
@@ -312,6 +338,8 @@ const DashboardLayout = ({
     }
   }, []);
 
+
+
   // Update selected time region when userData changes
   useEffect(() => {
     if (userData?.timeRegion) {
@@ -350,6 +378,26 @@ const DashboardLayout = ({
     }
   };
 
+  const handleTimeFormatChange = async () => {
+    if (updatingTimeFormat) return;
+    
+    try {
+      setUpdatingTimeFormat(true);
+      const success = await toggleTimeFormat();
+      
+      if (success) {
+        toast.success(`Time format updated to ${!use24HourFormat ? '24-hour' : '12-hour'} format`);
+      } else {
+        toast.error('Failed to update time format');
+      }
+    } catch (error) {
+      console.error('Error updating time format:', error);
+      toast.error('Failed to update time format');
+    } finally {
+      setUpdatingTimeFormat(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -363,43 +411,44 @@ const DashboardLayout = ({
   return (
     <DashboardContainer>
       <Sidebar>
-        <Logo>HyAttend</Logo>
+        <Logo>Hyacinth</Logo>
         
         <NavItem 
-          className={activeTab === 'dashboard' ? 'active' : ''} 
-          onClick={() => setActiveTab('dashboard')}
+          className={activeTab === 'home' ? 'active' : ''}
+          onClick={() => setActiveTab('home')}
         >
-          <Icon><House size={16} /></Icon>
-          Dashboard
+          <House size={20} style={{ marginRight: '0.5rem' }} />
+          Home
         </NavItem>
         
         <NavItem 
-          className={activeTab === 'attendance' ? 'active' : ''} 
-          onClick={() => setActiveTab('attendance')}
-        >
-          <Icon><Clock size={16} /></Icon>
-          Attendance
-        </NavItem>
-        
-        <NavItem 
-          className={activeTab === 'schedule' ? 'active' : ''} 
+          className={activeTab === 'schedule' ? 'active' : ''}
           onClick={() => setActiveTab('schedule')}
         >
-          <Icon><Calendar size={16} /></Icon>
+          <Calendar size={20} style={{ marginRight: '0.5rem' }} />
           Schedule
         </NavItem>
         
         <NavItem 
-          className={activeTab === 'profile' ? 'active' : ''} 
+          className={activeTab === 'attendance' ? 'active' : ''}
+          onClick={() => setActiveTab('attendance')}
+        >
+          <Clock size={20} style={{ marginRight: '0.5rem' }} />
+          Attendance
+        </NavItem>
+        
+        <NavItem 
+          className={activeTab === 'profile' ? 'active' : ''}
           onClick={() => setActiveTab('profile')}
         >
-          <Icon><User size={16} /></Icon>
+          <User size={20} style={{ marginRight: '0.5rem' }} />
           Profile
         </NavItem>
         
         {isSuperAdmin && (
           <>
             <NavItem 
+              className={activeTab === 'registration_requests' ? 'active' : ''}
               className={activeTab === 'registration_requests' ? 'active' : ''} 
               onClick={() => setActiveTab('registration_requests')}
             >
@@ -547,6 +596,32 @@ const DashboardLayout = ({
                 </Select>
                 <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#666' }}>
                   Note: UTC offsets may vary during Daylight Saving Time transitions.
+                </div>
+              </FormGroup>
+              
+              <FormGroup style={{ marginTop: '1.5rem' }}>
+                <Label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <ClockClockwise size={18} />
+                  Time Format
+                </Label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+                  <TimeFormatToggle 
+                    active={!use24HourFormat} 
+                    onClick={handleTimeFormatChange}
+                    disabled={updatingTimeFormat}
+                  >
+                    12-hour (AM/PM)
+                  </TimeFormatToggle>
+                  <TimeFormatToggle 
+                    active={use24HourFormat} 
+                    onClick={handleTimeFormatChange}
+                    disabled={updatingTimeFormat}
+                  >
+                    24-hour
+                  </TimeFormatToggle>
+                </div>
+                <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#666' }}>
+                  This setting affects how time is displayed throughout the application.
                 </div>
               </FormGroup>
             </ModalBody>

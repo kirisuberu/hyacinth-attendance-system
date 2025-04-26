@@ -3,6 +3,7 @@ import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Card, CardTitle, CardContent, StatusBadge } from './DashboardComponents';
 import styled from 'styled-components';
+import { useTimeFormat } from '../../contexts/TimeFormatContext';
 
 const AttendanceTable = styled.table`
   width: 100%;
@@ -35,6 +36,7 @@ const EmptyState = styled.div`
 const AttendanceView = ({ user }) => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { use24HourFormat } = useTimeFormat();
 
   useEffect(() => {
     const fetchAttendanceRecords = async () => {
@@ -79,7 +81,12 @@ const AttendanceView = ({ user }) => {
   const formatTime = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = timestamp.toDate();
-    return date.toLocaleTimeString();
+    return date.toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: !use24HourFormat 
+    });
   };
 
   return (

@@ -1,7 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from './firebase';
+import { useAuth } from './contexts/AuthContext';
 import styled from 'styled-components';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -11,25 +9,18 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import './App.css';
 
+import { AuthProvider } from './contexts/AuthContext';
+import { TimeFormatProvider } from './contexts/TimeFormatContext';
+
 // Protected route component
 const ProtectedRoute = ({ children }) => {
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  const { currentUser, loading } = useAuth();
 
   if (loading) {
     return <LoadingContainer>Loading...</LoadingContainer>;
   }
 
-  if (!user) {
+  if (!currentUser) {
     return <Navigate to="/" replace />;
   }
 
@@ -49,22 +40,26 @@ const LoadingContainer = styled.div`
 function App() {
   return (
     <>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            } 
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
-      <ToastContainer position="top-right" autoClose={3000} />
+      <AuthProvider>
+        <TimeFormatProvider>
+          <Router>
+            <Routes>
+              <Route path="/" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Router>
+          <ToastContainer position="top-right" autoClose={3000} />
+        </TimeFormatProvider>
+      </AuthProvider>
     </>
   );
 }
