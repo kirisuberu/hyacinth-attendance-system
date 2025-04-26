@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Trash, PencilSimple, Check, X, Users, Calendar, Clock, UserCircle } from 'phosphor-react';
+import { Trash, PencilSimple, Check, X, Users, Calendar, Clock, UserCircle, Plus, FloppyDisk } from 'phosphor-react';
 
 const Container = styled.div`
   padding: 2rem;
@@ -171,6 +171,9 @@ const Button = styled.button`
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   
   background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
   color: ${props => props.primary ? 'white' : '#333'};
@@ -285,6 +288,19 @@ const ScheduleActions = styled.div`
   gap: 0.5rem;
 `;
 
+const TopActions = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+`;
+
 function UserManagementView() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -293,6 +309,7 @@ function UserManagementView() {
   const [userToDelete, setUserToDelete] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [scheduleData, setScheduleData] = useState([]);
   const [newSchedule, setNewSchedule] = useState({
@@ -310,6 +327,15 @@ function UserManagementView() {
     email: '',
     position: '',
     role: 'member'
+  });
+  const [newUserData, setNewUserData] = useState({
+    firstName: '',
+    lastName: '',
+    middleInitial: '',
+    email: '',
+    position: '',
+    role: 'member',
+    status: 'active'
   });
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -515,6 +541,79 @@ function UserManagementView() {
     }
   };
 
+  const handleAddUser = async () => {
+    try {
+      // Format the name
+      let fullName = newUserData.firstName;
+      if (newUserData.middleInitial) {
+        fullName += ` ${newUserData.middleInitial}.`;
+      }
+      if (newUserData.lastName) {
+        fullName += ` ${newUserData.lastName}`;
+      }
+      
+      // Validate required fields
+      if (!fullName.trim() || !newUserData.email.trim()) {
+        toast.error('Name and email are required');
+        return;
+      }
+      
+      // Generate a unique userId
+      const timestamp = Date.now();
+      const randomString = Math.random().toString(36).substring(2, 8);
+      const userId = `uid_${timestamp}_${randomString}`;
+      
+      // Create a document ID based on user type and name
+      const sanitizedName = fullName.trim().toLowerCase().replace(/\s+/g, '_');
+      const documentId = `${newUserData.role}_${sanitizedName}_${timestamp}`;
+      
+      // Create the user document in Firestore
+      const userRef = doc(db, 'users', documentId);
+      await setDoc(userRef, {
+        userId: userId, // Permanent, non-editable ID
+        name: fullName.trim(),
+        email: newUserData.email.trim(),
+        position: newUserData.position.trim(),
+        role: newUserData.role,
+        status: newUserData.status,
+        createdAt: serverTimestamp(),
+        schedule: []
+      });
+      
+      // Add the new user to the local state
+      const newUser = {
+        id: documentId,
+        userId: userId,
+        name: fullName.trim(),
+        email: newUserData.email.trim(),
+        position: newUserData.position.trim(),
+        role: newUserData.role,
+        status: newUserData.status,
+        schedule: [],
+        createdAt: new Date() // Local representation of server timestamp
+      };
+      
+      setUsers([...users, newUser]);
+      
+      toast.success(`User ${fullName.trim()} added successfully`);
+      setShowAddUserModal(false);
+      
+      // Reset the form
+      setNewUserData({
+        firstName: '',
+        lastName: '',
+        middleInitial: '',
+        email: '',
+        position: '',
+        role: 'member',
+        status: 'active'
+      });
+    } catch (error) {
+      console.error('Error adding user:', error);
+      toast.error(`Failed to add user: ${error.message}`);
+    }
+  };
+
   const handleAddSchedule = () => {
     // Check if at least one day is selected
     if (newSchedule.selectedDays.length === 0) {
@@ -671,12 +770,19 @@ function UserManagementView() {
         User Management
       </Title>
       
-      <SearchBar
-        type="text"
-        placeholder="Search users..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
+      <TopActions>
+        <SearchBar
+          type="text"
+          placeholder="Search users..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        
+        <Button primary onClick={() => setShowAddUserModal(true)}>
+          <Icon><Plus size={16} /></Icon>
+          Add User
+        </Button>
+      </TopActions>
       
       {loading ? (
         <p>Loading users...</p>
@@ -860,6 +966,110 @@ function UserManagementView() {
             <ModalButtons>
               <Button onClick={() => setShowEditModal(false)}>Cancel</Button>
               <Button primary onClick={handleUpdateUser}>Save Changes</Button>
+            </ModalButtons>
+          </ModalContent>
+        </ConfirmationModal>
+      )}
+      
+      {showAddUserModal && (
+        <ConfirmationModal>
+          <ModalContent style={{ maxWidth: '500px', width: '100%' }}>
+            <ModalTitle>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <UserCircle size={24} />
+                Add New User
+              </div>
+            </ModalTitle>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <FormGroup>
+                <Label>First Name <span style={{ color: 'red' }}>*</span></Label>
+                <Input 
+                  type="text" 
+                  value={newUserData.firstName}
+                  onChange={(e) => setNewUserData({...newUserData, firstName: e.target.value})}
+                  placeholder="First Name"
+                  required
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Middle Initial</Label>
+                <Input 
+                  type="text" 
+                  value={newUserData.middleInitial}
+                  onChange={(e) => setNewUserData({...newUserData, middleInitial: e.target.value})}
+                  placeholder="Middle Initial"
+                  maxLength={1}
+                />
+                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
+                  Just the first letter, without period
+                </div>
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Last Name <span style={{ color: 'red' }}>*</span></Label>
+                <Input 
+                  type="text" 
+                  value={newUserData.lastName}
+                  onChange={(e) => setNewUserData({...newUserData, lastName: e.target.value})}
+                  placeholder="Last Name"
+                  required
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Email <span style={{ color: 'red' }}>*</span></Label>
+                <Input 
+                  type="email" 
+                  value={newUserData.email}
+                  onChange={(e) => setNewUserData({...newUserData, email: e.target.value})}
+                  placeholder="Email Address"
+                  required
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Position</Label>
+                <Input 
+                  type="text" 
+                  value={newUserData.position}
+                  onChange={(e) => setNewUserData({...newUserData, position: e.target.value})}
+                  placeholder="Position"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Role</Label>
+                <Select
+                  value={newUserData.role}
+                  onChange={(e) => setNewUserData({...newUserData, role: e.target.value})}
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                  <option value="super_admin">Super Admin</option>
+                </Select>
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Status</Label>
+                <Select
+                  value={newUserData.status}
+                  onChange={(e) => setNewUserData({...newUserData, status: e.target.value})}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="pending">Pending</option>
+                </Select>
+              </FormGroup>
+            </div>
+            
+            <ModalButtons>
+              <Button onClick={() => setShowAddUserModal(false)}>Cancel</Button>
+              <Button primary onClick={handleAddUser}>
+                <Icon><FloppyDisk size={16} /></Icon>
+                Add User
+              </Button>
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>
