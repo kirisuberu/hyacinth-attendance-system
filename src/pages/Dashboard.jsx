@@ -547,7 +547,7 @@ function Dashboard() {
       )}
       
       {activeTab === 'user_management' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false)) && (
-        <UserManagementView />
+        <UserManagementView isSuperAdmin={userData?.role === 'super_admin'} />
       )}
       
       {activeTab === 'admin_privileges' && userData?.role === 'super_admin' && (

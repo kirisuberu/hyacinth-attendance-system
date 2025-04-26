@@ -301,7 +301,7 @@ const Icon = styled.span`
   margin-right: 0.5rem;
 `;
 
-function UserManagementView() {
+function UserManagementView({ isSuperAdmin }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -987,15 +987,22 @@ function UserManagementView() {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>Role</Label>
+                  <Label>Role {!isSuperAdmin && <span style={{ fontSize: '0.8rem', color: '#f44336' }}>(Super Admin only)</span>}</Label>
                   <Select
                     value={editUserData.role}
                     onChange={(e) => setEditUserData({...editUserData, role: e.target.value})}
+                    disabled={!isSuperAdmin}
+                    style={!isSuperAdmin ? { backgroundColor: '#f5f5f5', cursor: 'not-allowed' } : {}}
                   >
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
                     <option value="super_admin">Super Admin</option>
                   </Select>
+                  {!isSuperAdmin && (
+                    <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
+                      Only Super Admins can change user roles
+                    </div>
+                  )}
                 </FormGroup>
               </div>
             )}
@@ -1153,15 +1160,22 @@ function UserManagementView() {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>Role</Label>
+                  <Label>Role {!isSuperAdmin && <span style={{ fontSize: '0.8rem', color: '#f44336' }}>(Super Admin only)</span>}</Label>
                   <Select
                     value={newUserData.role}
                     onChange={(e) => setNewUserData({...newUserData, role: e.target.value})}
+                    disabled={!isSuperAdmin}
+                    style={!isSuperAdmin ? { backgroundColor: '#f5f5f5', cursor: 'not-allowed' } : {}}
                   >
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>
                     <option value="super_admin">Super Admin</option>
                   </Select>
+                  {!isSuperAdmin && (
+                    <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
+                      Only Super Admins can change user roles
+                    </div>
+                  )}
                 </FormGroup>
                 
                 <FormGroup>
