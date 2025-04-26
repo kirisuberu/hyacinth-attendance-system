@@ -312,11 +312,16 @@ function UserManagementView() {
       setLoading(true);
       const usersCollection = collection(db, 'users');
       const userSnapshot = await getDocs(usersCollection);
-      const usersList = userSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        schedule: doc.data().schedule || []
-      }));
+      const usersList = userSnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          // Store both the document ID and the userId field if it exists
+          id: doc.id,
+          userId: data.userId || doc.id, // Ensure we have a userId, fallback to doc.id
+          ...data,
+          schedule: data.schedule || []
+        };
+      });
       setUsers(usersList);
       setLoading(false);
     } catch (error) {
@@ -335,18 +340,24 @@ function UserManagementView() {
     if (!userToDelete) return;
     
     try {
+      // Use the userId field if available, otherwise fall back to id
+      const documentId = userToDelete.userId || userToDelete.id;
+      
       // Delete the user document from Firestore
-      await deleteDoc(doc(db, 'users', userToDelete.id));
+      await deleteDoc(doc(db, 'users', documentId));
       
       // Update the local state
-      setUsers(users.filter(user => user.id !== userToDelete.id));
+      setUsers(users.filter(user => {
+        // Filter out the deleted user by matching either ID
+        return !(user.userId === userToDelete.userId || user.id === userToDelete.id);
+      }));
       
       toast.success(`User ${userToDelete.name || userToDelete.email} has been deleted`);
       setShowDeleteModal(false);
       setUserToDelete(null);
     } catch (error) {
       console.error('Error deleting user:', error);
-      toast.error('Failed to delete user');
+      toast.error(`Failed to delete user: ${error.message}`);
     }
   };
 
@@ -355,24 +366,30 @@ function UserManagementView() {
     setUserToDelete(null);
   };
 
-  const toggleUserStatus = async (userId, currentStatus) => {
+  const toggleUserStatus = async (user, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     
     try {
-      const userRef = doc(db, 'users', userId);
+      // Use the userId field if available, otherwise fall back to id
+      const documentId = user.userId || user.id;
+      
+      const userRef = doc(db, 'users', documentId);
       await updateDoc(userRef, {
         status: newStatus
       });
       
       // Update the local state
-      setUsers(users.map(user => 
-        user.id === userId ? { ...user, status: newStatus } : user
-      ));
+      setUsers(users.map(u => {
+        // Match by both potential IDs to ensure we update the correct user
+        const isMatch = (u.userId && u.userId === user.userId) || 
+                       (u.id === user.id);
+        return isMatch ? { ...u, status: newStatus } : u;
+      }));
       
       toast.success(`User status updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating user status:', error);
-      toast.error('Failed to update user status');
+      toast.error(`Failed to update user status: ${error.message}`);
     }
   };
 
@@ -423,39 +440,24 @@ function UserManagementView() {
     if (!selectedUser) return;
     
     try {
-      const userRef = doc(db, 'users', selectedUser.id);
+      // First, we need to determine the correct document ID to use
+      // If userId exists, use that as the document ID, otherwise fall back to id
+      const documentId = selectedUser.userId || selectedUser.id;
       
-      try {
-        // Try to update the document first
-        await updateDoc(userRef, {
-          schedule: scheduleData
-        });
-      } catch (updateError) {
-        // If the document doesn't exist, create it
-        if (updateError.code === 'not-found' || updateError.message.includes('No document to update')) {
-          console.log('Document does not exist, creating it...');
-          await setDoc(userRef, {
-            // Include all necessary user fields
-            id: selectedUser.id,
-            email: selectedUser.email,
-            name: selectedUser.name || '',
-            position: selectedUser.position || '',
-            role: selectedUser.role || 'member',
-            status: selectedUser.status || 'active',
-            schedule: scheduleData,
-            createdAt: new Date()
-          });
-          toast.info('Created new user document with schedule');
-        } else {
-          // If it's a different error, rethrow it
-          throw updateError;
-        }
-      }
+      console.log('Updating schedule for user with document ID:', documentId);
+      
+      const userRef = doc(db, 'users', documentId);
+      await updateDoc(userRef, {
+        schedule: scheduleData
+      });
       
       // Update local state
-      setUsers(users.map(user => 
-        user.id === selectedUser.id ? { ...user, schedule: scheduleData } : user
-      ));
+      setUsers(users.map(user => {
+        // Match by both potential IDs to ensure we update the correct user
+        const isMatch = (user.userId && user.userId === selectedUser.userId) || 
+                       (user.id === selectedUser.id);
+        return isMatch ? { ...user, schedule: scheduleData } : user;
+      }));
       
       toast.success('Schedule updated successfully');
       setShowScheduleModal(false);
@@ -533,7 +535,7 @@ function UserManagementView() {
                     </ActionButton>
                     <ActionButton 
                       color={user.status === 'active' ? '#f44336' : '#4caf50'}
-                      onClick={() => toggleUserStatus(user.id, user.status || 'active')}
+                      onClick={() => toggleUserStatus(user, user.status || 'active')}
                       title={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
                     >
                       {user.status === 'active' ? <X size={20} /> : <Check size={20} />}
