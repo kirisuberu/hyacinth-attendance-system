@@ -65,52 +65,54 @@ const ScheduleView = ({ user, userData }) => {
       try {
         setLoading(true);
         
-        // Get the user document which now contains the schedule directly
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
+        // First check if userData already has the schedule
+        if (userData && userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
+          console.log('Using schedule from userData prop:', userData.schedule);
+          setSchedule(userData.schedule);
+        } else {
+          // Get the user document which now contains the schedule directly
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
           
-          // Set the user's time region
-          if (userData.timeRegion) {
-            setUserTimeRegion(userData.timeRegion);
-          }
-          
-          // Check if the user has a schedule array in their document
-          if (userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
-            console.log('Found user schedule:', userData.schedule);
-            setSchedule(userData.schedule);
-          } else if (userData.scheduleId) {
-            // Legacy support: If user still has a scheduleId, fetch that schedule
-            const scheduleId = userData.scheduleId;
-            const scheduleDocRef = doc(db, 'schedules', scheduleId);
-            const scheduleDoc = await getDoc(scheduleDocRef);
+          if (userDoc.exists()) {
+            const userDocData = userDoc.data();
             
-            if (scheduleDoc.exists()) {
-              setSchedule(scheduleDoc.data());
-            }
-          } else {
-            // If no specific schedule, check for default schedules
-            const schedulesRef = collection(db, 'schedules');
-            const q = query(schedulesRef, where('isDefault', '==', true));
-            const querySnapshot = await getDocs(q);
-            
-            if (!querySnapshot.empty) {
-              // Use the first default schedule
-              setSchedule(querySnapshot.docs[0].data());
+            // Check if the user has a schedule array in their document
+            if (userDocData.schedule && Array.isArray(userDocData.schedule) && userDocData.schedule.length > 0) {
+              console.log('Found user schedule in Firestore:', userDocData.schedule);
+              setSchedule(userDocData.schedule);
+            } else if (userDocData.scheduleId) {
+              // Legacy support: If user still has a scheduleId, fetch that schedule
+              const scheduleId = userDocData.scheduleId;
+              const scheduleDocRef = doc(db, 'schedules', scheduleId);
+              const scheduleDoc = await getDoc(scheduleDocRef);
+              
+              if (scheduleDoc.exists()) {
+                setSchedule(scheduleDoc.data());
+              }
+            } else {
+              // If no specific schedule, check for default schedules
+              const schedulesRef = collection(db, 'schedules');
+              const q = query(schedulesRef, where('isDefault', '==', true));
+              const querySnapshot = await getDocs(q);
+              
+              if (!querySnapshot.empty) {
+                // Use the first default schedule
+                setSchedule(querySnapshot.docs[0].data());
+              }
             }
           }
         }
       } catch (error) {
         console.error('Error fetching schedule:', error);
+        setError('Failed to load schedule. Please try again later.');
       } finally {
         setLoading(false);
       }
     };
     
     fetchUserSchedule();
-  }, [user]);
+  }, [user, userData]);
 
   const getDayName = (dayIndex) => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -192,6 +194,10 @@ const ScheduleView = ({ user, userData }) => {
       <CardContent>
         {loading ? (
           <p>Loading your schedule...</p>
+        ) : error ? (
+          <EmptyState>
+            <p>{error}</p>
+          </EmptyState>
         ) : schedule ? (
           <div>
             {Array.isArray(schedule) ? (
