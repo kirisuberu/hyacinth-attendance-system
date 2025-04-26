@@ -14,7 +14,7 @@ const LoginContainer = styled.div`
   justify-content: center;
   min-height: 100vh;
   padding: 2rem 1rem;
-  background: linear-gradient(135deg, #000000 0%, #800000 100%);
+  background: linear-gradient(135deg, #000000 0%, #801100 100%);
 `;
 
 const LoginCard = styled.div`

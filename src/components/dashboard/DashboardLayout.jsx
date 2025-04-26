@@ -12,7 +12,8 @@ import { useAuth } from '../../contexts/AuthContext';
 // Styled components for layout
 const DashboardContainer = styled.div`
   display: flex;
-  min-height: 100vh;
+  height: 100vh; /* Lock to viewport height */
+  overflow: hidden; /* Prevent overall page scrolling */
 `;
 
 const Sidebar = styled.div`
@@ -22,6 +23,8 @@ const Sidebar = styled.div`
   padding: 2rem 1rem;
   display: flex;
   flex-direction: column;
+  height: 100vh; /* Full height */
+  overflow-y: auto; /* Allow sidebar to scroll if needed */
 `;
 
 const Logo = styled.div`
@@ -122,16 +125,21 @@ const Icon = styled.span`
 
 const Content = styled.div`
   flex: 1;
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
   background-color: #f5f5f5;
-  overflow-y: auto;
+  height: 100vh; /* Full height */
+  overflow-y: auto; /* Make content area scrollable */
 `;
 
 const Header = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  background-color: #f5f5f5;
+  z-index: 10; /* Ensure header stays on top */
 `;
 
 const Title = styled.h1`
@@ -168,6 +176,13 @@ const LogoutButton = styled.button`
 `;
 
 // Modal components
+const MainContentArea = styled.div`
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto; /* Make content area scrollable */
+  height: calc(100vh - 73px); /* Subtract header height */
+`;
+
 const ModalOverlay = styled.div`
   position: fixed;
   top: 0;
@@ -534,7 +549,9 @@ const DashboardLayout = ({
           </UserInfo>
         </Header>
         
-        {children}
+        <MainContentArea>
+          {children}
+        </MainContentArea>
       </Content>
       
       {/* Time Region Modal */}
