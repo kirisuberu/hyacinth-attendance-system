@@ -1,15 +1,200 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import { toast } from 'react-toastify';
+import styled from 'styled-components';
+import { Check, X } from 'phosphor-react';
 
+// Import dashboard components
+import DashboardLayout from '../components/dashboard/DashboardLayout';
+import DashboardHome from '../components/dashboard/DashboardHome';
+import AttendanceView from '../components/dashboard/AttendanceView';
+import ScheduleView from '../components/dashboard/ScheduleView';
+import ProfileView from '../components/dashboard/ProfileView';
+import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
+import UserManagementView from '../components/dashboard/UserManagementView';
 
+// Styled components for confirmation modal
+const ConfirmationModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 400px;
+  padding: 1.5rem;
+`;
+
+const ModalTitle = styled.h3`
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.75rem;
+`;
+
+const ModalBody = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const CancelButton = styled(Button)`
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+  
+  &:hover {
+    background-color: #eee;
+  }
+`;
+
+const ConfirmButton = styled(Button)`
+  background-color: #4caf50;
+  color: white;
+  border: 1px solid #43a047;
+  
+  &:hover {
+    background-color: #43a047;
+  }
+`;
+
+const StatusTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  background-color: ${props => {
+    if (props.status === 'Early') return '#e3f2fd';
+    if (props.status === 'On Time') return '#e8f5e9';
+    if (props.status === 'Late') return '#ffebee';
+    if (props.status === 'Complete') return '#e8f5e9';
+    if (props.status === 'Incomplete') return '#fff8e1';
+    return '#f5f5f5';
+  }};
+  color: ${props => {
+    if (props.status === 'Early') return '#1565c0';
+    if (props.status === 'On Time') return '#2e7d32';
+    if (props.status === 'Late') return '#c62828';
+    if (props.status === 'Complete') return '#2e7d32';
+    if (props.status === 'Incomplete') return '#ef6c00';
+    return '#757575';
+  }};
+  border: 1px solid ${props => {
+    if (props.status === 'Early') return '#bbdefb';
+    if (props.status === 'On Time') return '#c8e6c9';
+    if (props.status === 'Late') return '#ffcdd2';
+    if (props.status === 'Complete') return '#c8e6c9';
+    if (props.status === 'Incomplete') return '#ffe0b2';
+    return '#eeeeee';
+  }};
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  min-height: 80px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  transition: border-color 0.2s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: #4caf50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+  }
+  
+  &::placeholder {
+    color: #aaa;
+  }
+
+`;
 
 function Dashboard() {
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [attendanceStatus, setAttendanceStatus] = useState(null);
+  const [lastRecord, setLastRecord] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [loadingUserData, setLoadingUserData] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect to the new dashboard home page
-    navigate('/dashboard');
-  }, [navigate]);
+    // Get current user
+    const currentUser = auth.currentUser;
+    
+    if (currentUser) {
+      const userObj = {
+        uid: currentUser.uid,
+        email: currentUser.email,
+        displayName: currentUser.displayName || currentUser.email.split('@')[0]
+      };
+      setUser(userObj);
+      fetchUserData(currentUser.uid);
+    } else {
+      // Check for development fallback user
+      const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
+      if (isEmulatorMode) {
+        const devUser = localStorage.getItem('dev_user');
+        if (devUser) {
+          try {
+            const parsedUser = JSON.parse(devUser);
+            const userObj = {
+              uid: parsedUser.uid,
+              email: parsedUser.email,
+              displayName: parsedUser.displayName || parsedUser.email.split('@')[0]
+            };
+            setUser(userObj);
+            fetchUserData(parsedUser.uid);
+            console.log('Using development user:', parsedUser.email);
+          } catch (error) {
+            console.error('Error parsing development user:', error);
+          }
+        }
+      }
+    }
+  }, []);
   
   // Fetch additional user data from Firestore
   const fetchUserData = async (userId) => {
@@ -246,11 +431,21 @@ function Dashboard() {
       const timestamp = Timestamp.now();
       const status = await determineStatus(type, user.uid);
       
-      return null;
-      <DashboardHome 
-          attendanceStatus={attendanceStatus} 
-          lastRecord={lastRecord} 
-        />
+      // Create attendance data object
+      const attendanceData = {
+        userId: user.uid,
+        email: user.email,
+        name: user.displayName,
+        type,
+        status,
+        timestamp,
+        notes: ''
+      };
+      
+      // Reset notes field and store the pending attendance data
+      setAttendanceNotes('');
+      setPendingAttendance(attendanceData);
+      setShowConfirmModal(true);
     } catch (error) {
       console.error('Error preparing time in/out:', error);
       toast.error('Failed to prepare time in/out. Please try again.');
