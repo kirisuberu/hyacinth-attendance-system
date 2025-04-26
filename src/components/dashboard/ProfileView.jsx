@@ -136,13 +136,7 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
                   </span>
                 </FieldValue>
               </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <Briefcase size={18} />
-                  Employee Status:
-                </FieldLabel>
-                <FieldValue>{userData?.employeeStatus || 'Not specified'}</FieldValue>
-              </ProfileField>
+
             </ProfileSection>
 
             <ProfileSection>
