@@ -330,6 +330,7 @@ function UserManagementView({ isSuperAdmin }) {
     role: 'member',
     dateOfBirth: '',
     phoneNumber: '',
+    address: '',
     emergencyContactName: '',
     emergencyContactPhone: '',
     emergencyContactRelationship: ''
@@ -429,6 +430,7 @@ function UserManagementView({ isSuperAdmin }) {
       role: user.role || 'member',
       dateOfBirth: user.dateOfBirth || '',
       phoneNumber: user.phoneNumber || '',
+      address: user.address || '',
       emergencyContactName: user.emergencyContactName || '',
       emergencyContactPhone: user.emergencyContactPhone || '',
       emergencyContactRelationship: user.emergencyContactRelationship || ''
@@ -535,6 +537,7 @@ function UserManagementView({ isSuperAdmin }) {
         role: editUserData.role,
         dateOfBirth: editUserData.dateOfBirth,
         phoneNumber: editUserData.phoneNumber,
+        address: editUserData.address,
         emergencyContactName: editUserData.emergencyContactName,
         emergencyContactPhone: editUserData.emergencyContactPhone,
         emergencyContactRelationship: editUserData.emergencyContactRelationship
@@ -553,6 +556,7 @@ function UserManagementView({ isSuperAdmin }) {
           role: editUserData.role,
           dateOfBirth: editUserData.dateOfBirth,
           phoneNumber: editUserData.phoneNumber,
+          address: editUserData.address,
           emergencyContactName: editUserData.emergencyContactName,
           emergencyContactPhone: editUserData.emergencyContactPhone,
           emergencyContactRelationship: editUserData.emergencyContactRelationship
@@ -1026,6 +1030,16 @@ function UserManagementView({ isSuperAdmin }) {
                     value={editUserData.phoneNumber}
                     onChange={(e) => setEditUserData({...editUserData, phoneNumber: e.target.value})}
                     placeholder="Phone Number"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Address</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.address}
+                    onChange={(e) => setEditUserData({...editUserData, address: e.target.value})}
+                    placeholder="Complete Address"
                   />
                 </FormGroup>
                 

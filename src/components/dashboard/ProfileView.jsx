@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
-import { Envelope, IdentificationCard, User, Buildings, UserCircle, Calendar, Clock } from 'phosphor-react';
+import { Envelope, IdentificationCard, User, Buildings, UserCircle, Calendar, Clock, MapPin } from 'phosphor-react';
 
 const ProfileSection = styled.div`
   margin-bottom: 1.5rem;
@@ -92,6 +92,14 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
                   Role:
                 </FieldLabel>
                 <FieldValue>{userData?.role || 'Not specified'}</FieldValue>
+              </ProfileField>
+
+              <ProfileField>
+                <FieldLabel>
+                  <MapPin size={18} />
+                  Address:
+                </FieldLabel>
+                <FieldValue>{userData?.address || 'Not specified'}</FieldValue>
               </ProfileField>
               
               {userData && (
