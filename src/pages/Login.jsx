@@ -6,7 +6,6 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, SignIn, UserPlus, Eye, EyeSlash, ArrowCounterClockwise } from 'phosphor-react';
-import theme from '../theme';
 
 const LoginContainer = styled.div`
   display: flex;
@@ -15,20 +14,20 @@ const LoginContainer = styled.div`
   justify-content: center;
   min-height: 100vh;
   padding: 2rem 1rem;
-  background: linear-gradient(135deg, ${theme.colors.primary.main} 0%, ${theme.colors.primary.dark} 100%);
+  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
 `;
 
 const LoginCard = styled.div`
-  background-color: ${theme.colors.background.default};
-  border-radius: ${theme.borders.radius};
-  box-shadow: ${theme.shadows.large};
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
   padding: 2rem;
   width: 100%;
   max-width: 400px;
 `;
 
 const Title = styled.h1`
-  color: ${theme.colors.text.primary};
+  color: #333;
   font-size: 2rem;
   margin-bottom: 2rem;
   text-align: center;
@@ -48,21 +47,21 @@ const FormGroup = styled.div`
 
 const Label = styled.label`
   font-size: 0.9rem;
-  color: ${theme.colors.text.secondary};
+  color: #555;
 `;
 
 const InputWrapper = styled.div`
   display: flex;
   align-items: center;
-  border: 1px solid ${theme.colors.border};
-  border-radius: ${theme.borders.radius};
+  border: 1px solid #ddd;
+  border-radius: 4px;
   padding: 0 1rem;
   background-color: #f9f9f9;
   position: relative;
   
   &:focus-within {
-    border-color: ${theme.colors.primary.main};
-    box-shadow: 0 0 0 2px ${theme.colors.primary.main}25;
+    border-color: #6e8efb;
+    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
   }
 `;
 
@@ -75,51 +74,47 @@ const Icon = styled.span`
 
 const Input = styled.input`
   flex: 1;
-  padding: 0.75rem 0.75rem 0.75rem 2.5rem;
-  border-radius: ${theme.borders.radius};
-  border: 1px solid ${theme.colors.border};
-  width: 100%;
+  padding: 0.75rem 0;
+  border: none;
+  background: transparent;
   font-size: 1rem;
   
   &:focus {
     outline: none;
-    border-color: ${theme.colors.primary.main};
-    box-shadow: 0 0 0 2px ${theme.colors.primary.main}25;
-  }
-  
-  &::placeholder {
-    color: ${theme.colors.text.hint};
   }
 `;
 
 const Button = styled.button`
+  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  background-color: ${theme.colors.primary.main};
-  color: ${theme.colors.primary.contrastText};
-  border: none;
-  border-radius: ${theme.borders.radius};
-  padding: 0.75rem;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color ${theme.transitions.default};
+  margin-top: 1rem;
+  width: 100%;
   
   &:hover {
-    background-color: ${theme.colors.primary.dark};
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
   }
   
   &:disabled {
-    background-color: ${theme.colors.primary.light};
-    opacity: 0.7;
+    background: #ccc;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 `;
 
-const ErrorMessage = styled.div`
-  color: ${theme.colors.status.error};
+const ErrorMessage = styled.p`
+  color: #e74c3c;
   font-size: 0.9rem;
   margin-top: 0.5rem;
 `;
@@ -130,9 +125,9 @@ const RegisterButton = styled(Link)`
   justify-content: center;
   gap: 0.5rem;
   background-color: transparent;
-  color: ${theme.colors.primary.main};
-  border: 1px solid ${theme.colors.primary.main};
-  border-radius: ${theme.borders.radius};
+  color: #6e8efb;
+  border: 1px solid #6e8efb;
+  border-radius: 4px;
   padding: 0.75rem;
   font-size: 1rem;
   cursor: pointer;
@@ -142,7 +137,7 @@ const RegisterButton = styled(Link)`
   width: 100%;
   
   &:hover {
-    background-color: rgba(${theme.colors.primary.main}25);
+    background-color: rgba(110, 142, 251, 0.1);
     transform: translateY(-2px);
   }
 `;
@@ -157,7 +152,7 @@ const ButtonGroup = styled.div`
 const ForgotPasswordLink = styled.button`
   background: none;
   border: none;
-  color: ${theme.colors.primary.main};
+  color: #6e8efb;
   font-size: 0.8rem;
   text-align: right;
   margin-top: 0.5rem;
@@ -169,7 +164,7 @@ const ForgotPasswordLink = styled.button`
   }
   
   &:disabled {
-    color: ${theme.colors.text.disabled};
+    color: #999;
     cursor: not-allowed;
   }
   
@@ -179,27 +174,28 @@ const ForgotPasswordLink = styled.button`
 `;
 
 const PasswordToggle = styled.button`
+  position: absolute;
+  right: 0.5rem;
   background: none;
   border: none;
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: ${theme.colors.primary.main};
+  color: #888;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
   
-  &:focus {
-    outline: none;
+  &:hover {
+    color: #6e8efb;
   }
 `;
 
 const Logo = styled.div`
-  font-size: 2rem;
+  font-size: 2.5rem;
   font-weight: bold;
-  color: ${theme.colors.accent.main};
+  color: #6e8efb;
+  margin-bottom: 1rem;
   text-align: center;
-  margin-bottom: 0.5rem;
-  text-shadow: 1px 1px 2px ${theme.colors.primary.dark}40;
 `;
 
 function Login() {
@@ -367,7 +363,7 @@ function Login() {
               setError(
                 <span>
                   Account not found. Please check your email or 
-                  <a href="/register" style={{color: theme.colors.primary.main, marginLeft: '4px', textDecoration: 'underline'}}>
+                  <a href="/register" style={{color: '#6e8efb', marginLeft: '4px', textDecoration: 'underline'}}>
                     register here
                   </a>
                 </span>
