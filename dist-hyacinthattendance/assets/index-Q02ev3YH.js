@@ -4061,17 +4061,17 @@ ${this.customData.serverResponse}`:this.message=this._baseMessage}}var jn;(funct
   }
 `,Nj=U(wI)`
   background-color: #333333;
-  color: white;
+  color: #76da7c;
   
   &:hover:not(:disabled) {
     background-color: #000000;
   }
 `,bj=U(wI)`
-  background-color: #800000;
-  color: white;
+  background-color: #333333;
+  color: #e67979;
   
   &:hover:not(:disabled) {
-    background-color: #600000;
+    background-color: #000000;
   }
 `,kr=U.span`
   display: inline-flex;
