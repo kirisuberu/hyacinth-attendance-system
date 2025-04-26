@@ -69,9 +69,24 @@ const StatusTag = styled.span`
 const AttendanceView = ({ user }) => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState(null);
   const { use24HourFormat } = useTimeFormat();
 
   useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user?.uid) return;
+      
+      try {
+        // Fetch user data to get schedule
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          setUserData(userDoc.data());
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+    
     const fetchAttendanceRecords = async () => {
       if (!user?.uid) return;
       
@@ -114,6 +129,7 @@ const AttendanceView = ({ user }) => {
       }
     };
     
+    fetchUserData();
     fetchAttendanceRecords();
   }, [user]);
   
@@ -202,18 +218,64 @@ const AttendanceView = ({ user }) => {
     }
   };
   
-  // Determine the status based on the record type and any stored status
+  // Calculate the status for time-in records based on schedule
+  const calculateTimeInStatus = (record, dateObj) => {
+    if (!record || record.type !== 'In') return 'N/A';
+    
+    try {
+      // Get the record timestamp as a Date object
+      const recordTime = record.timestamp.toDate();
+      const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][recordTime.getDay()];
+      
+      // Default status if we can't determine from schedule
+      let status = 'On Time';
+      
+      // Get the schedule for the user from state
+      const userSchedule = userData?.schedule || [];
+      
+      // Find today's schedule if it exists
+      const daySchedule = userSchedule.find(s => s.dayOfWeek === dayOfWeek);
+      
+      if (daySchedule && daySchedule.timeIn) {
+        // Parse schedule time
+        const [scheduledHour, scheduledMinute] = daySchedule.timeIn.split(':').map(Number);
+        
+        // Create Date objects for comparison
+        const scheduleDate = new Date(recordTime);
+        scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+        
+        // Calculate time difference in minutes
+        const diffMinutes = Math.round((recordTime - scheduleDate) / (1000 * 60));
+        
+        // Determine status based on time difference
+        if (diffMinutes < -15) { // More than 15 minutes early
+          status = 'Early';
+        } else if (diffMinutes <= 15) { // Within 15 minutes of scheduled time
+          status = 'On Time';
+        } else { // More than 15 minutes late
+          status = 'Late';
+        }
+      }
+      
+      return status;
+    } catch (error) {
+      console.error('Error calculating time-in status:', error, record);
+      return 'On Time'; // Default fallback
+    }
+  };
+  
+  // Determine status for any record type (used for backward compatibility)
   const determineStatus = (record) => {
-    // If the record already has a status field, use it
-    if (record.status) {
-      return record.status;
+    if (!record) return 'N/A';
+    
+    // For time out records, always return Complete
+    if (record.type === 'Out') {
+      return 'Complete';
     }
     
-    // Otherwise, determine based on type
+    // For time in records, use the calculateTimeInStatus function
     if (record.type === 'In') {
-      return 'On Time'; // Default for older records
-    } else if (record.type === 'Out') {
-      return 'Complete'; // Default for older records
+      return calculateTimeInStatus(record);
     }
     
     return 'N/A';
@@ -255,8 +317,8 @@ const AttendanceView = ({ user }) => {
                   <td>{record.inRecord ? formatTime(record.inRecord.timestamp) : '-'}</td>
                   <td>
                     {record.inRecord ? (
-                      <StatusTag status={determineStatus(record.inRecord)}>
-                        {determineStatus(record.inRecord)}
+                      <StatusTag status={calculateTimeInStatus(record.inRecord, record.date)}>
+                        {calculateTimeInStatus(record.inRecord, record.date)}
                       </StatusTag>
                     ) : '-'}
                   </td>
@@ -265,8 +327,8 @@ const AttendanceView = ({ user }) => {
                   <td>{record.outRecord ? formatTime(record.outRecord.timestamp) : '-'}</td>
                   <td>
                     {record.outRecord ? (
-                      <StatusTag status={determineStatus(record.outRecord)}>
-                        {determineStatus(record.outRecord)}
+                      <StatusTag status="Complete">
+                        Complete
                       </StatusTag>
                     ) : '-'}
                   </td>
