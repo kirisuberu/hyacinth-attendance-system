@@ -1,7 +1,21 @@
 import React from 'react';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
-import { Envelope, IdentificationCard, User, Buildings, UserCircle, Calendar, Clock, MapPin, Phone, Heart, Briefcase, IdentificationBadge, CheckCircle } from 'phosphor-react';
+import { 
+  Envelope, 
+  IdentificationCard, 
+  User, 
+  Buildings, 
+  UserCircle, 
+  Calendar, 
+  Clock, 
+  MapPin, 
+  Phone, 
+  Heart, 
+  Briefcase, 
+  IdentificationBadge, 
+  Status 
+} from 'phosphor-react';
 
 const ProfileSection = styled.div`
   margin-bottom: 1.5rem;
@@ -43,24 +57,17 @@ const FieldValue = styled.span`
 `;
 
 const ProfileView = ({ user, userData, loadingUserData }) => {
-  // Helper function to format timestamps
+  // Format timestamp helper function
   const formatTimestamp = (timestamp) => {
     try {
-      // Check for different timestamp formats
       if (timestamp?.seconds) {
-        // Firebase Timestamp object
-        const date = new Date(timestamp.seconds * 1000);
-        return date.toLocaleString();
+        return new Date(timestamp.seconds * 1000).toLocaleString();
       } else if (timestamp?.toDate) {
-        // Firebase Timestamp with toDate method
         return timestamp.toDate().toLocaleString();
       } else if (timestamp instanceof Date) {
-        // JavaScript Date object
         return timestamp.toLocaleString();
       } else if (typeof timestamp === 'string') {
-        // ISO string or other string format
-        const date = new Date(timestamp);
-        return date.toLocaleString();
+        return new Date(timestamp).toLocaleString();
       }
       return 'Not specified';
     } catch (error) {
@@ -119,7 +126,7 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
               </ProfileField>
               <ProfileField>
                 <FieldLabel>
-                  <CheckCircle size={18} />
+                  <Status size={18} />
                   Status:
                 </FieldLabel>
                 <FieldValue>
