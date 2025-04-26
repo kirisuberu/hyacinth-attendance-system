@@ -81,7 +81,7 @@ const AttendanceView = ({ user }) => {
         const q = query(
           attendanceRef,
           where('userId', '==', user.uid),
-          orderBy('timestamp', 'asc') // Changed to ascending to process pairs correctly
+          orderBy('timestamp', 'desc') // Changed back to descending for consistency
         );
         
         const querySnapshot = await getDocs(q);
@@ -94,8 +94,18 @@ const AttendanceView = ({ user }) => {
           });
         });
         
+        console.log('Raw attendance records:', rawRecords.length);
+        
+        if (rawRecords.length === 0) {
+          // If there are no records, set empty array and return
+          setAttendanceRecords([]);
+          setLoading(false);
+          return;
+        }
+        
         // Process records to pair IN and OUT entries by date
         const processedRecords = processAttendanceRecords(rawRecords);
+        console.log('Processed attendance records:', processedRecords.length);
         setAttendanceRecords(processedRecords);
       } catch (error) {
         console.error('Error fetching attendance records:', error);
@@ -113,56 +123,83 @@ const AttendanceView = ({ user }) => {
     const recordsByDate = {};
     
     records.forEach(record => {
-      if (!record.timestamp) return;
-      
-      const date = record.timestamp.toDate();
-      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-      
-      if (!recordsByDate[dateKey]) {
-        recordsByDate[dateKey] = {
-          date: date,
-          day: getDayOfWeek(record.timestamp),
-          inRecord: null,
-          outRecord: null
-        };
+      if (!record.timestamp) {
+        console.log('Skipping record without timestamp:', record);
+        return;
       }
       
-      // Assign record to in or out slot
-      if (record.type === 'In' && (!recordsByDate[dateKey].inRecord || 
-          record.timestamp.toDate() < recordsByDate[dateKey].inRecord.timestamp.toDate())) {
-        recordsByDate[dateKey].inRecord = record;
-      } else if (record.type === 'Out' && (!recordsByDate[dateKey].outRecord || 
-          record.timestamp.toDate() > recordsByDate[dateKey].outRecord.timestamp.toDate())) {
-        recordsByDate[dateKey].outRecord = record;
+      try {
+        const date = record.timestamp.toDate();
+        const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        if (!recordsByDate[dateKey]) {
+          recordsByDate[dateKey] = {
+            date: date,
+            day: getDayOfWeek(record.timestamp),
+            inRecord: null,
+            outRecord: null
+          };
+        }
+        
+        // Assign record to in or out slot
+        if (record.type === 'In') {
+          recordsByDate[dateKey].inRecord = record;
+        } else if (record.type === 'Out') {
+          recordsByDate[dateKey].outRecord = record;
+        } else {
+          console.log('Record with unknown type:', record.type, record);
+        }
+      } catch (error) {
+        console.error('Error processing record:', error, record);
       }
     });
     
     // Convert to array and sort by date (most recent first)
-    return Object.values(recordsByDate).sort((a, b) => b.date - a.date);
+    const result = Object.values(recordsByDate).sort((a, b) => b.date - a.date);
+    console.log('Processed records by date:', result);
+    return result;
   };
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate();
-    return date.toLocaleDateString();
+    if (timestamp instanceof Date) {
+      return timestamp.toLocaleDateString();
+    }
+    try {
+      const date = timestamp.toDate();
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', error, timestamp);
+      return 'Invalid Date';
+    }
   };
   
   const getDayOfWeek = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate();
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    return days[date.getDay()];
+    try {
+      const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      return days[date.getDay()];
+    } catch (error) {
+      console.error('Error getting day of week:', error, timestamp);
+      return 'Unknown';
+    }
   };
   
   const formatTime = (timestamp) => {
     if (!timestamp) return 'N/A';
-    const date = timestamp.toDate();
-    return date.toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit',
-      hour12: !use24HourFormat 
-    });
+    try {
+      const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+      return date.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit',
+        hour12: !use24HourFormat 
+      });
+    } catch (error) {
+      console.error('Error formatting time:', error, timestamp);
+      return 'Invalid Time';
+    }
   };
   
   // Determine the status based on the record type and any stored status
