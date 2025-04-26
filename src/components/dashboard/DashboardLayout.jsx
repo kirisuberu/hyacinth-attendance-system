@@ -73,7 +73,7 @@ const SidebarTimeButton = styled.button`
 `;
 
 const TimeInSidebarButton = styled(SidebarTimeButton)`
-  background-color: #333333;
+  background-color: #222222;
   color: #76da7c;
   
   &:hover:not(:disabled) {
@@ -82,7 +82,7 @@ const TimeInSidebarButton = styled(SidebarTimeButton)`
 `;
 
 const TimeOutSidebarButton = styled(SidebarTimeButton)`
-  background-color: #333333;
+  background-color: #222222;
   color: #e67979;
   
   &:hover:not(:disabled) {

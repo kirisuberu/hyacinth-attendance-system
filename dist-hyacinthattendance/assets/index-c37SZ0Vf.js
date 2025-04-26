@@ -4060,14 +4060,14 @@ ${this.customData.serverResponse}`:this.message=this._baseMessage}}var jn;(funct
     transform: translateY(-2px);
   }
 `,Nj=U(wI)`
-  background-color: #333333;
+  background-color: #222222;
   color: #76da7c;
   
   &:hover:not(:disabled) {
     background-color: #000000;
   }
 `,bj=U(wI)`
-  background-color: #333333;
+  background-color: #222222;
   color: #e67979;
   
   &:hover:not(:disabled) {
