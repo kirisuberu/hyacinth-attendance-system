@@ -14,7 +14,7 @@ const RegisterContainer = styled.div`
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  background: linear-gradient(135deg, #800000 0%, #DAA520 100%);
   padding: 2rem 1rem;
 `;
 
@@ -83,8 +83,8 @@ const InputWrapper = styled.div`
   position: relative;
   
   &:focus-within {
-    border-color: #6e8efb;
-    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.2);
   }
 `;
 
@@ -92,7 +92,7 @@ const Icon = styled.span`
   display: inline-flex;
   align-items: center;
   margin-right: 0.5rem;
-  color: #888;
+  color: #800000;
 `;
 
 const Input = styled.input`
@@ -125,7 +125,7 @@ const Select = styled.select`
 `;
 
 const Button = styled.button`
-  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  background: linear-gradient(135deg, #800000 0%, #DAA520 100%);
   color: white;
   border: none;
   border-radius: 4px;
@@ -138,10 +138,11 @@ const Button = styled.button`
   justify-content: center;
   gap: 0.5rem;
   margin-top: 1rem;
+  width: 100%;
   
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
+    box-shadow: 0 4px 12px rgba(128, 0, 0, 0.3);
   }
   
   &:disabled {
@@ -157,7 +158,7 @@ const PasswordToggle = styled.button`
   right: 0.5rem;
   background: none;
   border: none;
-  color: #888;
+  color: #800000;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -165,7 +166,7 @@ const PasswordToggle = styled.button`
   padding: 0.5rem;
   
   &:hover {
-    color: #6e8efb;
+    color: #600000;
   }
 `;
 
@@ -181,21 +182,20 @@ const Spinner = styled(SpinnerGap)`
 const BackLink = styled(Link)`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  color: #6e8efb;
+  color: #800000;
   text-decoration: none;
+  margin-bottom: 1rem;
   font-size: 0.9rem;
-  margin-bottom: 1.5rem;
   
   &:hover {
     text-decoration: underline;
   }
 `;
 
-const ErrorMessage = styled.p`
-  color: #e74c3c;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
+const ErrorMessage = styled.div`
+  color: #e53935;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
 `;
 
 const PasswordRequirements = styled.div`
@@ -209,7 +209,7 @@ const RequirementItem = styled.div`
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.25rem;
-  color: ${props => props.met ? '#27ae60' : '#666'};
+  color: ${props => props.met ? '#DAA520' : '#666'};
 `;
 
 function Register() {

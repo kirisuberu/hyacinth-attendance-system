@@ -14,7 +14,7 @@ const LoginContainer = styled.div`
   justify-content: center;
   min-height: 100vh;
   padding: 2rem 1rem;
-  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  background: linear-gradient(135deg, #800000 0%, #DAA520 100%);
 `;
 
 const LoginCard = styled.div`
@@ -68,8 +68,9 @@ const InputWrapper = styled.div`
 const Icon = styled.span`
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  color: #800000;
   margin-right: 0.5rem;
-  color: #888;
 `;
 
 const Input = styled.input`
@@ -78,6 +79,7 @@ const Input = styled.input`
   border: none;
   background: transparent;
   font-size: 1rem;
+  color: #e74c3c;
   
   &:focus {
     outline: none;
@@ -85,14 +87,15 @@ const Input = styled.input`
 `;
 
 const Button = styled.button`
-  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  background-color: #800000;
   color: white;
   border: none;
   border-radius: 4px;
   padding: 0.75rem;
   font-size: 1rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -101,15 +104,12 @@ const Button = styled.button`
   width: 100%;
   
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
+    background-color: #600000;
   }
   
   &:disabled {
-    background: #ccc;
+    background-color: #b08080;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
   }
 `;
 
@@ -125,8 +125,8 @@ const RegisterButton = styled(Link)`
   justify-content: center;
   gap: 0.5rem;
   background-color: transparent;
-  color: #6e8efb;
-  border: 1px solid #6e8efb;
+  color: #800000;
+  border: 1px solid #800000;
   border-radius: 4px;
   padding: 0.75rem;
   font-size: 1rem;
@@ -137,7 +137,7 @@ const RegisterButton = styled(Link)`
   width: 100%;
   
   &:hover {
-    background-color: rgba(110, 142, 251, 0.1);
+    background-color: rgba(128, 0, 0, 0.1);
     transform: translateY(-2px);
   }
 `;
@@ -152,7 +152,7 @@ const ButtonGroup = styled.div`
 const ForgotPasswordLink = styled.button`
   background: none;
   border: none;
-  color: #6e8efb;
+  color: #800000;
   font-size: 0.8rem;
   text-align: right;
   margin-top: 0.5rem;
@@ -175,27 +175,25 @@ const ForgotPasswordLink = styled.button`
 
 const PasswordToggle = styled.button`
   position: absolute;
-  right: 0.5rem;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
-  color: #888;
+  color: #800000;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem;
   
-  &:hover {
-    color: #6e8efb;
+  &:focus {
+    outline: none;
   }
 `;
 
 const Logo = styled.div`
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: bold;
-  color: #6e8efb;
-  margin-bottom: 1rem;
+  color: #800000;
   text-align: center;
+  margin-bottom: 0.5rem;
 `;
 
 function Login() {
@@ -363,7 +361,7 @@ function Login() {
               setError(
                 <span>
                   Account not found. Please check your email or 
-                  <a href="/register" style={{color: '#6e8efb', marginLeft: '4px', textDecoration: 'underline'}}>
+                  <a href="/register" style={{color: '#800000', marginLeft: '4px', textDecoration: 'underline'}}>
                     register here
                   </a>
                 </span>
