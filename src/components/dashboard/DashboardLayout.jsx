@@ -527,7 +527,7 @@ const DashboardLayout = ({
             </NavItem>
           </div>
           
-          <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ marginBottom: '1.5rem', zIndex: 1000 }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Attendance Actions</p>
             
             <TimeInSidebarButton 
