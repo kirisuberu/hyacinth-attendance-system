@@ -267,6 +267,8 @@ function Dashboard() {
       handleTimeInOut={handleTimeInOut}
       lastRecord={lastRecord}
       isSuperAdmin={userData?.role === 'super_admin'}
+      userData={userData}
+      setUserData={setUserData}
     >
       {activeTab === 'dashboard' && (
         <DashboardHome 

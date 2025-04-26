@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
-import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users } from 'phosphor-react';
-import { auth } from '../../firebase';
+import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users, GlobeHemisphereWest } from 'phosphor-react';
+import { auth, db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 
 // Styled components for layout
@@ -91,9 +92,9 @@ const TimeOutSidebarButton = styled(SidebarTimeButton)`
 `;
 
 const Icon = styled.span`
-  display: inline-flex;
+  margin-right: 10px;
+  display: flex;
   align-items: center;
-  margin-right: 0.5rem;
 `;
 
 const Content = styled.div`
@@ -143,6 +144,113 @@ const LogoutButton = styled.button`
   }
 `;
 
+// Modal components
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  
+  h3 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+`;
+
+const ModalBody = styled.div`
+  padding: 1rem;
+  overflow-y: auto;
+`;
+
+const ModalFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem;
+  border-top: 1px solid #eee;
+  gap: 0.5rem;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  
+  &:hover {
+    color: #000;
+  }
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #6e8efb;
+  }
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background-color: ${props => props.primary ? '#6e8efb' : 'white'};
+  color: ${props => props.primary ? 'white' : '#333'};
+  
+  &:hover {
+    background-color: ${props => props.primary ? '#5a7df9' : '#f5f5f5'};
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
 // Main layout component
 const DashboardLayout = ({ 
   user, 
@@ -153,9 +261,49 @@ const DashboardLayout = ({
   handleTimeInOut, 
   lastRecord,
   isSuperAdmin,
+  userData,
+  setUserData,
   children 
 }) => {
   const navigate = useNavigate();
+  const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
+  const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || 'Asia/Manila');
+  const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
+
+  // Update selected time region when userData changes
+  useEffect(() => {
+    if (userData?.timeRegion) {
+      setSelectedTimeRegion(userData.timeRegion);
+    }
+  }, [userData]);
+
+  const handleTimeRegionChange = async () => {
+    if (!user?.uid || updatingTimeRegion) return;
+    
+    try {
+      setUpdatingTimeRegion(true);
+      
+      // Update the user document in Firestore
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        timeRegion: selectedTimeRegion
+      });
+      
+      // Update local state
+      setUserData(prev => ({
+        ...prev,
+        timeRegion: selectedTimeRegion
+      }));
+      
+      toast.success('Time region updated successfully');
+      setShowTimeRegionModal(false);
+    } catch (error) {
+      console.error('Error updating time region:', error);
+      toast.error('Failed to update time region');
+    } finally {
+      setUpdatingTimeRegion(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -226,6 +374,18 @@ const DashboardLayout = ({
         
         <div style={{ marginTop: 'auto' }}>
           <div style={{ marginBottom: '1.5rem' }}>
+            <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>User Settings</p>
+            
+            <NavItem onClick={() => setShowTimeRegionModal(true)}>
+              <Icon><GlobeHemisphereWest size={16} /></Icon>
+              Change Time Region
+              <div style={{ fontSize: '0.75rem', marginLeft: 'auto', opacity: 0.7 }}>
+                {userData?.timeRegion?.replace('_', ' ') || 'Asia/Manila'}
+              </div>
+            </NavItem>
+          </div>
+          
+          <div style={{ marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Attendance Actions</p>
             
             <TimeInSidebarButton 
@@ -280,6 +440,62 @@ const DashboardLayout = ({
         
         {children}
       </Content>
+      
+      {/* Time Region Modal */}
+      {showTimeRegionModal && (
+        <ModalOverlay>
+          <ModalContent>
+            <ModalHeader>
+              <h3>Change Time Region</h3>
+              <CloseButton onClick={() => setShowTimeRegionModal(false)}>&times;</CloseButton>
+            </ModalHeader>
+            <ModalBody>
+              <p style={{ marginBottom: '1rem' }}>
+                Changing your time region will affect how times are displayed throughout the application and how your attendance is recorded.
+              </p>
+              
+              <FormGroup>
+                <Label>Select Time Region</Label>
+                <Select 
+                  value={selectedTimeRegion}
+                  onChange={(e) => setSelectedTimeRegion(e.target.value)}
+                >
+                  <optgroup label="Asia & Pacific">
+                    <option value="Asia/Manila">Asia/Manila (PHT)</option>
+                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                  </optgroup>
+                  <optgroup label="Americas">
+                    <option value="America/New_York">America/New_York (Eastern)</option>
+                    <option value="America/Chicago">America/Chicago (Central)</option>
+                    <option value="America/Denver">America/Denver (Mountain)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+                    <option value="America/Anchorage">America/Anchorage (Alaska)</option>
+                    <option value="America/Adak">America/Adak (Hawaii-Aleutian)</option>
+                    <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
+                    <option value="America/Phoenix">America/Phoenix (Arizona)</option>
+                    <option value="America/Toronto">America/Toronto (Eastern Canada)</option>
+                    <option value="America/Vancouver">America/Vancouver (Pacific Canada)</option>
+                  </optgroup>
+                  <optgroup label="Europe & Africa">
+                    <option value="Europe/London">Europe/London (GMT/BST)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                    <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+                    <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
+                  </optgroup>
+                </Select>
+              </FormGroup>
+            </ModalBody>
+            <ModalFooter>
+              <Button onClick={() => setShowTimeRegionModal(false)}>Cancel</Button>
+              <Button primary onClick={handleTimeRegionChange} disabled={updatingTimeRegion}>
+                {updatingTimeRegion ? 'Updating...' : 'Save Changes'}
+              </Button>
+            </ModalFooter>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </DashboardContainer>
   );
 };
