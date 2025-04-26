@@ -791,11 +791,6 @@ function UserManagementView() {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        
-        <Button primary onClick={() => setShowAddUserModal(true)}>
-          <Icon><Plus size={16} /></Icon>
-          Add User
-        </Button>
       </TopActions>
       
       {loading ? (
