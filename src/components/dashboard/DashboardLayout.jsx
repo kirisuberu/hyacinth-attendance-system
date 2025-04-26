@@ -270,6 +270,35 @@ const DashboardLayout = ({
   const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila');
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
+  
+  // Function to get UTC offset for a time zone
+  const getUTCOffset = (timeZone) => {
+    try {
+      const now = new Date();
+      const options = { timeZone, timeZoneName: 'short' };
+      const formatter = new Intl.DateTimeFormat('en-US', options);
+      const formatted = formatter.format(now);
+      
+      // Extract UTC offset from the formatted date
+      // This is a simple approach - for a more robust solution, we could use a library
+      const match = formatted.match(/GMT([+-]\d+)/);
+      if (match && match[1]) {
+        return `UTC${match[1]}`;
+      }
+      
+      // Calculate offset manually as fallback
+      const localTime = new Date();
+      const targetTime = new Date(localTime.toLocaleString('en-US', { timeZone }));
+      const diffMinutes = (targetTime - localTime) / 60000;
+      const hours = Math.floor(Math.abs(diffMinutes) / 60);
+      const minutes = Math.abs(diffMinutes) % 60;
+      const sign = diffMinutes >= 0 ? '+' : '-';
+      return `UTC${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    } catch (error) {
+      console.error('Error calculating UTC offset:', error);
+      return '';
+    }
+  };
 
   // Detect user's device time zone
   useEffect(() => {
@@ -397,6 +426,9 @@ const DashboardLayout = ({
               Change Time Region
               <div style={{ fontSize: '0.75rem', marginLeft: 'auto', opacity: 0.7 }}>
                 {userData?.timeRegion?.replace('_', ' ') || 'Asia/Manila'}
+                <div style={{ fontSize: '0.7rem', marginTop: '2px' }}>
+                  {getUTCOffset(userData?.timeRegion || 'Asia/Manila')}
+                </div>
               </div>
             </NavItem>
           </div>
@@ -472,7 +504,8 @@ const DashboardLayout = ({
               
               {detectedTimeZone && (
                 <p style={{ marginBottom: '1rem', backgroundColor: '#f0f7ff', padding: '0.5rem', borderRadius: '4px', fontSize: '0.9rem' }}>
-                  <strong>Detected device time zone:</strong> {detectedTimeZone}
+                  <strong>Detected device time zone:</strong> {detectedTimeZone} 
+                  <span style={{ fontWeight: 'normal' }}>({getUTCOffset(detectedTimeZone)})</span>
                   {detectedTimeZone !== selectedTimeRegion && (
                     <button 
                       onClick={() => setSelectedTimeRegion(detectedTimeZone)}
@@ -500,30 +533,33 @@ const DashboardLayout = ({
                   onChange={(e) => setSelectedTimeRegion(e.target.value)}
                 >
                   <optgroup label="Asia & Pacific">
-                    <option value="Asia/Manila">Asia/Manila (PHT)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                    <option value="Asia/Manila">Asia/Manila (PHT, UTC+8)</option>
+                    <option value="Asia/Singapore">Asia/Singapore (SGT, UTC+8)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST, UTC+9)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT, UTC+10/+11)</option>
                   </optgroup>
                   <optgroup label="Americas">
-                    <option value="America/New_York">America/New_York (Eastern)</option>
-                    <option value="America/Chicago">America/Chicago (Central)</option>
-                    <option value="America/Denver">America/Denver (Mountain)</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
-                    <option value="America/Anchorage">America/Anchorage (Alaska)</option>
-                    <option value="America/Adak">America/Adak (Hawaii-Aleutian)</option>
-                    <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
-                    <option value="America/Phoenix">America/Phoenix (Arizona)</option>
-                    <option value="America/Toronto">America/Toronto (Eastern Canada)</option>
-                    <option value="America/Vancouver">America/Vancouver (Pacific Canada)</option>
+                    <option value="America/New_York">America/New_York (Eastern, UTC-5/-4)</option>
+                    <option value="America/Chicago">America/Chicago (Central, UTC-6/-5)</option>
+                    <option value="America/Denver">America/Denver (Mountain, UTC-7/-6)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific, UTC-8/-7)</option>
+                    <option value="America/Anchorage">America/Anchorage (Alaska, UTC-9/-8)</option>
+                    <option value="America/Adak">America/Adak (Hawaii-Aleutian, UTC-10/-9)</option>
+                    <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii, UTC-10)</option>
+                    <option value="America/Phoenix">America/Phoenix (Arizona, UTC-7)</option>
+                    <option value="America/Toronto">America/Toronto (Eastern Canada, UTC-5/-4)</option>
+                    <option value="America/Vancouver">America/Vancouver (Pacific Canada, UTC-8/-7)</option>
                   </optgroup>
                   <optgroup label="Europe & Africa">
-                    <option value="Europe/London">Europe/London (GMT/BST)</option>
-                    <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
-                    <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
-                    <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
+                    <option value="Europe/London">Europe/London (GMT/BST, UTC+0/+1)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET/CEST, UTC+1/+2)</option>
+                    <option value="Europe/Berlin">Europe/Berlin (CET/CEST, UTC+1/+2)</option>
+                    <option value="Europe/Moscow">Europe/Moscow (MSK, UTC+3)</option>
                   </optgroup>
                 </Select>
+                <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#666' }}>
+                  Note: UTC offsets may vary during Daylight Saving Time transitions.
+                </div>
               </FormGroup>
             </ModalBody>
             <ModalFooter>
