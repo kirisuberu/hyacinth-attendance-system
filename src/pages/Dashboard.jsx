@@ -341,63 +341,91 @@ function Dashboard() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingAttendance, setPendingAttendance] = useState(null);
   
-  const determineStatus = (type, userSchedule) => {
+  const determineStatus = async (type, userId) => {
     if (type === 'Out') {
       return 'Complete'; // Default for time out
     }
     
     // For time in, determine if early, on time, or late
-    const now = new Date();
-    const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
-    
-    // Find today's schedule if it exists
-    const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
-      userSchedule.find(s => s.dayOfWeek === currentDay) : null;
-    
-    if (!todaySchedule) {
-      return 'On Time'; // Default if no schedule found
-    }
-    
-    // Parse schedule time
-    const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
-    
-    // Create Date objects for comparison
-    const scheduleDate = new Date();
-    scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
-    
-    // Calculate time difference in minutes
-    const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
-    
-    // Determine status based on time difference
-    if (diffMinutes < -15) { // More than 15 minutes early
-      return 'Early';
-    } else if (diffMinutes <= 15) { // Within 15 minutes of scheduled time
-      return 'On Time';
-    } else { // More than 15 minutes late
-      return 'Late';
+    try {
+      // Fetch user's schedule from Firestore
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (!userDoc.exists()) {
+        console.warn('User document not found when determining status');
+        return 'On Time'; // Default if user not found
+      }
+      
+      const userData = userDoc.data();
+      const userSchedule = userData.schedule || [];
+      
+      const now = new Date();
+      const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+      
+      // Find today's schedule if it exists
+      const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
+        userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+      
+      if (!todaySchedule) {
+        console.log('No schedule found for today:', currentDay);
+        return 'On Time'; // Default if no schedule found
+      }
+      
+      console.log('Found schedule for today:', todaySchedule);
+      
+      // Parse schedule time
+      const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
+      
+      // Create Date objects for comparison
+      const scheduleDate = new Date();
+      scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+      
+      // Calculate time difference in minutes
+      const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+      console.log('Time difference in minutes:', diffMinutes);
+      
+      // Determine status based on time difference
+      if (diffMinutes < -15) { // More than 15 minutes early
+        return 'Early';
+      } else if (diffMinutes <= 15) { // Within 15 minutes of scheduled time
+        return 'On Time';
+      } else { // More than 15 minutes late
+        return 'Late';
+      }
+    } catch (error) {
+      console.error('Error determining status:', error);
+      return 'On Time'; // Default on error
     }
   };
   
-  const handleTimeInOutClick = (type) => {
+  const handleTimeInOutClick = async (type) => {
     if (!user) return;
     
-    const timestamp = Timestamp.now();
-    const status = determineStatus(type, userData?.schedule);
+    setLoading(true);
     
-    // Create attendance data object
-    const attendanceData = {
-      userId: user.uid,
-      email: user.email,
-      name: user.displayName,
-      type,
-      status,
-      timestamp,
-      notes: ''
-    };
-    
-    // Store the pending attendance data and show confirmation modal
-    setPendingAttendance(attendanceData);
-    setShowConfirmModal(true);
+    try {
+      const timestamp = Timestamp.now();
+      const status = await determineStatus(type, user.uid);
+      
+      // Create attendance data object
+      const attendanceData = {
+        userId: user.uid,
+        email: user.email,
+        name: user.displayName,
+        type,
+        status,
+        timestamp,
+        notes: ''
+      };
+      
+      // Store the pending attendance data and show confirmation modal
+      setPendingAttendance(attendanceData);
+      setShowConfirmModal(true);
+    } catch (error) {
+      console.error('Error preparing time in/out:', error);
+      toast.error('Failed to prepare time in/out. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleConfirmTimeInOut = async () => {
@@ -431,7 +459,7 @@ function Dashboard() {
   
   // Legacy function for backward compatibility
   const handleTimeInOut = async (type) => {
-    handleTimeInOutClick(type);
+    await handleTimeInOutClick(type);
   };
 
   return (
