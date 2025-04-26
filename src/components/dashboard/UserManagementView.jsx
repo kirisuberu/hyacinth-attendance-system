@@ -300,6 +300,8 @@ function UserManagementView() {
     timeRegion: 'Asia/Manila',
     shiftDuration: '8',
   });
+  const [editingSchedule, setEditingSchedule] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -397,6 +399,8 @@ function UserManagementView() {
     setSelectedUser(user);
     setScheduleData(user.schedule || []);
     setShowScheduleModal(true);
+    setIsEditing(false);
+    setEditingSchedule(null);
   };
 
   const handleAddSchedule = () => {
@@ -470,6 +474,72 @@ function UserManagementView() {
   const handleDeleteSchedule = (scheduleId) => {
     const updatedSchedule = scheduleData.filter(item => item.id !== scheduleId);
     setScheduleData(updatedSchedule);
+  };
+
+  const handleEditSchedule = (schedule) => {
+    setEditingSchedule(schedule);
+    setIsEditing(true);
+    setNewSchedule({
+      selectedDays: [schedule.dayOfWeek],
+      timeIn: schedule.timeIn,
+      timeRegion: schedule.timeRegion,
+      shiftDuration: schedule.shiftDuration.toString(),
+    });
+  };
+
+  const handleUpdateSchedule = () => {
+    if (!editingSchedule) return;
+    
+    // Validate that at least one day is selected
+    if (newSchedule.selectedDays.length === 0) {
+      toast.warning('Please select at least one day of the week');
+      return;
+    }
+    
+    // Convert time to UTC for storage
+    const localTime = new Date();
+    const [hours, minutes] = newSchedule.timeIn.split(':').map(Number);
+    localTime.setHours(hours, minutes, 0, 0);
+    
+    // Remove the old schedule entry
+    let updatedSchedule = scheduleData.filter(item => item.id !== editingSchedule.id);
+    
+    // Create updated schedule entries for each selected day
+    const updatedEntries = newSchedule.selectedDays.map(day => ({
+      id: day === editingSchedule.dayOfWeek ? editingSchedule.id : `${Date.now()}-${day}`,
+      dayOfWeek: day,
+      timeIn: newSchedule.timeIn,
+      timeRegion: newSchedule.timeRegion,
+      shiftDuration: parseInt(newSchedule.shiftDuration, 10),
+      utcTimeIn: localTime.toISOString()
+    }));
+    
+    // Add the updated entries to the schedule data
+    updatedSchedule = [...updatedSchedule, ...updatedEntries];
+    setScheduleData(updatedSchedule);
+    
+    toast.success(`Updated schedule for ${newSchedule.selectedDays.length} day(s)`);
+    
+    // Reset form and editing state
+    setNewSchedule({
+      selectedDays: [],
+      timeIn: '09:00',
+      timeRegion: 'Asia/Manila',
+      shiftDuration: '8',
+    });
+    setIsEditing(false);
+    setEditingSchedule(null);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditingSchedule(null);
+    setNewSchedule({
+      selectedDays: [],
+      timeIn: '09:00',
+      timeRegion: 'Asia/Manila',
+      shiftDuration: '8',
+    });
   };
 
   const filteredUsers = users.filter(user => {
@@ -596,13 +666,23 @@ function UserManagementView() {
                     <ScheduleCard key={schedule.id}>
                       <ScheduleHeader>
                         <ScheduleDay>{schedule.dayOfWeek}</ScheduleDay>
-                        <ActionButton 
-                          color="#f44336" 
-                          onClick={() => handleDeleteSchedule(schedule.id)}
-                          title="Delete schedule"
-                        >
-                          <Trash size={16} />
-                        </ActionButton>
+                        <div>
+                          <ActionButton 
+                            color="#000000" 
+                            onClick={() => handleEditSchedule(schedule)}
+                            title="Edit schedule"
+                            style={{ marginRight: '4px' }}
+                          >
+                            <PencilSimple size={16} />
+                          </ActionButton>
+                          <ActionButton 
+                            color="#f44336" 
+                            onClick={() => handleDeleteSchedule(schedule.id)}
+                            title="Delete schedule"
+                          >
+                            <Trash size={16} />
+                          </ActionButton>
+                        </div>
                       </ScheduleHeader>
                       <ScheduleTime>
                         <div><strong>Time In:</strong> {schedule.timeIn}</div>
@@ -618,7 +698,7 @@ function UserManagementView() {
             </div>
             
             <div style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ marginBottom: '0.5rem' }}>Add New Schedule</h4>
+              <h4 style={{ marginBottom: '0.5rem' }}>{isEditing ? 'Edit Schedule' : 'Add New Schedule'}</h4>
               
               <FormGroup>
                 <Label>Days of Week (select multiple)</Label>
@@ -695,13 +775,30 @@ function UserManagementView() {
                 />
               </FormGroup>
               
-              <Button 
-                primary 
-                onClick={handleAddSchedule}
-                style={{ marginTop: '0.5rem' }}
-              >
-                Add Schedule
-              </Button>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                {isEditing ? (
+                  <>
+                    <Button 
+                      primary 
+                      onClick={handleUpdateSchedule}
+                    >
+                      Update Schedule
+                    </Button>
+                    <Button 
+                      onClick={cancelEdit}
+                    >
+                      Cancel Edit
+                    </Button>
+                  </>
+                ) : (
+                  <Button 
+                    primary 
+                    onClick={handleAddSchedule}
+                  >
+                    Add Schedule
+                  </Button>
+                )}
+              </div>
             </div>
             
             <ModalButtons>
