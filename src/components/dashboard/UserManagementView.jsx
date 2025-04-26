@@ -185,6 +185,29 @@ const FormGroup = styled.div`
   margin-bottom: 1rem;
 `;
 
+const DayCheckbox = styled.div`
+  display: inline-flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+  
+  input {
+    margin-right: 0.5rem;
+  }
+  
+  input:checked + label {
+    font-weight: 600;
+    color: #800000;
+  }
+`;
+
 const Label = styled.label`
   display: block;
   margin-bottom: 0.5rem;
@@ -272,11 +295,13 @@ function UserManagementView() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [scheduleData, setScheduleData] = useState([]);
   const [newSchedule, setNewSchedule] = useState({
-    dayOfWeek: 'Monday',
+    selectedDays: [],
     timeIn: '09:00',
     timeRegion: 'Asia/Manila',
     shiftDuration: '8',
   });
+  
+  const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   useEffect(() => {
     fetchUsers();
@@ -358,28 +383,36 @@ function UserManagementView() {
   };
 
   const handleAddSchedule = () => {
+    // Check if at least one day is selected
+    if (newSchedule.selectedDays.length === 0) {
+      toast.warning('Please select at least one day of the week');
+      return;
+    }
+    
     // Convert time to UTC for storage
     const localTime = new Date();
     const [hours, minutes] = newSchedule.timeIn.split(':').map(Number);
     localTime.setHours(hours, minutes, 0, 0);
     
-    // Create the schedule entry
-    const scheduleEntry = {
-      id: Date.now().toString(), // Unique ID for the schedule entry
-      dayOfWeek: newSchedule.dayOfWeek,
+    // Create schedule entries for each selected day
+    const newScheduleEntries = newSchedule.selectedDays.map(day => ({
+      id: `${Date.now()}-${day}`, // Unique ID for each schedule entry
+      dayOfWeek: day,
       timeIn: newSchedule.timeIn,
       timeRegion: newSchedule.timeRegion,
       shiftDuration: parseInt(newSchedule.shiftDuration, 10),
       utcTimeIn: localTime.toISOString() // Store UTC time
-    };
+    }));
     
     // Add to the current schedule data
-    const updatedSchedule = [...scheduleData, scheduleEntry];
+    const updatedSchedule = [...scheduleData, ...newScheduleEntries];
     setScheduleData(updatedSchedule);
+    
+    toast.success(`Added schedule for ${newSchedule.selectedDays.length} day(s)`);
     
     // Reset form
     setNewSchedule({
-      dayOfWeek: 'Monday',
+      selectedDays: [],
       timeIn: '09:00',
       timeRegion: 'Asia/Manila',
       shiftDuration: '8',
@@ -562,15 +595,25 @@ function UserManagementView() {
               <h4 style={{ marginBottom: '0.5rem' }}>Add New Schedule</h4>
               
               <FormGroup>
-                <Label>Day of Week</Label>
-                <Select 
-                  value={newSchedule.dayOfWeek}
-                  onChange={(e) => setNewSchedule({...newSchedule, dayOfWeek: e.target.value})}
-                >
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
-                    <option key={day} value={day}>{day}</option>
+                <Label>Days of Week (select multiple)</Label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  {daysOfWeek.map(day => (
+                    <DayCheckbox key={day}>
+                      <input
+                        type="checkbox"
+                        id={`day-${day}`}
+                        checked={newSchedule.selectedDays.includes(day)}
+                        onChange={() => {
+                          const updatedDays = newSchedule.selectedDays.includes(day)
+                            ? newSchedule.selectedDays.filter(d => d !== day)
+                            : [...newSchedule.selectedDays, day];
+                          setNewSchedule({...newSchedule, selectedDays: updatedDays});
+                        }}
+                      />
+                      <label htmlFor={`day-${day}`}>{day}</label>
+                    </DayCheckbox>
                   ))}
-                </Select>
+                </div>
               </FormGroup>
               
               <FormGroup>
@@ -588,12 +631,30 @@ function UserManagementView() {
                   value={newSchedule.timeRegion}
                   onChange={(e) => setNewSchedule({...newSchedule, timeRegion: e.target.value})}
                 >
-                  <option value="Asia/Manila">Asia/Manila (PHT)</option>
-                  <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                  <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                  <option value="America/New_York">America/New_York (EST/EDT)</option>
-                  <option value="Europe/London">Europe/London (GMT/BST)</option>
-                  <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                  <optgroup label="Asia & Pacific">
+                    <option value="Asia/Manila">Asia/Manila (PHT)</option>
+                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                  </optgroup>
+                  <optgroup label="Americas">
+                    <option value="America/New_York">America/New_York (Eastern)</option>
+                    <option value="America/Chicago">America/Chicago (Central)</option>
+                    <option value="America/Denver">America/Denver (Mountain)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+                    <option value="America/Anchorage">America/Anchorage (Alaska)</option>
+                    <option value="America/Adak">America/Adak (Hawaii-Aleutian)</option>
+                    <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
+                    <option value="America/Phoenix">America/Phoenix (Arizona)</option>
+                    <option value="America/Toronto">America/Toronto (Eastern Canada)</option>
+                    <option value="America/Vancouver">America/Vancouver (Pacific Canada)</option>
+                  </optgroup>
+                  <optgroup label="Europe & Africa">
+                    <option value="Europe/London">Europe/London (GMT/BST)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                    <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+                    <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
+                  </optgroup>
                 </Select>
               </FormGroup>
               
