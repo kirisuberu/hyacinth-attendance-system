@@ -57,28 +57,36 @@ const ScheduleView = ({ user }) => {
       try {
         setLoading(true);
         
-        // First check if the user has a schedule assigned
+        // Get the user document which now contains the schedule directly
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
-        if (userDoc.exists() && userDoc.data().scheduleId) {
-          // If user has a schedule ID, fetch that schedule
-          const scheduleId = userDoc.data().scheduleId;
-          const scheduleDocRef = doc(db, 'schedules', scheduleId);
-          const scheduleDoc = await getDoc(scheduleDocRef);
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
           
-          if (scheduleDoc.exists()) {
-            setSchedule(scheduleDoc.data());
-          }
-        } else {
-          // If no specific schedule, check for default schedules
-          const schedulesRef = collection(db, 'schedules');
-          const q = query(schedulesRef, where('isDefault', '==', true));
-          const querySnapshot = await getDocs(q);
-          
-          if (!querySnapshot.empty) {
-            // Use the first default schedule
-            setSchedule(querySnapshot.docs[0].data());
+          // Check if the user has a schedule array in their document
+          if (userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
+            console.log('Found user schedule:', userData.schedule);
+            setSchedule(userData.schedule);
+          } else if (userData.scheduleId) {
+            // Legacy support: If user still has a scheduleId, fetch that schedule
+            const scheduleId = userData.scheduleId;
+            const scheduleDocRef = doc(db, 'schedules', scheduleId);
+            const scheduleDoc = await getDoc(scheduleDocRef);
+            
+            if (scheduleDoc.exists()) {
+              setSchedule(scheduleDoc.data());
+            }
+          } else {
+            // If no specific schedule, check for default schedules
+            const schedulesRef = collection(db, 'schedules');
+            const q = query(schedulesRef, where('isDefault', '==', true));
+            const querySnapshot = await getDocs(q);
+            
+            if (!querySnapshot.empty) {
+              // Use the first default schedule
+              setSchedule(querySnapshot.docs[0].data());
+            }
           }
         }
       } catch (error) {
@@ -117,54 +125,138 @@ const ScheduleView = ({ user }) => {
 
   return (
     <Card>
-      <CardTitle>Your Schedule</CardTitle>
+      <CardTitle>My Schedule</CardTitle>
       <CardContent>
         {loading ? (
-          <p>Loading schedule...</p>
+          <p>Loading your schedule...</p>
         ) : schedule ? (
-          <>
-            <p><strong>Schedule Name:</strong> {schedule.name || 'Regular Schedule'}</p>
-            
-            {schedule.days && Object.keys(schedule.days).length > 0 ? (
-              Object.entries(schedule.days).map(([dayIndex, daySchedule]) => {
-                const dayNumber = parseInt(dayIndex, 10);
-                const isToday = dayNumber === getCurrentDayIndex();
+          <div>
+            {Array.isArray(schedule) ? (
+              // New format: schedule is an array of schedule objects
+              <>
+                <p><strong>Your Schedule</strong></p>
                 
-                return (
-                  <DayCard key={dayIndex} isToday={isToday}>
-                    <h3>{getDayName(dayNumber)} {isToday && '(Today)'}</h3>
-                    {daySchedule.shifts && daySchedule.shifts.length > 0 ? (
-                      <ScheduleTable>
-                        <thead>
-                          <tr>
-                            <th>Shift</th>
-                            <th>Start Time</th>
-                            <th>End Time</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {daySchedule.shifts.map((shift, index) => (
-                            <tr key={index}>
-                              <td>Shift {index + 1}</td>
-                              <td>{formatTime(shift.startTime)}</td>
-                              <td>{formatTime(shift.endTime)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </ScheduleTable>
-                    ) : (
-                      <p>No shifts scheduled</p>
-                    )}
-                  </DayCard>
-                );
-              })
+                {schedule.map((scheduleItem, index) => {
+                  const today = new Date();
+                  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                  const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
+                  const isToday = today.getDay() === dayIndex;
+                  
+                  // Calculate end time based on start time and duration
+                  const startTime = scheduleItem.timeIn;
+                  const duration = scheduleItem.shiftDuration || 8;
+                  
+                  // Parse start time to calculate end time
+                  let [startHour, startMinute] = startTime.split(':').map(Number);
+                  let endHour = (startHour + duration) % 24;
+                  const endTime = `${endHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+                  
+                  return (
+                    <DayCard key={index} isToday={isToday}>
+                      <h3>{scheduleItem.dayOfWeek}</h3>
+                      <p>
+                        <strong>Time In:</strong> {scheduleItem.timeIn} | 
+                        <strong>Duration:</strong> {scheduleItem.shiftDuration} hours
+                      </p>
+                      <p>
+                        <strong>Estimated Time Out:</strong> {endTime}
+                      </p>
+                      <p>
+                        <strong>Time Region:</strong> {scheduleItem.timeRegion}
+                      </p>
+                    </DayCard>
+                  );
+                })}
+                
+                <ScheduleTable>
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th>Time In</th>
+                      <th>Time Out (Est.)</th>
+                      <th>Duration</th>
+                      <th>Region</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedule.map((scheduleItem, index) => {
+                      // Calculate end time based on start time and duration
+                      const startTime = scheduleItem.timeIn;
+                      const duration = scheduleItem.shiftDuration || 8;
+                      
+                      // Parse start time to calculate end time
+                      let [startHour, startMinute] = startTime.split(':').map(Number);
+                      let endHour = (startHour + duration) % 24;
+                      const endTime = `${endHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+                      
+                      return (
+                        <tr key={index}>
+                          <td>{scheduleItem.dayOfWeek}</td>
+                          <td>{scheduleItem.timeIn}</td>
+                          <td>{endTime}</td>
+                          <td>{scheduleItem.shiftDuration} hours</td>
+                          <td>{scheduleItem.timeRegion}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </ScheduleTable>
+              </>
             ) : (
-              <p>No daily schedule defined</p>
+              // Legacy format: schedule is an object with shifts property
+              <>
+                <p>Your assigned schedule: <strong>{schedule.name || 'Standard Schedule'}</strong></p>
+                
+                {schedule.shifts && schedule.shifts.map((shift, index) => {
+                  const today = new Date();
+                  const isToday = today.getDay() === shift.day;
+                  
+                  return (
+                    <DayCard key={index} isToday={isToday}>
+                      <h3>{getDayName(shift.day)}</h3>
+                      <p>
+                        <strong>Start:</strong> {formatTime(shift.startTime)} | 
+                        <strong>End:</strong> {formatTime(shift.endTime)}
+                      </p>
+                      {shift.breakStart && shift.breakEnd && (
+                        <p>
+                          <strong>Break:</strong> {formatTime(shift.breakStart)} - {formatTime(shift.breakEnd)}
+                        </p>
+                      )}
+                    </DayCard>
+                  );
+                })}
+                
+                <ScheduleTable>
+                  <thead>
+                    <tr>
+                      <th>Day</th>
+                      <th>Start Time</th>
+                      <th>End Time</th>
+                      <th>Break</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {schedule.shifts && schedule.shifts.map((shift, index) => (
+                      <tr key={index}>
+                        <td>{getDayName(shift.day)}</td>
+                        <td>{formatTime(shift.startTime)}</td>
+                        <td>{formatTime(shift.endTime)}</td>
+                        <td>
+                          {shift.breakStart && shift.breakEnd 
+                            ? `${formatTime(shift.breakStart)} - ${formatTime(shift.breakEnd)}` 
+                            : 'None'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </ScheduleTable>
+              </>
             )}
-          </>
+          </div>
         ) : (
           <EmptyState>
-            <p>No schedule assigned yet</p>
+            <p>No schedule has been assigned to you yet.</p>
           </EmptyState>
         )}
       </CardContent>
