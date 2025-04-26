@@ -327,8 +327,14 @@ function UserManagementView() {
     middleInitial: '',
     email: '',
     position: '',
-    role: 'member'
+    role: 'member',
+    dateOfBirth: '',
+    phoneNumber: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    emergencyContactRelationship: ''
   });
+  const [editUserPage, setEditUserPage] = useState(1); // Track the current page of the edit user modal
   const [newUserData, setNewUserData] = useState({
     firstName: '',
     lastName: '',
@@ -420,10 +426,16 @@ function UserManagementView() {
       middleInitial,
       email: user.email || '',
       position: user.position || '',
-      role: user.role || 'member'
+      role: user.role || 'member',
+      dateOfBirth: user.dateOfBirth || '',
+      phoneNumber: user.phoneNumber || '',
+      emergencyContactName: user.emergencyContactName || '',
+      emergencyContactPhone: user.emergencyContactPhone || '',
+      emergencyContactRelationship: user.emergencyContactRelationship || ''
     });
     
     setSelectedUser(user);
+    setEditUserPage(1); // Reset to first page
     setShowEditModal(true);
   };
 
@@ -520,7 +532,12 @@ function UserManagementView() {
         name: fullName.trim(),
         email: editUserData.email.trim(),
         position: editUserData.position.trim(),
-        role: editUserData.role
+        role: editUserData.role,
+        dateOfBirth: editUserData.dateOfBirth,
+        phoneNumber: editUserData.phoneNumber,
+        emergencyContactName: editUserData.emergencyContactName,
+        emergencyContactPhone: editUserData.emergencyContactPhone,
+        emergencyContactRelationship: editUserData.emergencyContactRelationship
       });
       
       // Update the local state
@@ -533,12 +550,18 @@ function UserManagementView() {
           name: fullName.trim(),
           email: editUserData.email.trim(),
           position: editUserData.position.trim(),
-          role: editUserData.role
+          role: editUserData.role,
+          dateOfBirth: editUserData.dateOfBirth,
+          phoneNumber: editUserData.phoneNumber,
+          emergencyContactName: editUserData.emergencyContactName,
+          emergencyContactPhone: editUserData.emergencyContactPhone,
+          emergencyContactRelationship: editUserData.emergencyContactRelationship
         } : u;
       }));
       
       toast.success('User information updated successfully');
       setShowEditModal(false);
+      setEditUserPage(1); // Reset to first page
     } catch (error) {
       console.error('Error updating user:', error);
       toast.error(`Failed to update user: ${error.message}`);
@@ -900,81 +923,156 @@ function UserManagementView() {
             <ModalTitle>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <UserCircle size={24} />
-                Edit User: {selectedUser.name || selectedUser.email}
+                Edit User: {selectedUser.name || selectedUser.email} {editUserPage > 1 && `- Page ${editUserPage} of 2`}
               </div>
             </ModalTitle>
             
-            <div style={{ marginBottom: '1.5rem' }}>
-              <FormGroup>
-                <Label>First Name</Label>
-                <Input 
-                  type="text" 
-                  value={editUserData.firstName}
-                  onChange={(e) => setEditUserData({...editUserData, firstName: e.target.value})}
-                  placeholder="First Name"
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Middle Initial</Label>
-                <Input 
-                  type="text" 
-                  value={editUserData.middleInitial}
-                  onChange={(e) => setEditUserData({...editUserData, middleInitial: e.target.value})}
-                  placeholder="Middle Initial"
-                  maxLength={1}
-                />
-                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
-                  Just the first letter, without period
-                </div>
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Last Name</Label>
-                <Input 
-                  type="text" 
-                  value={editUserData.lastName}
-                  onChange={(e) => setEditUserData({...editUserData, lastName: e.target.value})}
-                  placeholder="Last Name"
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Email</Label>
-                <Input 
-                  type="email" 
-                  value={editUserData.email}
-                  onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
-                  placeholder="Email Address"
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Position</Label>
-                <Input 
-                  type="text" 
-                  value={editUserData.position}
-                  onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
-                  placeholder="Position"
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Role</Label>
-                <Select
-                  value={editUserData.role}
-                  onChange={(e) => setEditUserData({...editUserData, role: e.target.value})}
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                  <option value="super_admin">Super Admin</option>
-                </Select>
-              </FormGroup>
-            </div>
+            {/* Page 1 - Basic Information */}
+            {editUserPage === 1 && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <FormGroup>
+                  <Label>First Name</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.firstName}
+                    onChange={(e) => setEditUserData({...editUserData, firstName: e.target.value})}
+                    placeholder="First Name"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Middle Initial</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.middleInitial}
+                    onChange={(e) => setEditUserData({...editUserData, middleInitial: e.target.value})}
+                    placeholder="Middle Initial"
+                    maxLength={1}
+                  />
+                  <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
+                    Just the first letter, without period
+                  </div>
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Last Name</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.lastName}
+                    onChange={(e) => setEditUserData({...editUserData, lastName: e.target.value})}
+                    placeholder="Last Name"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Email</Label>
+                  <Input 
+                    type="email" 
+                    value={editUserData.email}
+                    onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
+                    placeholder="Email Address"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Position</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.position}
+                    onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
+                    placeholder="Position"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Role</Label>
+                  <Select
+                    value={editUserData.role}
+                    onChange={(e) => setEditUserData({...editUserData, role: e.target.value})}
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                    <option value="super_admin">Super Admin</option>
+                  </Select>
+                </FormGroup>
+              </div>
+            )}
+            
+            {/* Page 2 - Additional Information */}
+            {editUserPage === 2 && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <FormGroup>
+                  <Label>Date of Birth</Label>
+                  <Input 
+                    type="date" 
+                    value={editUserData.dateOfBirth}
+                    onChange={(e) => setEditUserData({...editUserData, dateOfBirth: e.target.value})}
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Phone #</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.phoneNumber}
+                    onChange={(e) => setEditUserData({...editUserData, phoneNumber: e.target.value})}
+                    placeholder="Phone Number"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Emergency Contact Name</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.emergencyContactName}
+                    onChange={(e) => setEditUserData({...editUserData, emergencyContactName: e.target.value})}
+                    placeholder="Emergency Contact Name"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Emergency Contact Phone</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.emergencyContactPhone}
+                    onChange={(e) => setEditUserData({...editUserData, emergencyContactPhone: e.target.value})}
+                    placeholder="Emergency Contact Phone"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Relationship</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.emergencyContactRelationship}
+                    onChange={(e) => setEditUserData({...editUserData, emergencyContactRelationship: e.target.value})}
+                    placeholder="Relationship to Employee"
+                  />
+                </FormGroup>
+              </div>
+            )}
             
             <ModalButtons>
-              <Button onClick={() => setShowEditModal(false)}>Cancel</Button>
-              <Button primary onClick={handleUpdateUser}>Save Changes</Button>
+              {editUserPage === 1 ? (
+                <>
+                  <Button onClick={() => setShowEditModal(false)}>Cancel</Button>
+                  <Button primary onClick={() => setEditUserPage(2)}>
+                    <Icon><ArrowRight size={16} /></Icon>
+                    Next
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={() => setEditUserPage(1)}>
+                    <Icon><ArrowLeft size={16} /></Icon>
+                    Back
+                  </Button>
+                  <Button primary onClick={handleUpdateUser}>
+                    <Icon><FloppyDisk size={16} /></Icon>
+                    Save Changes
+                  </Button>
+                </>
+              )}
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>
