@@ -160,8 +160,7 @@ const AttendanceView = ({ user }) => {
                 <th>Day</th>
                 <th>Time</th>
                 <th>Type</th>
-                <th>Clock Status</th>
-                <th>Time Status</th>
+                <th>Status</th>
                 <th>Notes</th>
               </tr>
             </thead>
@@ -172,11 +171,6 @@ const AttendanceView = ({ user }) => {
                   <td>{getDayOfWeek(record.timestamp)}</td>
                   <td>{formatTime(record.timestamp)}</td>
                   <td>{record.type}</td>
-                  <td>
-                    <StatusBadge status={record.type}>
-                      {record.type === 'In' ? 'Clocked In' : 'Clocked Out'}
-                    </StatusBadge>
-                  </td>
                   <td>
                     <StatusTag status={determineStatus(record)}>
                       {determineStatus(record)}
