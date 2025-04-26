@@ -3,17 +3,21 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../../firebase';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
-import { format, addHours, parse } from 'date-fns';
+import { format, addHours, parse, isToday as isDateToday } from 'date-fns';
 import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
+import { Clock, Calendar, ArrowRight } from 'phosphor-react';
 
 const ScheduleTable = styled.table`
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1rem;
+  margin-top: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
   
   th, td {
-    padding: 0.75rem;
+    padding: 1rem;
     text-align: left;
     border-bottom: 1px solid #eee;
   }
@@ -22,31 +26,78 @@ const ScheduleTable = styled.table`
     font-weight: 600;
     color: #555;
     background-color: #f9f9f9;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+  }
+  
+  tr:last-child td {
+    border-bottom: none;
   }
   
   tr:hover {
     background-color: #f5f5f5;
+  }
+  
+  @media (max-width: 768px) {
+    th, td {
+      padding: 0.75rem 0.5rem;
+      font-size: 0.9rem;
+    }
   }
 `;
 
 const DayCard = styled.div`
   background-color: ${props => props.isToday ? '#f0f7ff' : 'white'};
   border: 1px solid ${props => props.isToday ? '#bbd6fb' : '#eee'};
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+  
+  ${props => props.isToday && `
+    &:before {
+      content: 'TODAY';
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: #1a73e8;
+      color: white;
+      font-size: 0.7rem;
+      font-weight: bold;
+      padding: 3px 8px;
+      border-radius: 12px;
+      letter-spacing: 0.5px;
+    }
+  `}
   
   h3 {
     margin-top: 0;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
     color: ${props => props.isToday ? '#1a73e8' : '#333'};
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 `;
 
 const EmptyState = styled.div`
   text-align: center;
-  padding: 2rem;
+  padding: 3rem 2rem;
   color: #666;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  margin: 1rem 0;
+  border: 1px dashed #ddd;
 `;
 
 const ScheduleView = ({ user, userData }) => {
@@ -196,148 +247,233 @@ const ScheduleView = ({ user, userData }) => {
           <p>Loading your schedule...</p>
         ) : error ? (
           <EmptyState>
-            <p>{error}</p>
+            <div style={{ marginBottom: '1rem' }}>
+              <Calendar size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
+            </div>
+            <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>No Schedule Found</h3>
+            <p style={{ margin: '0 0 1rem 0' }}>You don't have any assigned schedule yet.</p>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>Please contact your administrator to set up your work schedule.</p>
           </EmptyState>
         ) : schedule ? (
           <div>
             {Array.isArray(schedule) ? (
               // New format: schedule is an array of schedule objects
               <>
-                <p><strong>Your Schedule</strong></p>
-                
-                {schedule.map((scheduleItem, index) => {
-                  const today = new Date();
-                  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                  const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
-                  const isToday = today.getDay() === dayIndex;
-                  
-                  // Get the schedule's time region
-                  const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
-                  
-                  // Format the time in the user's preferred time region
-                  const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
-                  const duration = scheduleItem.shiftDuration || 8;
-                  
-                  // Calculate end time based on start time and duration
-                  const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
-                  const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
-                  
-                  return (
-                    <DayCard key={index} isToday={isToday}>
-                      <h3>{scheduleItem.dayOfWeek}</h3>
-                      <p>
-                        <strong>Time In:</strong> {formattedTimeIn} | 
-                        <strong>Duration:</strong> {scheduleItem.shiftDuration} hours
-                      </p>
-                      <p>
-                        <strong>Estimated Time Out:</strong> {formattedEndTime}
-                      </p>
-                      <p>
-                        <strong>Original Time Region:</strong> {scheduleTimeRegion}
-                      </p>
-                      <p>
-                        <strong>Displayed In:</strong> {userTimeRegion}
-                      </p>
-                    </DayCard>
-                  );
-                })}
-                
-                <ScheduleTable>
-                  <thead>
-                    <tr>
-                      <th>Day</th>
-                      <th>Time In</th>
-                      <th>Time Out (Est.)</th>
-                      <th>Duration</th>
-                      <th>Region</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {schedule.map((scheduleItem, index) => {
-                      // Get the schedule's time region
-                      const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
-                      
-                      // Format the time in the user's preferred time region
-                      const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
-                      const duration = scheduleItem.shiftDuration || 8;
-                      
-                      // Calculate end time based on start time and duration
-                      const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
-                      const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
-                      
-                      return (
-                        <tr key={index}>
-                          <td>{scheduleItem.dayOfWeek}</td>
-                          <td>{formattedTimeIn}</td>
-                          <td>{formattedEndTime}</td>
-                          <td>{scheduleItem.shiftDuration} hours</td>
-                          <td>
-                            <div>{scheduleTimeRegion}</div>
-                            <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                              Displayed in: {userTimeRegion}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+                  {schedule.map((scheduleItem, index) => {
+                    const today = new Date();
+                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
+                    const isToday = today.getDay() === dayIndex;
+                    
+                    // Get the schedule's time region
+                    const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
+                    
+                    // Format the time in the user's preferred time region
+                    const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
+                    const duration = scheduleItem.shiftDuration || 8;
+                    
+                    // Calculate end time based on start time and duration
+                    const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
+                    const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
+                    
+                    return (
+                      <DayCard key={index} isToday={isToday}>
+                        <h3>
+                          <Calendar weight="fill" size={20} style={{ color: isToday ? '#1a73e8' : '#666' }} />
+                          {scheduleItem.dayOfWeek}
+                        </h3>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginRight: '1rem' }}>
+                            <Clock size={18} weight="fill" style={{ marginRight: '0.5rem', color: '#4CAF50' }} />
+                            <div>
+                              <div style={{ fontWeight: '600' }}>{formattedTimeIn}</div>
+                              <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>Time In</div>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </ScheduleTable>
+                          </div>
+                          
+                          <ArrowRight size={16} style={{ color: '#999', margin: '0 0.5rem' }} />
+                          
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <Clock size={18} weight="fill" style={{ marginRight: '0.5rem', color: '#F44336' }} />
+                            <div>
+                              <div style={{ fontWeight: '600' }}>{formattedEndTime}</div>
+                              <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>Time Out</div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          padding: '0.75rem', 
+                          backgroundColor: '#f9f9f9', 
+                          borderRadius: '8px',
+                          fontSize: '0.9rem'
+                        }}>
+                          <div>
+                            <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>Duration</div>
+                            <div>{scheduleItem.shiftDuration} hours</div>
+                          </div>
+                          
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>Time Zone</div>
+                            <div style={{ fontSize: '0.85rem' }}>{userTimeRegion}</div>
+                          </div>
+                        </div>
+                      </DayCard>
+                    );
+                  })}
+                </div>
+                
+                <div style={{ marginTop: '2rem' }}>
+                  <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: '#555' }}>Schedule Overview</h3>
+                  <ScheduleTable>
+                    <thead>
+                      <tr>
+                        <th>Day</th>
+                        <th>Time In</th>
+                        <th>Time Out</th>
+                        <th>Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {schedule.map((scheduleItem, index) => {
+                        const today = new Date();
+                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                        const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
+                        const isToday = today.getDay() === dayIndex;
+                        
+                        // Get the schedule's time region
+                        const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
+                        
+                        // Format the time in the user's preferred time region
+                        const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
+                        const duration = scheduleItem.shiftDuration || 8;
+                        
+                        // Calculate end time based on start time and duration
+                        const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
+                        const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
+                        
+                        return (
+                          <tr key={index} style={{ backgroundColor: isToday ? '#f0f7ff' : 'transparent' }}>
+                            <td style={{ fontWeight: isToday ? '600' : '400', color: isToday ? '#1a73e8' : 'inherit' }}>
+                              {scheduleItem.dayOfWeek}
+                              {isToday && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', backgroundColor: '#1a73e8', color: 'white', padding: '2px 6px', borderRadius: '10px' }}>TODAY</span>}
+                            </td>
+                            <td>{formattedTimeIn}</td>
+                            <td>{formattedEndTime}</td>
+                            <td>{scheduleItem.shiftDuration} hours</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </ScheduleTable>
+                  
+                  <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#666', textAlign: 'right' }}>
+                    All times shown in your local time zone: <strong>{userTimeRegion}</strong>
+                  </div>
+                </div>
               </>
             ) : (
               // Legacy format: schedule is an object with shifts property
               <>
-                <p>Your assigned schedule: <strong>{schedule.name || 'Standard Schedule'}</strong></p>
+                <div style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: '#f9f9f9', borderRadius: '8px', borderLeft: '4px solid #4CAF50' }}>
+                  <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Calendar weight="fill" size={20} style={{ color: '#4CAF50' }} />
+                    {schedule.name || 'Standard Schedule'}
+                  </h3>
+                  <p style={{ margin: 0, color: '#666' }}>Your assigned work schedule</p>
+                </div>
                 
-                {schedule.shifts && schedule.shifts.map((shift, index) => {
-                  const today = new Date();
-                  const isToday = today.getDay() === shift.day;
-                  
-                  return (
-                    <DayCard key={index} isToday={isToday}>
-                      <h3>{getDayName(shift.day)}</h3>
-                      <p>
-                        <strong>Start:</strong> {formatTime(shift.startTime)} | 
-                        <strong>End:</strong> {formatTime(shift.endTime)}
-                      </p>
-                      {shift.breakStart && shift.breakEnd && (
-                        <p>
-                          <strong>Break:</strong> {formatTime(shift.breakStart)} - {formatTime(shift.breakEnd)}
-                        </p>
-                      )}
-                    </DayCard>
-                  );
-                })}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+                  {schedule.shifts && schedule.shifts.map((shift, index) => {
+                    const today = new Date();
+                    const isToday = today.getDay() === shift.day;
+                    
+                    return (
+                      <DayCard key={index} isToday={isToday}>
+                        <h3>
+                          <Calendar weight="fill" size={20} style={{ color: isToday ? '#1a73e8' : '#666' }} />
+                          {getDayName(shift.day)}
+                        </h3>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginRight: '1rem' }}>
+                            <Clock size={18} weight="fill" style={{ marginRight: '0.5rem', color: '#4CAF50' }} />
+                            <div>
+                              <div style={{ fontWeight: '600' }}>{formatTime(shift.timeIn)}</div>
+                              <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>Time In</div>
+                            </div>
+                          </div>
+                          
+                          <ArrowRight size={16} style={{ color: '#999', margin: '0 0.5rem' }} />
+                          
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <Clock size={18} weight="fill" style={{ marginRight: '0.5rem', color: '#F44336' }} />
+                            <div>
+                              <div style={{ fontWeight: '600' }}>{formatTime(shift.timeOut)}</div>
+                              <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>Time Out</div>
+                            </div>
+                          </div>
+                        </div>
+                      </DayCard>
+                    );
+                  })}
+                </div>
                 
-                <ScheduleTable>
-                  <thead>
-                    <tr>
-                      <th>Day</th>
-                      <th>Start Time</th>
-                      <th>End Time</th>
-                      <th>Break</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {schedule.shifts && schedule.shifts.map((shift, index) => (
-                      <tr key={index}>
-                        <td>{getDayName(shift.day)}</td>
-                        <td>{formatTime(shift.startTime)}</td>
-                        <td>{formatTime(shift.endTime)}</td>
-                        <td>
-                          {shift.breakStart && shift.breakEnd 
-                            ? `${formatTime(shift.breakStart)} - ${formatTime(shift.breakEnd)}` 
-                            : 'None'}
-                        </td>
+                <div style={{ marginTop: '2rem' }}>
+                  <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: '#555' }}>Schedule Overview</h3>
+                  <ScheduleTable>
+                    <thead>
+                      <tr>
+                        <th>Day</th>
+                        <th>Time In</th>
+                        <th>Time Out</th>
+                        <th>Duration</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </ScheduleTable>
+                    </thead>
+                    <tbody>
+                      {schedule.shifts && schedule.shifts.map((shift, index) => {
+                        const today = new Date();
+                        const isToday = today.getDay() === shift.day;
+                        
+                        // Calculate duration in hours
+                        const timeInParts = shift.timeIn.split(':').map(Number);
+                        const timeOutParts = shift.timeOut.split(':').map(Number);
+                        const timeInHours = timeInParts[0] + timeInParts[1]/60;
+                        const timeOutHours = timeOutParts[0] + timeOutParts[1]/60;
+                        let duration = timeOutHours - timeInHours;
+                        if (duration < 0) duration += 24; // Handle overnight shifts
+                        const durationFormatted = Math.round(duration * 10) / 10; // Round to 1 decimal place
+                        
+                        return (
+                          <tr key={index} style={{ backgroundColor: isToday ? '#f0f7ff' : 'transparent' }}>
+                            <td style={{ fontWeight: isToday ? '600' : '400', color: isToday ? '#1a73e8' : 'inherit' }}>
+                              {getDayName(shift.day)}
+                              {isToday && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', backgroundColor: '#1a73e8', color: 'white', padding: '2px 6px', borderRadius: '10px' }}>TODAY</span>}
+                            </td>
+                            <td>{formatTime(shift.timeIn)}</td>
+                            <td>{formatTime(shift.timeOut)}</td>
+                            <td>{durationFormatted} hours</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </ScheduleTable>
+                </div>
               </>
             )}
           </div>
         ) : (
           <EmptyState>
-            <p>No schedule has been assigned to you yet.</p>
+            <div style={{ marginBottom: '1rem' }}>
+              <Calendar size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
+            </div>
+            <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>No Schedule Found</h3>
+            <p style={{ margin: '0 0 1rem 0' }}>You don't have any assigned schedule yet.</p>
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>Please contact your administrator to set up your work schedule.</p>
           </EmptyState>
         )}
       </CardContent>
