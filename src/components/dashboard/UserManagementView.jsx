@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Trash, PencilSimple, Check, X, Users, Calendar, Clock, UserCircle, Plus, FloppyDisk } from 'phosphor-react';
+import { Trash, PencilSimple, Check, X, Users, Calendar, Clock, UserCircle, Plus, FloppyDisk, ArrowLeft, ArrowRight } from 'phosphor-react';
 
 const Container = styled.div`
   padding: 2rem;
@@ -310,6 +310,7 @@ function UserManagementView() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [addUserPage, setAddUserPage] = useState(1); // Track the current page of the add user modal
   const [selectedUser, setSelectedUser] = useState(null);
   const [scheduleData, setScheduleData] = useState([]);
   const [newSchedule, setNewSchedule] = useState({
@@ -340,7 +341,6 @@ function UserManagementView() {
     contactNumber: '',
     employeeStatus: 'regular'
   });
-  const [addUserStep, setAddUserStep] = useState(1);
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
@@ -607,6 +607,7 @@ function UserManagementView() {
       
       toast.success(`User ${fullName.trim()} added successfully`);
       setShowAddUserModal(false);
+      setAddUserPage(1); // Reset to first page
       
       // Reset the form
       setNewUserData({
@@ -621,34 +622,10 @@ function UserManagementView() {
         contactNumber: '',
         employeeStatus: 'regular'
       });
-      setAddUserStep(1);
     } catch (error) {
       console.error('Error adding user:', error);
       toast.error(`Failed to add user: ${error.message}`);
     }
-  };
-  
-  const handleNextStep = () => {
-    // Validate required fields in step 1
-    if (addUserStep === 1) {
-      if (!newUserData.firstName.trim() || !newUserData.lastName.trim() || !newUserData.email.trim()) {
-        toast.error('First name, last name, and email are required');
-        return;
-      }
-      
-      // Basic email validation
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(newUserData.email)) {
-        toast.error('Please enter a valid email address');
-        return;
-      }
-    }
-    
-    setAddUserStep(2);
-  };
-  
-  const handlePreviousStep = () => {
-    setAddUserStep(1);
   };
 
   const handleAddSchedule = () => {
@@ -1014,11 +991,12 @@ function UserManagementView() {
             <ModalTitle>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <UserCircle size={24} />
-                Add New User {addUserStep === 1 ? '(Step 1 of 2)' : '(Step 2 of 2)'}
+                Add New User {addUserPage > 1 && `- Page ${addUserPage} of 2`}
               </div>
             </ModalTitle>
             
-            {addUserStep === 1 ? (
+            {/* Page 1 - Basic Information */}
+            {addUserPage === 1 && (
               <div style={{ marginBottom: '1.5rem' }}>
                 <FormGroup>
                   <Label>First Name <span style={{ color: 'red' }}>*</span></Label>
@@ -1101,7 +1079,10 @@ function UserManagementView() {
                   </Select>
                 </FormGroup>
               </div>
-            ) : (
+            )}
+            
+            {/* Page 2 - Additional Information */}
+            {addUserPage === 2 && (
               <div style={{ marginBottom: '1.5rem' }}>
                 <FormGroup>
                   <Label>Address</Label>
@@ -1138,16 +1119,20 @@ function UserManagementView() {
             )}
             
             <ModalButtons>
-              {addUserStep === 1 ? (
+              {addUserPage === 1 ? (
                 <>
                   <Button onClick={() => setShowAddUserModal(false)}>Cancel</Button>
-                  <Button primary onClick={handleNextStep}>
+                  <Button primary onClick={() => setAddUserPage(2)}>
+                    <Icon><ArrowRight size={16} /></Icon>
                     Next
                   </Button>
                 </>
               ) : (
                 <>
-                  <Button onClick={handlePreviousStep}>Back</Button>
+                  <Button onClick={() => setAddUserPage(1)}>
+                    <Icon><ArrowLeft size={16} /></Icon>
+                    Back
+                  </Button>
                   <Button primary onClick={handleAddUser}>
                     <Icon><FloppyDisk size={16} /></Icon>
                     Add User
