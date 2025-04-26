@@ -219,8 +219,7 @@ function Register() {
     middleInitial: '',
     email: '',
     password: '',
-    confirmPassword: '',
-    position: ''
+    confirmPassword: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -342,9 +341,7 @@ function Register() {
       newErrors.confirmPassword = 'Passwords do not match';
     }
     
-    if (!formData.position) {
-      newErrors.position = 'Please select your position';
-    }
+
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -427,7 +424,7 @@ function Register() {
         middleInitial: formData.middleInitial,
         name: fullName,
         email: formData.email,
-        position: formData.position,
+        position: 'regular', // Default position
         role: 'user', // Default role for new registrations
         status: 'pending',
         timeRegion: deviceTimeZone, // Set detected time zone as default
@@ -591,23 +588,7 @@ function Register() {
             {errors.email && <ErrorMessage>{errors.email}</ErrorMessage>}
           </FormGroup>
           
-          <FormGroup>
-            <Label htmlFor="position">Position</Label>
-            <InputWrapper>
-              <Icon><IdentificationCard size={18} /></Icon>
-              <Select
-                id="position"
-                name="position"
-                value={formData.position}
-                onChange={handleChange}
-              >
-                <option value="" disabled>Select your position</option>
-                <option value="Intern/OJT">Intern/OJT</option>
-                <option value="Employed/Onboarded">Employed/Onboarded</option>
-              </Select>
-            </InputWrapper>
-            {errors.position && <ErrorMessage>{errors.position}</ErrorMessage>}
-          </FormGroup>
+
           
           <FormGroup>
             <Label htmlFor="password">Password</Label>
