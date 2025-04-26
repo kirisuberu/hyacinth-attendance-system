@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, SignIn, UserPlus, Eye, EyeSlash, ArrowCounterClockwise } from 'phosphor-react';
@@ -306,6 +306,51 @@ function Login() {
           setError('Your registration request is pending approval. You will be notified when approved.');
           toast.info('Registration pending approval');
           return;
+        }
+        
+        // Check if the user exists in the users collection and if their status is active
+        try {
+          // First try to find user by email
+          const usersQuery = query(
+            collection(db, 'users'),
+            where('email', '==', user.email)
+          );
+          const usersSnapshot = await getDocs(usersQuery);
+          
+          if (!usersSnapshot.empty) {
+            // User exists in the users collection, check their status
+            const userData = usersSnapshot.docs[0].data();
+            
+            if (userData.status === 'inactive') {
+              // User is inactive, sign them out and show message
+              await auth.signOut();
+              setError('Your account has been deactivated. Please contact an administrator.');
+              toast.error('Account deactivated');
+              return;
+            }
+          } else {
+            // If not found by email, try looking for any document with matching userId
+            // This is a fallback in case the email was changed
+            const userIdQuery = query(
+              collection(db, 'users'),
+              where('userId', '==', user.uid)
+            );
+            const userIdSnapshot = await getDocs(userIdQuery);
+            
+            if (!userIdSnapshot.empty) {
+              const userData = userIdSnapshot.docs[0].data();
+              
+              if (userData.status === 'inactive') {
+                // User is inactive, sign them out and show message
+                await auth.signOut();
+                setError('Your account has been deactivated. Please contact an administrator.');
+                toast.error('Account deactivated');
+                return;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error checking user status:', error);
         }
         
         // Check if we're in development mode and Firebase emulator is not available
