@@ -11,8 +11,10 @@ import Home from './pages/Home';
 import Schedule from './pages/Schedule';
 import Attendance from './pages/Attendance';
 import Profile from './pages/Profile';
+import Admin from './pages/Admin';
 import RegistrationRequests from './pages/RegistrationRequests';
 import UserManagement from './pages/UserManagement';
+import AdminHome from './components/dashboard/AdminHome';
 import './App.css';
 
 import { AuthProvider } from './contexts/AuthContext';
@@ -119,10 +121,27 @@ function App() {
               
               {/* Admin routes */}
               <Route 
+                path="/admin" 
+                element={
+                  <AdminRoute>
+                    <Admin />
+                  </AdminRoute>
+                }
+              >
+                {/* Admin home page */}
+                <Route index element={<AdminHome />} />
+                
+                {/* Admin sub-routes */}
+                <Route path="registration-requests" element={<RegistrationRequests />} />
+                <Route path="user-management" element={<UserManagement />} />
+              </Route>
+              
+              {/* Legacy admin routes - redirect to new structure */}
+              <Route 
                 path="/registration-requests" 
                 element={
                   <AdminRoute>
-                    <RegistrationRequests />
+                    <Navigate to="/admin/registration-requests" replace />
                   </AdminRoute>
                 } 
               />
@@ -131,7 +150,7 @@ function App() {
                 path="/user-management" 
                 element={
                   <AdminRoute>
-                    <UserManagement />
+                    <Navigate to="/admin/user-management" replace />
                   </AdminRoute>
                 } 
               />

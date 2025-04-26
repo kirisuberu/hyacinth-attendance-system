@@ -423,6 +423,11 @@ const DashboardLayout = ({
     }
   };
 
+  // Check if the current path is under admin section
+  const isAdminSection = activeTab === 'admin' || 
+                        activeTab === 'registration_requests' || 
+                        activeTab === 'user_management';
+  
   return (
     <DashboardContainer>
       <Sidebar>
@@ -432,7 +437,7 @@ const DashboardLayout = ({
           className={activeTab === 'home' ? 'active' : ''}
           onClick={() => navigate('/home')}
         >
-          <House size={20} style={{ marginRight: '0.5rem' }} />
+          <Icon><House size={16} /></Icon>
           Home
         </NavItem>
         
@@ -440,7 +445,7 @@ const DashboardLayout = ({
           className={activeTab === 'schedule' ? 'active' : ''}
           onClick={() => navigate('/schedule')}
         >
-          <Calendar size={20} style={{ marginRight: '0.5rem' }} />
+          <Icon><Calendar size={16} /></Icon>
           Schedule
         </NavItem>
         
@@ -448,7 +453,7 @@ const DashboardLayout = ({
           className={activeTab === 'attendance' ? 'active' : ''}
           onClick={() => navigate('/attendance')}
         >
-          <Clock size={20} style={{ marginRight: '0.5rem' }} />
+          <Icon><Clock size={16} /></Icon>
           Attendance
         </NavItem>
         
@@ -456,27 +461,53 @@ const DashboardLayout = ({
           className={activeTab === 'profile' ? 'active' : ''}
           onClick={() => navigate('/profile')}
         >
-          <User size={20} style={{ marginRight: '0.5rem' }} />
+          <Icon><User size={16} /></Icon>
           Profile
         </NavItem>
         
         {isSuperAdmin && (
           <>
-            <NavItem 
-              className={activeTab === 'registration_requests' ? 'active' : ''}
-              onClick={() => navigate('/registration-requests')}
-            >
-              <Icon><UserPlus size={16} /></Icon>
-              Registration Requests
-            </NavItem>
-            
-            <NavItem 
-              className={activeTab === 'user_management' ? 'active' : ''} 
-              onClick={() => navigate('/user-management')}
-            >
-              <Icon><Users size={16} /></Icon>
-              User Management
-            </NavItem>
+            {/* Admin section with collapsible submenu */}
+            <div style={{ marginTop: '1.5rem', marginBottom: '0.5rem' }}>
+              <div style={{ 
+                fontSize: '0.8rem', 
+                textTransform: 'uppercase', 
+                color: 'rgba(255,255,255,0.6)', 
+                padding: '0 0.5rem',
+                marginBottom: '0.5rem'
+              }}>
+                Administration
+              </div>
+              
+              <NavItem 
+                className={isAdminSection ? 'active' : ''}
+                onClick={() => navigate('/admin')}
+              >
+                <Icon><Users size={16} /></Icon>
+                Admin Panel
+              </NavItem>
+              
+              {/* Submenu items with indent */}
+              <div style={{ marginLeft: '1.5rem' }}>
+                <NavItem 
+                  className={activeTab === 'registration_requests' ? 'active' : ''}
+                  onClick={() => navigate('/admin/registration-requests')}
+                  style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}
+                >
+                  <Icon><UserPlus size={14} /></Icon>
+                  Registration Requests
+                </NavItem>
+                
+                <NavItem 
+                  className={activeTab === 'user_management' ? 'active' : ''} 
+                  onClick={() => navigate('/admin/user-management')}
+                  style={{ padding: '0.5rem 0.75rem', fontSize: '0.9rem' }}
+                >
+                  <Icon><Users size={14} /></Icon>
+                  User Management
+                </NavItem>
+              </div>
+            </div>
           </>
         )}
         
