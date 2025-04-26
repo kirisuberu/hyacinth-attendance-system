@@ -111,16 +111,19 @@ export const updateRegistrationRequest = async (requestId, updateData) => {
  */
 export const approveRegistrationRequest = async (request) => {
   try {
-    // Add to users collection
-    await setDoc(doc(db, 'users', request.userId), {
-      ...request,
+    // Create user document in users collection
+    const userDocRef = doc(db, 'users', request.userId);
+    await setDoc(userDocRef, {
+      userId: request.userId,
+      name: request.name,
+      email: request.email,
+      position: request.position,
       role: request.role || 'user',
+      status: 'active',
+      timeRegion: request.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila',
       createdAt: serverTimestamp(),
-      approved: true,
-      approvedAt: serverTimestamp()
+      userID: request.userID || `uid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
     });
-    
-    // Delete from registration_requests collection
     await deleteDoc(doc(db, 'registration_requests', request.id));
   } catch (error) {
     console.error('Error approving registration request:', error);

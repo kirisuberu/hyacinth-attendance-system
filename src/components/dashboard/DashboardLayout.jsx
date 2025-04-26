@@ -267,15 +267,31 @@ const DashboardLayout = ({
 }) => {
   const navigate = useNavigate();
   const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
-  const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || 'Asia/Manila');
+  const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila');
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
+  const [detectedTimeZone, setDetectedTimeZone] = useState('');
+
+  // Detect user's device time zone
+  useEffect(() => {
+    try {
+      const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setDetectedTimeZone(deviceTimeZone);
+      console.log('Detected device time zone:', deviceTimeZone);
+    } catch (error) {
+      console.error('Error detecting time zone:', error);
+      setDetectedTimeZone('Unable to detect');
+    }
+  }, []);
 
   // Update selected time region when userData changes
   useEffect(() => {
     if (userData?.timeRegion) {
       setSelectedTimeRegion(userData.timeRegion);
+    } else if (detectedTimeZone && !userData?.timeRegion) {
+      // If user doesn't have a time region set but we detected their device time zone, use that
+      setSelectedTimeRegion(detectedTimeZone);
     }
-  }, [userData]);
+  }, [userData, detectedTimeZone]);
 
   const handleTimeRegionChange = async () => {
     if (!user?.uid || updatingTimeRegion) return;
@@ -453,6 +469,29 @@ const DashboardLayout = ({
               <p style={{ marginBottom: '1rem' }}>
                 Changing your time region will affect how times are displayed throughout the application and how your attendance is recorded.
               </p>
+              
+              {detectedTimeZone && (
+                <p style={{ marginBottom: '1rem', backgroundColor: '#f0f7ff', padding: '0.5rem', borderRadius: '4px', fontSize: '0.9rem' }}>
+                  <strong>Detected device time zone:</strong> {detectedTimeZone}
+                  {detectedTimeZone !== selectedTimeRegion && (
+                    <button 
+                      onClick={() => setSelectedTimeRegion(detectedTimeZone)}
+                      style={{ 
+                        display: 'block', 
+                        marginTop: '0.5rem',
+                        padding: '0.25rem 0.5rem',
+                        fontSize: '0.8rem',
+                        backgroundColor: '#e6f0ff',
+                        border: '1px solid #bbd6fb',
+                        borderRadius: '4px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Use device time zone
+                    </button>
+                  )}
+                </p>
+              )}
               
               <FormGroup>
                 <Label>Select Time Region</Label>

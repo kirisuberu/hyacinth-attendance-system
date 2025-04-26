@@ -410,6 +410,15 @@ function Register() {
         }
       }
       
+      // Detect device time zone
+      let deviceTimeZone = 'Asia/Manila';
+      try {
+        deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        console.log('Detected device time zone during registration:', deviceTimeZone);
+      } catch (error) {
+        console.error('Error detecting time zone during registration:', error);
+      }
+
       // Create registration request document
       const userDoc = {
         userId: userId,
@@ -421,6 +430,7 @@ function Register() {
         position: formData.position,
         role: 'user', // Default role for new registrations
         status: 'pending',
+        timeRegion: deviceTimeZone, // Set detected time zone as default
         userID: `uid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` // Permanent userID
       };
       
