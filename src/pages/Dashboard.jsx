@@ -126,6 +126,30 @@ const StatusTag = styled.span`
   }};
 `;
 
+const TextArea = styled.textarea`
+  width: 100%;
+  min-height: 80px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  transition: border-color 0.2s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: #4caf50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+  }
+  
+  &::placeholder {
+    color: #aaa;
+  }
+
+`;
+
 function Dashboard() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -340,6 +364,7 @@ function Dashboard() {
   // State for confirmation modal
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingAttendance, setPendingAttendance] = useState(null);
+  const [attendanceNotes, setAttendanceNotes] = useState('');
   
   const determineStatus = async (type, userId) => {
     if (type === 'Out') {
@@ -417,7 +442,8 @@ function Dashboard() {
         notes: ''
       };
       
-      // Store the pending attendance data and show confirmation modal
+      // Reset notes field and store the pending attendance data
+      setAttendanceNotes('');
       setPendingAttendance(attendanceData);
       setShowConfirmModal(true);
     } catch (error) {
@@ -437,16 +463,26 @@ function Dashboard() {
       // Create a copy of the attendance data without the status field
       const { status, ...attendanceDataToStore } = pendingAttendance;
       
+      // Add the notes from the text area
+      attendanceDataToStore.notes = attendanceNotes;
+      
       // Add the attendance record to Firestore (without status field)
       const docRef = await addDoc(collection(db, 'attendance'), attendanceDataToStore);
       
       toast.success(`Time ${pendingAttendance.type} recorded successfully!`);
       setAttendanceStatus(pendingAttendance.type);
-      setLastRecord(pendingAttendance); // Keep the status in the UI for display purposes
+      
+      // Update lastRecord with the notes
+      const updatedRecord = {
+        ...pendingAttendance,
+        notes: attendanceNotes
+      };
+      setLastRecord(updatedRecord); // Keep the status in the UI for display purposes
       
       // Close the confirmation modal
       setShowConfirmModal(false);
       setPendingAttendance(null);
+      setAttendanceNotes('');
       
       console.log(`Time ${pendingAttendance.type} recorded with ID: ${docRef.id}`);
     } catch (error) {
@@ -460,6 +496,7 @@ function Dashboard() {
   const handleCancelTimeInOut = () => {
     setShowConfirmModal(false);
     setPendingAttendance(null);
+    setAttendanceNotes('');
   };
   
   // Legacy function for backward compatibility
@@ -529,6 +566,14 @@ function Dashboard() {
                   {pendingAttendance.status}
                 </StatusTag>
               </p>
+              <div style={{ marginTop: '1rem' }}>
+                <strong>Notes (Optional):</strong>
+                <TextArea 
+                  value={attendanceNotes}
+                  onChange={(e) => setAttendanceNotes(e.target.value)}
+                  placeholder="Add any notes about this attendance record..."
+                />
+              </div>
             </ModalBody>
             <ModalButtons>
               <CancelButton onClick={handleCancelTimeInOut}>
