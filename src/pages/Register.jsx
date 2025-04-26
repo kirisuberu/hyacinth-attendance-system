@@ -239,7 +239,7 @@ function Register() {
   // Password requirements
   const passwordRequirements = {
     length: formData.password.length >= 4,
-    alphanumeric: /^[a-zA-Z0-9]+$/.test(formData.password),
+    validChars: /^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/.test(formData.password),
     hasLetter: /[a-zA-Z]/.test(formData.password),
     hasNumber: /[0-9]/.test(formData.password),
     match: formData.password === formData.confirmPassword && formData.confirmPassword !== ''
@@ -328,8 +328,8 @@ function Register() {
       newErrors.password = 'Password is required';
     } else if (!passwordRequirements.length) {
       newErrors.password = 'Password must be at least 4 characters';
-    } else if (!passwordRequirements.alphanumeric) {
-      newErrors.password = 'Password must contain only letters and numbers';
+    } else if (!passwordRequirements.validChars) {
+      newErrors.password = 'Password contains invalid characters';
     } else if (!passwordRequirements.hasLetter) {
       newErrors.password = 'Password must contain at least one letter';
     } else if (!passwordRequirements.hasNumber) {
@@ -626,9 +626,9 @@ function Register() {
                 <Icon><CheckCircle size={14} weight={passwordRequirements.length ? "fill" : "regular"} /></Icon>
                 At least 4 characters
               </RequirementItem>
-              <RequirementItem met={passwordRequirements.alphanumeric}>
-                <Icon><CheckCircle size={14} weight={passwordRequirements.alphanumeric ? "fill" : "regular"} /></Icon>
-                Only letters and numbers
+              <RequirementItem met={passwordRequirements.validChars}>
+                <Icon><CheckCircle size={14} weight={passwordRequirements.validChars ? "fill" : "regular"} /></Icon>
+                Valid characters (letters, numbers, and special characters)
               </RequirementItem>
               <RequirementItem met={passwordRequirements.hasLetter}>
                 <Icon><CheckCircle size={14} weight={passwordRequirements.hasLetter ? "fill" : "regular"} /></Icon>

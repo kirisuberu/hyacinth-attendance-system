@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, SignIn, UserPlus, Eye, EyeSlash, ArrowCounterClockwise } from 'phosphor-react';
@@ -206,6 +207,16 @@ function Login() {
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Check if there's a message in the location state (e.g., from registration)
+  useEffect(() => {
+    if (location.state?.message) {
+      toast.info(location.state.message);
+      // Clear the message after showing it
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
   
   // Clear error when inputs change
   useEffect(() => {
@@ -264,17 +275,59 @@ function Login() {
       setError('');
       setLoading(true);
       
-      // Check if we're in development mode and Firebase emulator is not available
-      const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
-      
       try {
-        await signInWithEmailAndPassword(auth, email, password);
+        // Attempt to sign in
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // Check if the user's registration has been declined
+        const declinedQuery = query(
+          collection(db, 'declined_registrations'),
+          where('userId', '==', user.uid)
+        );
+        const declinedSnapshot = await getDocs(declinedQuery);
+        
+        if (!declinedSnapshot.empty) {
+          // User was declined, sign them out and show error
+          await auth.signOut();
+          setError('Your registration request has been declined. Please contact an administrator.');
+          toast.error('Access denied: Registration declined');
+          return;
+        }
+        
+        // Check if the user has a pending registration request
+        const pendingQuery = query(
+          collection(db, 'registration_requests'),
+          where('userId', '==', user.uid)
+        );
+        const pendingSnapshot = await getDocs(pendingQuery);
+        
+        if (!pendingSnapshot.empty) {
+          // User has a pending request, sign them out and show message
+          await auth.signOut();
+          setError('Your registration request is pending approval. You will be notified when approved.');
+          toast.info('Registration pending approval');
+          return;
+        }
+        
+        // Check if we're in development mode and Firebase emulator is not available
+        const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
+        if (isEmulatorMode) {
+          // Store user info in localStorage for development fallback
+          localStorage.setItem('dev_user', JSON.stringify({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || user.email.split('@')[0]
+          }));
+        }
+        
         toast.success('Login successful!');
         navigate('/dashboard');
       } catch (authError) {
         console.error('Firebase auth error:', authError);
         
         // Check for development mode with emulator issues
+        const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
         if (isEmulatorMode && (authError.code === 'auth/network-request-failed' || authError.message?.includes('network'))) {
           console.warn('Firebase emulator not available, using development login');
           

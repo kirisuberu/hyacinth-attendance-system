@@ -354,6 +354,12 @@ const RegistrationRequestsView = () => {
       await declineRegistrationRequest(request);
       toast.success(`Registration for ${request.name || request.email} declined`);
       
+      // Show a warning about the user still existing in Firebase Authentication
+      toast.warning(
+        'Note: The user may still exist in Firebase Authentication. ' +
+        'They will be blocked from accessing the system, but the account still exists.'
+      );
+      
       // Refresh the list
       fetchRegistrationRequests();
     } catch (error) {

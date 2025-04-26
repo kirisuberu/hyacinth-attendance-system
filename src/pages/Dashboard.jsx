@@ -64,16 +64,65 @@ function Dashboard() {
     
     try {
       setLoadingUserData(true);
+      
+      // First, check if this user has been declined or blocked
+      try {
+        // Query the declined_registrations collection to see if this user was declined
+        const declinedQuery = query(
+          collection(db, 'declined_registrations'),
+          where('userId', '==', userId)
+        );
+        const declinedSnapshot = await getDocs(declinedQuery);
+        
+        if (!declinedSnapshot.empty) {
+          // User was declined, sign them out and redirect to login
+          toast.error('Your registration request has been declined. Please contact an administrator.');
+          await auth.signOut();
+          navigate('/login');
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking declined status:', error);
+      }
+      
+      // Check if this user has a pending registration request
+      try {
+        const pendingQuery = query(
+          collection(db, 'registration_requests'),
+          where('userId', '==', userId)
+        );
+        const pendingSnapshot = await getDocs(pendingQuery);
+        
+        if (!pendingSnapshot.empty) {
+          // User has a pending request
+          toast.info('Your registration request is pending approval. You will be notified when approved.');
+          await auth.signOut();
+          navigate('/login');
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking pending status:', error);
+      }
+      
+      // If we get here, check for the user in the users collection
       const userDocRef = doc(db, 'users', userId);
       const userDocSnap = await getDoc(userDocRef);
       
       if (userDocSnap.exists()) {
-        setUserData(userDocSnap.data());
+        const userData = userDocSnap.data();
+        setUserData(userData);
       } else {
         console.log('No user data found in Firestore');
+        
+        // If we get here, the user is authenticated but has no data in Firestore
+        // This could be a new user or a user whose data was deleted
+        toast.error('Your account is not properly set up. Please contact an administrator.');
+        await auth.signOut();
+        navigate('/login');
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
+      toast.error('Error loading user data. Please try again later.');
     } finally {
       setLoadingUserData(false);
     }
