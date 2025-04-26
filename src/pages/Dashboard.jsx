@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { toast } from 'react-toastify';
+import styled from 'styled-components';
+import { Check, X } from 'phosphor-react';
 
 // Import dashboard components
 import DashboardLayout from '../components/dashboard/DashboardLayout';
@@ -12,6 +14,117 @@ import ScheduleView from '../components/dashboard/ScheduleView';
 import ProfileView from '../components/dashboard/ProfileView';
 import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
 import UserManagementView from '../components/dashboard/UserManagementView';
+
+// Styled components for confirmation modal
+const ConfirmationModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 400px;
+  padding: 1.5rem;
+`;
+
+const ModalTitle = styled.h3`
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.2rem;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.75rem;
+`;
+
+const ModalBody = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const CancelButton = styled(Button)`
+  background-color: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd;
+  
+  &:hover {
+    background-color: #eee;
+  }
+`;
+
+const ConfirmButton = styled(Button)`
+  background-color: #4caf50;
+  color: white;
+  border: 1px solid #43a047;
+  
+  &:hover {
+    background-color: #43a047;
+  }
+`;
+
+const StatusTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  background-color: ${props => {
+    if (props.status === 'Early') return '#e3f2fd';
+    if (props.status === 'On Time') return '#e8f5e9';
+    if (props.status === 'Late') return '#ffebee';
+    if (props.status === 'Complete') return '#e8f5e9';
+    if (props.status === 'Incomplete') return '#fff8e1';
+    return '#f5f5f5';
+  }};
+  color: ${props => {
+    if (props.status === 'Early') return '#1565c0';
+    if (props.status === 'On Time') return '#2e7d32';
+    if (props.status === 'Late') return '#c62828';
+    if (props.status === 'Complete') return '#2e7d32';
+    if (props.status === 'Incomplete') return '#ef6c00';
+    return '#757575';
+  }};
+  border: 1px solid ${props => {
+    if (props.status === 'Early') return '#bbdefb';
+    if (props.status === 'On Time') return '#c8e6c9';
+    if (props.status === 'Late') return '#ffcdd2';
+    if (props.status === 'Complete') return '#c8e6c9';
+    if (props.status === 'Incomplete') return '#ffe0b2';
+    return '#eeeeee';
+  }};
+`;
 
 function Dashboard() {
   const [user, setUser] = useState(null);
@@ -224,52 +337,117 @@ function Dashboard() {
     }
   };
   
-  const handleTimeInOut = async (type) => {
+  // State for confirmation modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingAttendance, setPendingAttendance] = useState(null);
+  
+  const determineStatus = (type, userSchedule) => {
+    if (type === 'Out') {
+      return 'Complete'; // Default for time out
+    }
+    
+    // For time in, determine if early, on time, or late
+    const now = new Date();
+    const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+    
+    // Find today's schedule if it exists
+    const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
+      userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+    
+    if (!todaySchedule) {
+      return 'On Time'; // Default if no schedule found
+    }
+    
+    // Parse schedule time
+    const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
+    
+    // Create Date objects for comparison
+    const scheduleDate = new Date();
+    scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+    
+    // Calculate time difference in minutes
+    const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+    
+    // Determine status based on time difference
+    if (diffMinutes < -15) { // More than 15 minutes early
+      return 'Early';
+    } else if (diffMinutes <= 15) { // Within 15 minutes of scheduled time
+      return 'On Time';
+    } else { // More than 15 minutes late
+      return 'Late';
+    }
+  };
+  
+  const handleTimeInOutClick = (type) => {
     if (!user) return;
+    
+    const timestamp = Timestamp.now();
+    const status = determineStatus(type, userData?.schedule);
+    
+    // Create attendance data object
+    const attendanceData = {
+      userId: user.uid,
+      email: user.email,
+      name: user.displayName,
+      type,
+      status,
+      timestamp,
+      notes: ''
+    };
+    
+    // Store the pending attendance data and show confirmation modal
+    setPendingAttendance(attendanceData);
+    setShowConfirmModal(true);
+  };
+  
+  const handleConfirmTimeInOut = async () => {
+    if (!pendingAttendance) return;
     
     setLoading(true);
     
     try {
-      const timestamp = Timestamp.now();
-      const status = type === 'In' ? 'On Time' : ''; // You can implement logic for Early, Late, etc.
+      // Add the attendance record to Firestore
+      await addDoc(collection(db, 'attendance'), pendingAttendance);
       
-      // Create attendance record
-      const attendanceData = {
-        userId: user.uid,
-        email: user.email,
-        name: user.displayName,
-        type,
-        status,
-        timestamp,
-        notes: ''
-      };
+      toast.success(`Time ${pendingAttendance.type} recorded successfully!`);
+      setAttendanceStatus(pendingAttendance.type);
+      setLastRecord(pendingAttendance);
       
-      await addDoc(collection(db, 'attendance'), attendanceData);
-      
-      toast.success(`Time ${type} recorded successfully!`);
-      setAttendanceStatus(type);
-      setLastRecord(attendanceData);
+      // Close the confirmation modal
+      setShowConfirmModal(false);
+      setPendingAttendance(null);
     } catch (error) {
-      console.error(`Error recording time ${type}:`, error);
-      toast.error(`Failed to record time ${type}`);
+      console.error(`Error recording time ${pendingAttendance.type}:`, error);
+      toast.error(`Failed to record time ${pendingAttendance.type}`);
     } finally {
       setLoading(false);
     }
   };
+  
+  const handleCancelTimeInOut = () => {
+    setShowConfirmModal(false);
+    setPendingAttendance(null);
+  };
+  
+  // Legacy function for backward compatibility
+  const handleTimeInOut = async (type) => {
+    handleTimeInOutClick(type);
+  };
 
   return (
-    <DashboardLayout
-      user={user}
-      activeTab={activeTab}
-      setActiveTab={setActiveTab}
-      attendanceStatus={attendanceStatus}
-      loading={loading}
-      handleTimeInOut={handleTimeInOut}
-      lastRecord={lastRecord}
-      isSuperAdmin={userData?.role === 'super_admin'}
-      userData={userData}
-      setUserData={setUserData}
-    >
+    <>
+      <DashboardLayout
+        user={user}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        attendanceStatus={attendanceStatus}
+        loading={loading}
+        handleTimeInOut={handleTimeInOutClick}
+        lastRecord={lastRecord}
+        isSuperAdmin={userData?.role === 'super_admin'}
+        userData={userData}
+        setUserData={setUserData}
+      >
       {activeTab === 'dashboard' && (
         <DashboardHome 
           attendanceStatus={attendanceStatus} 
@@ -300,7 +478,39 @@ function Dashboard() {
       {activeTab === 'user_management' && userData?.role === 'super_admin' && (
         <UserManagementView />
       )}
-    </DashboardLayout>
+      </DashboardLayout>
+      
+      {/* Confirmation Modal */}
+      {showConfirmModal && pendingAttendance && (
+        <ConfirmationModal>
+          <ModalContent>
+            <ModalTitle>
+              Confirm Time {pendingAttendance.type}
+            </ModalTitle>
+            <ModalBody>
+              <p><strong>Time:</strong> {pendingAttendance.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</p>
+              <p><strong>Date:</strong> {pendingAttendance.timestamp.toDate().toLocaleDateString()}</p>
+              <p>
+                <strong>Status:</strong> 
+                <StatusTag status={pendingAttendance.status}>
+                  {pendingAttendance.status}
+                </StatusTag>
+              </p>
+            </ModalBody>
+            <ModalButtons>
+              <CancelButton onClick={handleCancelTimeInOut}>
+                <X size={16} style={{ marginRight: '4px' }} />
+                Cancel
+              </CancelButton>
+              <ConfirmButton onClick={handleConfirmTimeInOut}>
+                <Check size={16} style={{ marginRight: '4px' }} />
+                Confirm
+              </ConfirmButton>
+            </ModalButtons>
+          </ModalContent>
+        </ConfirmationModal>
+      )}
+    </>
   );
 }
 
