@@ -335,8 +335,12 @@ function UserManagementView() {
     email: '',
     position: '',
     role: 'member',
-    status: 'active'
+    status: 'active',
+    address: '',
+    contactNumber: '',
+    employeeStatus: 'regular'
   });
+  const [addUserStep, setAddUserStep] = useState(1);
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
@@ -576,6 +580,9 @@ function UserManagementView() {
         position: newUserData.position.trim(),
         role: newUserData.role,
         status: newUserData.status,
+        address: newUserData.address.trim(),
+        contactNumber: newUserData.contactNumber.trim(),
+        employeeStatus: newUserData.employeeStatus,
         createdAt: serverTimestamp(),
         schedule: []
       });
@@ -589,6 +596,9 @@ function UserManagementView() {
         position: newUserData.position.trim(),
         role: newUserData.role,
         status: newUserData.status,
+        address: newUserData.address.trim(),
+        contactNumber: newUserData.contactNumber.trim(),
+        employeeStatus: newUserData.employeeStatus,
         schedule: [],
         createdAt: new Date() // Local representation of server timestamp
       };
@@ -606,12 +616,39 @@ function UserManagementView() {
         email: '',
         position: '',
         role: 'member',
-        status: 'active'
+        status: 'active',
+        address: '',
+        contactNumber: '',
+        employeeStatus: 'regular'
       });
+      setAddUserStep(1);
     } catch (error) {
       console.error('Error adding user:', error);
       toast.error(`Failed to add user: ${error.message}`);
     }
+  };
+  
+  const handleNextStep = () => {
+    // Validate required fields in step 1
+    if (addUserStep === 1) {
+      if (!newUserData.firstName.trim() || !newUserData.lastName.trim() || !newUserData.email.trim()) {
+        toast.error('First name, last name, and email are required');
+        return;
+      }
+      
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newUserData.email)) {
+        toast.error('Please enter a valid email address');
+        return;
+      }
+    }
+    
+    setAddUserStep(2);
+  };
+  
+  const handlePreviousStep = () => {
+    setAddUserStep(1);
   };
 
   const handleAddSchedule = () => {
@@ -977,99 +1014,146 @@ function UserManagementView() {
             <ModalTitle>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <UserCircle size={24} />
-                Add New User
+                Add New User {addUserStep === 1 ? '(Step 1 of 2)' : '(Step 2 of 2)'}
               </div>
             </ModalTitle>
             
-            <div style={{ marginBottom: '1.5rem' }}>
-              <FormGroup>
-                <Label>First Name <span style={{ color: 'red' }}>*</span></Label>
-                <Input 
-                  type="text" 
-                  value={newUserData.firstName}
-                  onChange={(e) => setNewUserData({...newUserData, firstName: e.target.value})}
-                  placeholder="First Name"
-                  required
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Middle Initial</Label>
-                <Input 
-                  type="text" 
-                  value={newUserData.middleInitial}
-                  onChange={(e) => setNewUserData({...newUserData, middleInitial: e.target.value})}
-                  placeholder="Middle Initial"
-                  maxLength={1}
-                />
-                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
-                  Just the first letter, without period
-                </div>
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Last Name <span style={{ color: 'red' }}>*</span></Label>
-                <Input 
-                  type="text" 
-                  value={newUserData.lastName}
-                  onChange={(e) => setNewUserData({...newUserData, lastName: e.target.value})}
-                  placeholder="Last Name"
-                  required
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Email <span style={{ color: 'red' }}>*</span></Label>
-                <Input 
-                  type="email" 
-                  value={newUserData.email}
-                  onChange={(e) => setNewUserData({...newUserData, email: e.target.value})}
-                  placeholder="Email Address"
-                  required
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Position</Label>
-                <Input 
-                  type="text" 
-                  value={newUserData.position}
-                  onChange={(e) => setNewUserData({...newUserData, position: e.target.value})}
-                  placeholder="Position"
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Role</Label>
-                <Select
-                  value={newUserData.role}
-                  onChange={(e) => setNewUserData({...newUserData, role: e.target.value})}
-                >
-                  <option value="member">Member</option>
-                  <option value="admin">Admin</option>
-                  <option value="super_admin">Super Admin</option>
-                </Select>
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Status</Label>
-                <Select
-                  value={newUserData.status}
-                  onChange={(e) => setNewUserData({...newUserData, status: e.target.value})}
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="pending">Pending</option>
-                </Select>
-              </FormGroup>
-            </div>
+            {addUserStep === 1 ? (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <FormGroup>
+                  <Label>First Name <span style={{ color: 'red' }}>*</span></Label>
+                  <Input 
+                    type="text" 
+                    value={newUserData.firstName}
+                    onChange={(e) => setNewUserData({...newUserData, firstName: e.target.value})}
+                    placeholder="First Name"
+                    required
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Middle Initial</Label>
+                  <Input 
+                    type="text" 
+                    value={newUserData.middleInitial}
+                    onChange={(e) => setNewUserData({...newUserData, middleInitial: e.target.value})}
+                    placeholder="Middle Initial"
+                    maxLength={1}
+                  />
+                  <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
+                    Just the first letter, without period
+                  </div>
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Last Name <span style={{ color: 'red' }}>*</span></Label>
+                  <Input 
+                    type="text" 
+                    value={newUserData.lastName}
+                    onChange={(e) => setNewUserData({...newUserData, lastName: e.target.value})}
+                    placeholder="Last Name"
+                    required
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Email <span style={{ color: 'red' }}>*</span></Label>
+                  <Input 
+                    type="email" 
+                    value={newUserData.email}
+                    onChange={(e) => setNewUserData({...newUserData, email: e.target.value})}
+                    placeholder="Email Address"
+                    required
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Position</Label>
+                  <Input 
+                    type="text" 
+                    value={newUserData.position}
+                    onChange={(e) => setNewUserData({...newUserData, position: e.target.value})}
+                    placeholder="Position"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Role</Label>
+                  <Select
+                    value={newUserData.role}
+                    onChange={(e) => setNewUserData({...newUserData, role: e.target.value})}
+                  >
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                    <option value="super_admin">Super Admin</option>
+                  </Select>
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Status</Label>
+                  <Select
+                    value={newUserData.status}
+                    onChange={(e) => setNewUserData({...newUserData, status: e.target.value})}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="pending">Pending</option>
+                  </Select>
+                </FormGroup>
+              </div>
+            ) : (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <FormGroup>
+                  <Label>Address</Label>
+                  <Input 
+                    type="text" 
+                    value={newUserData.address}
+                    onChange={(e) => setNewUserData({...newUserData, address: e.target.value})}
+                    placeholder="Complete Address"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Contact Number</Label>
+                  <Input 
+                    type="text" 
+                    value={newUserData.contactNumber}
+                    onChange={(e) => setNewUserData({...newUserData, contactNumber: e.target.value})}
+                    placeholder="Contact Number"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Employee Status</Label>
+                  <Select
+                    value={newUserData.employeeStatus}
+                    onChange={(e) => setNewUserData({...newUserData, employeeStatus: e.target.value})}
+                  >
+                    <option value="regular">Regular</option>
+                    <option value="probationary">Probationary</option>
+                    <option value="intern">Intern</option>
+                  </Select>
+                </FormGroup>
+              </div>
+            )}
             
             <ModalButtons>
-              <Button onClick={() => setShowAddUserModal(false)}>Cancel</Button>
-              <Button primary onClick={handleAddUser}>
-                <Icon><FloppyDisk size={16} /></Icon>
-                Add User
-              </Button>
+              {addUserStep === 1 ? (
+                <>
+                  <Button onClick={() => setShowAddUserModal(false)}>Cancel</Button>
+                  <Button primary onClick={handleNextStep}>
+                    Next
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={handlePreviousStep}>Back</Button>
+                  <Button primary onClick={handleAddUser}>
+                    <Icon><FloppyDisk size={16} /></Icon>
+                    Add User
+                  </Button>
+                </>
+              )}
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>
