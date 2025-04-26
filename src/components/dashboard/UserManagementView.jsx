@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Trash, PencilSimple, Check, X, Users, Calendar, Clock } from 'phosphor-react';
+import { Trash, PencilSimple, Check, X, Users, Calendar, Clock, UserCircle } from 'phosphor-react';
 
 const Container = styled.div`
   padding: 2rem;
@@ -292,6 +292,7 @@ function UserManagementView() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [scheduleData, setScheduleData] = useState([]);
   const [newSchedule, setNewSchedule] = useState({
@@ -302,6 +303,14 @@ function UserManagementView() {
   });
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [editUserData, setEditUserData] = useState({
+    firstName: '',
+    lastName: '',
+    middleInitial: '',
+    email: '',
+    position: '',
+    role: 'member'
+  });
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
@@ -349,6 +358,43 @@ function UserManagementView() {
   const handleDeleteClick = (user) => {
     setUserToDelete(user);
     setShowDeleteModal(true);
+  };
+
+  const handleEditClick = (user) => {
+    // Parse the name into first name, last name, and middle initial
+    let firstName = '', lastName = '', middleInitial = '';
+    
+    if (user.name) {
+      const nameParts = user.name.trim().split(' ');
+      if (nameParts.length === 1) {
+        firstName = nameParts[0];
+      } else if (nameParts.length === 2) {
+        firstName = nameParts[0];
+        lastName = nameParts[1];
+      } else if (nameParts.length >= 3) {
+        firstName = nameParts[0];
+        // Check if middle part is just an initial (one character with a period)
+        if (nameParts[1].length === 2 && nameParts[1].endsWith('.')) {
+          middleInitial = nameParts[1].charAt(0);
+          lastName = nameParts.slice(2).join(' ');
+        } else {
+          middleInitial = nameParts[1];
+          lastName = nameParts.slice(2).join(' ');
+        }
+      }
+    }
+    
+    setEditUserData({
+      firstName,
+      lastName,
+      middleInitial,
+      email: user.email || '',
+      position: user.position || '',
+      role: user.role || 'member'
+    });
+    
+    setSelectedUser(user);
+    setShowEditModal(true);
   };
 
   const confirmDelete = async () => {
@@ -414,6 +460,59 @@ function UserManagementView() {
     setShowScheduleModal(true);
     setIsEditing(false);
     setEditingSchedule(null);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      // Format the name
+      let fullName = editUserData.firstName;
+      if (editUserData.middleInitial) {
+        fullName += ` ${editUserData.middleInitial}.`;
+      }
+      if (editUserData.lastName) {
+        fullName += ` ${editUserData.lastName}`;
+      }
+      
+      // Validate required fields
+      if (!fullName.trim() || !editUserData.email.trim()) {
+        toast.error('Name and email are required');
+        return;
+      }
+      
+      // Use the userId field if available, otherwise fall back to id
+      const documentId = selectedUser.userId || selectedUser.id;
+      
+      // Update the user document in Firestore
+      const userRef = doc(db, 'users', documentId);
+      await updateDoc(userRef, {
+        name: fullName.trim(),
+        email: editUserData.email.trim(),
+        position: editUserData.position.trim(),
+        role: editUserData.role
+      });
+      
+      // Update the local state
+      setUsers(users.map(u => {
+        // Match by both potential IDs to ensure we update the correct user
+        const isMatch = (u.userId && u.userId === selectedUser.userId) || 
+                       (u.id === selectedUser.id);
+        return isMatch ? { 
+          ...u, 
+          name: fullName.trim(),
+          email: editUserData.email.trim(),
+          position: editUserData.position.trim(),
+          role: editUserData.role
+        } : u;
+      }));
+      
+      toast.success('User information updated successfully');
+      setShowEditModal(false);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error(`Failed to update user: ${error.message}`);
+    }
   };
 
   const handleAddSchedule = () => {
@@ -630,6 +729,13 @@ function UserManagementView() {
                       <Calendar size={20} />
                     </ActionButton>
                     <ActionButton 
+                      color="#1a73e8"
+                      onClick={() => handleEditClick(user)}
+                      title="Edit User"
+                    >
+                      <PencilSimple size={20} />
+                    </ActionButton>
+                    <ActionButton 
                       color={user.status === 'active' ? '#f44336' : '#4caf50'}
                       onClick={() => toggleUserStatus(user, user.status || 'active')}
                       title={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
@@ -668,6 +774,92 @@ function UserManagementView() {
             <ModalButtons>
               <Button onClick={cancelDelete}>Cancel</Button>
               <Button primary onClick={confirmDelete}>Delete</Button>
+            </ModalButtons>
+          </ModalContent>
+        </ConfirmationModal>
+      )}
+      
+      {showEditModal && selectedUser && (
+        <ConfirmationModal>
+          <ModalContent style={{ maxWidth: '500px', width: '100%' }}>
+            <ModalTitle>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <UserCircle size={24} />
+                Edit User: {selectedUser.name || selectedUser.email}
+              </div>
+            </ModalTitle>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <FormGroup>
+                <Label>First Name</Label>
+                <Input 
+                  type="text" 
+                  value={editUserData.firstName}
+                  onChange={(e) => setEditUserData({...editUserData, firstName: e.target.value})}
+                  placeholder="First Name"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Middle Initial</Label>
+                <Input 
+                  type="text" 
+                  value={editUserData.middleInitial}
+                  onChange={(e) => setEditUserData({...editUserData, middleInitial: e.target.value})}
+                  placeholder="Middle Initial"
+                  maxLength={1}
+                />
+                <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
+                  Just the first letter, without period
+                </div>
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Last Name</Label>
+                <Input 
+                  type="text" 
+                  value={editUserData.lastName}
+                  onChange={(e) => setEditUserData({...editUserData, lastName: e.target.value})}
+                  placeholder="Last Name"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Email</Label>
+                <Input 
+                  type="email" 
+                  value={editUserData.email}
+                  onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
+                  placeholder="Email Address"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Position</Label>
+                <Input 
+                  type="text" 
+                  value={editUserData.position}
+                  onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
+                  placeholder="Position"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Role</Label>
+                <Select
+                  value={editUserData.role}
+                  onChange={(e) => setEditUserData({...editUserData, role: e.target.value})}
+                >
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                  <option value="super_admin">Super Admin</option>
+                </Select>
+              </FormGroup>
+            </div>
+            
+            <ModalButtons>
+              <Button onClick={() => setShowEditModal(false)}>Cancel</Button>
+              <Button primary onClick={handleUpdateUser}>Save Changes</Button>
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>
