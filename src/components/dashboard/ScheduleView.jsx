@@ -130,7 +130,7 @@ const ScheduleView = ({ user, userData }) => {
         date.setHours(parseInt(hours, 10));
         date.setMinutes(parseInt(minutes, 10));
         
-        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
       }
       
       // Convert time from source time region to target time region
@@ -146,7 +146,8 @@ const ScheduleView = ({ user, userData }) => {
       const sourceZonedDate = zonedTimeToUtc(sourceDate, sourceTimeRegion);
       const targetZonedDate = utcToZonedTime(sourceZonedDate, targetTimeRegion);
       
-      return formatTZ(targetZonedDate, 'HH:mm', { timeZone: targetTimeRegion });
+      // Format with 12-hour clock and AM/PM indicator
+      return formatTZ(targetZonedDate, 'h:mm a', { timeZone: targetTimeRegion });
     } catch (error) {
       console.error('Error formatting time:', error);
       return timeString;
