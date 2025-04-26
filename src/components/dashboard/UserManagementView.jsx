@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Trash, PencilSimple, Check, X, Users } from 'phosphor-react';
+import { Trash, PencilSimple, Check, X, Users, Calendar, Clock } from 'phosphor-react';
 
 const Container = styled.div`
   padding: 2rem;
@@ -180,12 +180,103 @@ const Button = styled.button`
   }
 `;
 
+// Form elements for schedule editing
+const FormGroup = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background-color: white;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const ScheduleGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+`;
+
+const ScheduleCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ScheduleHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+`;
+
+const ScheduleDay = styled.h4`
+  margin: 0;
+  color: #333;
+`;
+
+const ScheduleTime = styled.div`
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+`;
+
+const ScheduleActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  gap: 0.5rem;
+`;
+
 function UserManagementView() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [scheduleData, setScheduleData] = useState([]);
+  const [newSchedule, setNewSchedule] = useState({
+    dayOfWeek: 'Monday',
+    timeIn: '09:00',
+    timeRegion: 'Asia/Manila',
+    shiftDuration: '8',
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -198,7 +289,8 @@ function UserManagementView() {
       const userSnapshot = await getDocs(usersCollection);
       const usersList = userSnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data()
+        ...doc.data(),
+        schedule: doc.data().schedule || []
       }));
       setUsers(usersList);
       setLoading(false);
@@ -259,12 +351,75 @@ function UserManagementView() {
     }
   };
 
+  const handleScheduleClick = (user) => {
+    setSelectedUser(user);
+    setScheduleData(user.schedule || []);
+    setShowScheduleModal(true);
+  };
+
+  const handleAddSchedule = () => {
+    // Convert time to UTC for storage
+    const localTime = new Date();
+    const [hours, minutes] = newSchedule.timeIn.split(':').map(Number);
+    localTime.setHours(hours, minutes, 0, 0);
+    
+    // Create the schedule entry
+    const scheduleEntry = {
+      id: Date.now().toString(), // Unique ID for the schedule entry
+      dayOfWeek: newSchedule.dayOfWeek,
+      timeIn: newSchedule.timeIn,
+      timeRegion: newSchedule.timeRegion,
+      shiftDuration: parseInt(newSchedule.shiftDuration, 10),
+      utcTimeIn: localTime.toISOString() // Store UTC time
+    };
+    
+    // Add to the current schedule data
+    const updatedSchedule = [...scheduleData, scheduleEntry];
+    setScheduleData(updatedSchedule);
+    
+    // Reset form
+    setNewSchedule({
+      dayOfWeek: 'Monday',
+      timeIn: '09:00',
+      timeRegion: 'Asia/Manila',
+      shiftDuration: '8',
+    });
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      const userRef = doc(db, 'users', selectedUser.id);
+      await updateDoc(userRef, {
+        schedule: scheduleData
+      });
+      
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === selectedUser.id ? { ...user, schedule: scheduleData } : user
+      ));
+      
+      toast.success('Schedule updated successfully');
+      setShowScheduleModal(false);
+    } catch (error) {
+      console.error('Error updating schedule:', error);
+      toast.error('Failed to update schedule');
+    }
+  };
+
+  const handleDeleteSchedule = (scheduleId) => {
+    const updatedSchedule = scheduleData.filter(item => item.id !== scheduleId);
+    setScheduleData(updatedSchedule);
+  };
+
   const filteredUsers = users.filter(user => {
     const searchTermLower = searchTerm.toLowerCase();
     return (
       (user.name && user.name.toLowerCase().includes(searchTermLower)) ||
       (user.email && user.email.toLowerCase().includes(searchTermLower)) ||
-      (user.role && user.role.toLowerCase().includes(searchTermLower))
+      (user.role && user.role.toLowerCase().includes(searchTermLower)) ||
+      (user.position && user.position.toLowerCase().includes(searchTermLower))
     );
   });
 
@@ -290,6 +445,7 @@ function UserManagementView() {
             <TableRow>
               <TableHeader>Name</TableHeader>
               <TableHeader>Email</TableHeader>
+              <TableHeader>Position</TableHeader>
               <TableHeader>Role</TableHeader>
               <TableHeader>Status</TableHeader>
               <TableHeader>Actions</TableHeader>
@@ -301,6 +457,7 @@ function UserManagementView() {
                 <TableRow key={user.id}>
                   <TableCell>{user.name || 'N/A'}</TableCell>
                   <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.position || 'N/A'}</TableCell>
                   <TableCell>
                     <RoleTag role={user.role}>{user.role || 'member'}</RoleTag>
                   </TableCell>
@@ -310,6 +467,13 @@ function UserManagementView() {
                     </StatusTag>
                   </TableCell>
                   <TableCell>
+                    <ActionButton 
+                      color="#000000"
+                      onClick={() => handleScheduleClick(user)}
+                      title="Manage Schedule"
+                    >
+                      <Calendar size={20} />
+                    </ActionButton>
                     <ActionButton 
                       color={user.status === 'active' ? '#f44336' : '#4caf50'}
                       onClick={() => toggleUserStatus(user.id, user.status || 'active')}
@@ -329,7 +493,7 @@ function UserManagementView() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} style={{ textAlign: 'center' }}>
+                <TableCell colSpan={6} style={{ textAlign: 'center' }}>
                   No users found
                 </TableCell>
               </TableRow>
@@ -349,6 +513,113 @@ function UserManagementView() {
             <ModalButtons>
               <Button onClick={cancelDelete}>Cancel</Button>
               <Button primary onClick={confirmDelete}>Delete</Button>
+            </ModalButtons>
+          </ModalContent>
+        </ConfirmationModal>
+      )}
+      
+      {showScheduleModal && selectedUser && (
+        <ConfirmationModal>
+          <ModalContent style={{ maxWidth: '600px', width: '100%' }}>
+            <ModalTitle>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Calendar size={24} />
+                Manage Schedule for {selectedUser.name || selectedUser.email}
+              </div>
+            </ModalTitle>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h4 style={{ marginBottom: '0.5rem' }}>Current Schedule</h4>
+              
+              {scheduleData.length > 0 ? (
+                <ScheduleGrid>
+                  {scheduleData.map(schedule => (
+                    <ScheduleCard key={schedule.id}>
+                      <ScheduleHeader>
+                        <ScheduleDay>{schedule.dayOfWeek}</ScheduleDay>
+                        <ActionButton 
+                          color="#f44336" 
+                          onClick={() => handleDeleteSchedule(schedule.id)}
+                          title="Delete schedule"
+                        >
+                          <Trash size={16} />
+                        </ActionButton>
+                      </ScheduleHeader>
+                      <ScheduleTime>
+                        <div><strong>Time In:</strong> {schedule.timeIn}</div>
+                        <div><strong>Region:</strong> {schedule.timeRegion}</div>
+                        <div><strong>Duration:</strong> {schedule.shiftDuration} hours</div>
+                      </ScheduleTime>
+                    </ScheduleCard>
+                  ))}
+                </ScheduleGrid>
+              ) : (
+                <p>No schedules found. Add a new schedule below.</p>
+              )}
+            </div>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h4 style={{ marginBottom: '0.5rem' }}>Add New Schedule</h4>
+              
+              <FormGroup>
+                <Label>Day of Week</Label>
+                <Select 
+                  value={newSchedule.dayOfWeek}
+                  onChange={(e) => setNewSchedule({...newSchedule, dayOfWeek: e.target.value})}
+                >
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </Select>
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Time In</Label>
+                <Input 
+                  type="time" 
+                  value={newSchedule.timeIn}
+                  onChange={(e) => setNewSchedule({...newSchedule, timeIn: e.target.value})}
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Time Region</Label>
+                <Select 
+                  value={newSchedule.timeRegion}
+                  onChange={(e) => setNewSchedule({...newSchedule, timeRegion: e.target.value})}
+                >
+                  <option value="Asia/Manila">Asia/Manila (PHT)</option>
+                  <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                  <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                  <option value="America/New_York">America/New_York (EST/EDT)</option>
+                  <option value="Europe/London">Europe/London (GMT/BST)</option>
+                  <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                </Select>
+              </FormGroup>
+              
+              <FormGroup>
+                <Label>Shift Duration (hours)</Label>
+                <Input 
+                  type="number" 
+                  min="1" 
+                  max="24" 
+                  value={newSchedule.shiftDuration}
+                  onChange={(e) => setNewSchedule({...newSchedule, shiftDuration: e.target.value})}
+                />
+              </FormGroup>
+              
+              <Button 
+                primary 
+                onClick={handleAddSchedule}
+                style={{ marginTop: '0.5rem' }}
+              >
+                Add Schedule
+              </Button>
+            </div>
+            
+            <ModalButtons>
+              <Button onClick={() => setShowScheduleModal(false)}>Cancel</Button>
+              <Button primary onClick={handleSaveSchedule}>Save Changes</Button>
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>
