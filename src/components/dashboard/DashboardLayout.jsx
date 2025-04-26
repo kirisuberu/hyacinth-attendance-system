@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
 import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users, GlobeHemisphereWest, ClockClockwise, Shield } from 'phosphor-react';
+import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
-import { useTimeFormat } from '../../contexts/TimeFormatContext';
-import { useAuth } from '../../contexts/AuthContext';
 
 // Styled components for layout
 const DashboardContainer = styled.div`
@@ -306,6 +305,10 @@ children
 // Check if admin user has specific privileges
 const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
 const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false;
+  const navigate = useNavigate();
+  const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
+  const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
+  const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila');
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
   const [updatingTimeFormat, setUpdatingTimeFormat] = useState(false);
