@@ -326,7 +326,7 @@ function UserManagementView() {
     lastName: '',
     middleInitial: '',
     email: '',
-    position: '',
+    position: 'regular',
     role: 'member',
     dateOfBirth: '',
     phoneNumber: '',
@@ -340,7 +340,7 @@ function UserManagementView() {
     lastName: '',
     middleInitial: '',
     email: '',
-    position: '',
+    position: 'regular',
     role: 'member',
     status: 'active',
     address: '',
@@ -976,12 +976,14 @@ function UserManagementView() {
                 
                 <FormGroup>
                   <Label>Position</Label>
-                  <Input 
-                    type="text" 
+                  <Select
                     value={editUserData.position}
                     onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
-                    placeholder="Position"
-                  />
+                  >
+                    <option value="regular">Regular</option>
+                    <option value="probationary">Probationary</option>
+                    <option value="intern">Intern</option>
+                  </Select>
                 </FormGroup>
                 
                 <FormGroup>
@@ -1140,12 +1142,14 @@ function UserManagementView() {
                 
                 <FormGroup>
                   <Label>Position</Label>
-                  <Input 
-                    type="text" 
+                  <Select
                     value={newUserData.position}
                     onChange={(e) => setNewUserData({...newUserData, position: e.target.value})}
-                    placeholder="Position"
-                  />
+                  >
+                    <option value="regular">Regular</option>
+                    <option value="probationary">Probationary</option>
+                    <option value="intern">Intern</option>
+                  </Select>
                 </FormGroup>
                 
                 <FormGroup>
