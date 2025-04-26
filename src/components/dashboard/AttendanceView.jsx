@@ -81,20 +81,22 @@ const AttendanceView = ({ user }) => {
         const q = query(
           attendanceRef,
           where('userId', '==', user.uid),
-          orderBy('timestamp', 'desc')
+          orderBy('timestamp', 'asc') // Changed to ascending to process pairs correctly
         );
         
         const querySnapshot = await getDocs(q);
-        const records = [];
+        const rawRecords = [];
         
         querySnapshot.forEach((doc) => {
-          records.push({
+          rawRecords.push({
             id: doc.id,
             ...doc.data()
           });
         });
         
-        setAttendanceRecords(records);
+        // Process records to pair IN and OUT entries by date
+        const processedRecords = processAttendanceRecords(rawRecords);
+        setAttendanceRecords(processedRecords);
       } catch (error) {
         console.error('Error fetching attendance records:', error);
       } finally {
@@ -104,6 +106,40 @@ const AttendanceView = ({ user }) => {
     
     fetchAttendanceRecords();
   }, [user]);
+  
+  // Function to process and pair IN/OUT records
+  const processAttendanceRecords = (records) => {
+    // Group records by date
+    const recordsByDate = {};
+    
+    records.forEach(record => {
+      if (!record.timestamp) return;
+      
+      const date = record.timestamp.toDate();
+      const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      if (!recordsByDate[dateKey]) {
+        recordsByDate[dateKey] = {
+          date: date,
+          day: getDayOfWeek(record.timestamp),
+          inRecord: null,
+          outRecord: null
+        };
+      }
+      
+      // Assign record to in or out slot
+      if (record.type === 'In' && (!recordsByDate[dateKey].inRecord || 
+          record.timestamp.toDate() < recordsByDate[dateKey].inRecord.timestamp.toDate())) {
+        recordsByDate[dateKey].inRecord = record;
+      } else if (record.type === 'Out' && (!recordsByDate[dateKey].outRecord || 
+          record.timestamp.toDate() > recordsByDate[dateKey].outRecord.timestamp.toDate())) {
+        recordsByDate[dateKey].outRecord = record;
+      }
+    });
+    
+    // Convert to array and sort by date (most recent first)
+    return Object.values(recordsByDate).sort((a, b) => b.date - a.date);
+  };
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -158,25 +194,59 @@ const AttendanceView = ({ user }) => {
               <tr>
                 <th>Date</th>
                 <th>Day</th>
-                <th>Time</th>
-                <th>Type</th>
-                <th>Status</th>
+                <th colSpan="2">IN</th>
+                <th colSpan="2">OUT</th>
                 <th>Notes</th>
+              </tr>
+              <tr>
+                <th></th>
+                <th></th>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
-              {attendanceRecords.map((record) => (
-                <tr key={record.id}>
-                  <td>{formatDate(record.timestamp)}</td>
-                  <td>{getDayOfWeek(record.timestamp)}</td>
-                  <td>{formatTime(record.timestamp)}</td>
-                  <td>{record.type}</td>
+              {attendanceRecords.map((record, index) => (
+                <tr key={index}>
+                  <td>{formatDate(record.date)}</td>
+                  <td>{record.day}</td>
+                  
+                  {/* IN record */}
+                  <td>{record.inRecord ? formatTime(record.inRecord.timestamp) : '-'}</td>
                   <td>
-                    <StatusTag status={determineStatus(record)}>
-                      {determineStatus(record)}
-                    </StatusTag>
+                    {record.inRecord ? (
+                      <StatusTag status={determineStatus(record.inRecord)}>
+                        {determineStatus(record.inRecord)}
+                      </StatusTag>
+                    ) : '-'}
                   </td>
-                  <td>{record.notes || '-'}</td>
+                  
+                  {/* OUT record */}
+                  <td>{record.outRecord ? formatTime(record.outRecord.timestamp) : '-'}</td>
+                  <td>
+                    {record.outRecord ? (
+                      <StatusTag status={determineStatus(record.outRecord)}>
+                        {determineStatus(record.outRecord)}
+                      </StatusTag>
+                    ) : '-'}
+                  </td>
+                  
+                  {/* Notes (combining both IN and OUT notes if available) */}
+                  <td>
+                    {record.inRecord?.notes && record.outRecord?.notes ? (
+                      <>
+                        <strong>IN:</strong> {record.inRecord.notes}<br/>
+                        <strong>OUT:</strong> {record.outRecord.notes}
+                      </>
+                    ) : record.inRecord?.notes ? (
+                      record.inRecord.notes
+                    ) : record.outRecord?.notes ? (
+                      record.outRecord.notes
+                    ) : '-'}
+                  </td>
                 </tr>
               ))}
             </tbody>
