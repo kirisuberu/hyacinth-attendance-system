@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
-import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users, GlobeHemisphereWest, ClockClockwise } from 'phosphor-react';
+import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users, GlobeHemisphereWest, ClockClockwise, Shield } from 'phosphor-react';
 import { auth, db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
@@ -290,24 +290,22 @@ const Button = styled.button`
 `;
 
 // Main layout component
-const DashboardLayout = ({ 
-  user, 
-  activeTab, 
-  setActiveTab, 
-  attendanceStatus, 
-  loading, 
-  handleTimeInOut, 
-  lastRecord,
-  isSuperAdmin,
-  userData,
-  setUserData,
-  children 
-}) => {
-  const navigate = useNavigate();
-  const { currentUser } = useAuth();
-  const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
-  const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
-  const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila');
+function DashboardLayout({ 
+user, 
+activeTab, 
+setActiveTab, 
+attendanceStatus, 
+loading, 
+handleTimeInOut, 
+lastRecord,
+isSuperAdmin,
+userData,
+setUserData,
+children 
+}) {
+// Check if admin user has specific privileges
+const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
+const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false;
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
   const [updatingTimeFormat, setUpdatingTimeFormat] = useState(false);
@@ -460,6 +458,7 @@ const DashboardLayout = ({
           Profile
         </NavItem>
         
+        {/* Super Admin Navigation Items */}
         {isSuperAdmin && (
           <>
             <NavItem 
@@ -477,6 +476,39 @@ const DashboardLayout = ({
               <Icon><Users size={16} /></Icon>
               User Management
             </NavItem>
+
+            <NavItem 
+              className={activeTab === 'admin_privileges' ? 'active' : ''} 
+              onClick={() => setActiveTab('admin_privileges')}
+            >
+              <Icon><Shield size={16} /></Icon>
+              Admin Privileges
+            </NavItem>
+          </>
+        )}
+        
+        {/* Admin Navigation Items - Based on privileges */}
+        {userData?.role === 'admin' && (
+          <>
+            {canManageRegistrations && (
+              <NavItem 
+                className={activeTab === 'registration_requests' ? 'active' : ''}
+                onClick={() => setActiveTab('registration_requests')}
+              >
+                <Icon><UserPlus size={16} /></Icon>
+                Registration Requests
+              </NavItem>
+            )}
+            
+            {canManageUsers && (
+              <NavItem 
+                className={activeTab === 'user_management' ? 'active' : ''} 
+                onClick={() => setActiveTab('user_management')}
+              >
+                <Icon><Users size={16} /></Icon>
+                User Management
+              </NavItem>
+            )}
           </>
         )}
         
@@ -538,6 +570,7 @@ const DashboardLayout = ({
             {activeTab === 'profile' && 'Profile'}
             {activeTab === 'registration_requests' && 'Registration Requests'}
             {activeTab === 'user_management' && 'User Management'}
+            {activeTab === 'admin_privileges' && 'Admin Privileges'}
           </Title>
           
           <UserInfo>

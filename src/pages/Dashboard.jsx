@@ -14,6 +14,7 @@ import ScheduleView from '../components/dashboard/ScheduleView';
 import ProfileView from '../components/dashboard/ProfileView';
 import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
 import UserManagementView from '../components/dashboard/UserManagementView';
+import AdminPrivilegesView from '../components/dashboard/AdminPrivilegesView';
 
 // Styled components for confirmation modal
 const ConfirmationModal = styled.div`
@@ -541,12 +542,16 @@ function Dashboard() {
         />
       )}
 
-      {activeTab === 'registration_requests' && userData?.role === 'super_admin' && (
+      {activeTab === 'registration_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false)) && (
         <RegistrationRequestsView />
       )}
       
-      {activeTab === 'user_management' && userData?.role === 'super_admin' && (
+      {activeTab === 'user_management' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false)) && (
         <UserManagementView />
+      )}
+      
+      {activeTab === 'admin_privileges' && userData?.role === 'super_admin' && (
+        <AdminPrivilegesView />
       )}
       </DashboardLayout>
       
