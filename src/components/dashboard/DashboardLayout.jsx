@@ -430,7 +430,7 @@ const DashboardLayout = ({
         
         <NavItem 
           className={activeTab === 'home' ? 'active' : ''}
-          onClick={() => setActiveTab('home')}
+          onClick={() => navigate('/home')}
         >
           <House size={20} style={{ marginRight: '0.5rem' }} />
           Home
@@ -438,7 +438,7 @@ const DashboardLayout = ({
         
         <NavItem 
           className={activeTab === 'schedule' ? 'active' : ''}
-          onClick={() => setActiveTab('schedule')}
+          onClick={() => navigate('/schedule')}
         >
           <Calendar size={20} style={{ marginRight: '0.5rem' }} />
           Schedule
@@ -446,7 +446,7 @@ const DashboardLayout = ({
         
         <NavItem 
           className={activeTab === 'attendance' ? 'active' : ''}
-          onClick={() => setActiveTab('attendance')}
+          onClick={() => navigate('/attendance')}
         >
           <Clock size={20} style={{ marginRight: '0.5rem' }} />
           Attendance
@@ -454,7 +454,7 @@ const DashboardLayout = ({
         
         <NavItem 
           className={activeTab === 'profile' ? 'active' : ''}
-          onClick={() => setActiveTab('profile')}
+          onClick={() => navigate('/profile')}
         >
           <User size={20} style={{ marginRight: '0.5rem' }} />
           Profile
@@ -464,7 +464,7 @@ const DashboardLayout = ({
           <>
             <NavItem 
               className={activeTab === 'registration_requests' ? 'active' : ''}
-              onClick={() => setActiveTab('registration_requests')}
+              onClick={() => navigate('/registration-requests')}
             >
               <Icon><UserPlus size={16} /></Icon>
               Registration Requests
@@ -472,7 +472,7 @@ const DashboardLayout = ({
             
             <NavItem 
               className={activeTab === 'user_management' ? 'active' : ''} 
-              onClick={() => setActiveTab('user_management')}
+              onClick={() => navigate('/user-management')}
             >
               <Icon><Users size={16} /></Icon>
               User Management

@@ -7,6 +7,12 @@ import 'react-toastify/dist/ReactToastify.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Home from './pages/Home';
+import Schedule from './pages/Schedule';
+import Attendance from './pages/Attendance';
+import Profile from './pages/Profile';
+import RegistrationRequests from './pages/RegistrationRequests';
+import UserManagement from './pages/UserManagement';
 import './App.css';
 
 import { AuthProvider } from './contexts/AuthContext';
@@ -24,6 +30,23 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/" replace />;
   }
 
+  return children;
+};
+
+// Admin route component
+const AdminRoute = ({ children }) => {
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingContainer>Loading...</LoadingContainer>;
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Note: The actual admin check is done inside the component
+  // This is just a basic protected route that will be further checked inside each admin component
   return children;
 };
 
@@ -46,14 +69,73 @@ function App() {
             <Routes>
               <Route path="/" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              
+              {/* Legacy route - redirect to home */}
               <Route 
                 path="/dashboard" 
                 element={
                   <ProtectedRoute>
-                    <Dashboard />
+                    <Navigate to="/home" replace />
                   </ProtectedRoute>
                 } 
               />
+              
+              {/* New separated pages */}
+              <Route 
+                path="/home" 
+                element={
+                  <ProtectedRoute>
+                    <Home />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/schedule" 
+                element={
+                  <ProtectedRoute>
+                    <Schedule />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/attendance" 
+                element={
+                  <ProtectedRoute>
+                    <Attendance />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/profile" 
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Admin routes */}
+              <Route 
+                path="/registration-requests" 
+                element={
+                  <AdminRoute>
+                    <RegistrationRequests />
+                  </AdminRoute>
+                } 
+              />
+              
+              <Route 
+                path="/user-management" 
+                element={
+                  <AdminRoute>
+                    <UserManagement />
+                  </AdminRoute>
+                } 
+              />
+              
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>
@@ -64,4 +146,4 @@ function App() {
   );
 }
 
-export default App
+export default App;
