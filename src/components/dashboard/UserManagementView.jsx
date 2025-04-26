@@ -304,6 +304,19 @@ function UserManagementView() {
   const [isEditing, setIsEditing] = useState(false);
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
+  // Calculate total hours from all shifts
+  const calculateTotalHours = (schedules) => {
+    if (!schedules || !Array.isArray(schedules) || schedules.length === 0) {
+      return 0;
+    }
+    
+    const totalHours = schedules.reduce((sum, schedule) => {
+      return sum + (parseInt(schedule.shiftDuration, 10) || 0);
+    }, 0);
+    
+    return totalHours;
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -577,6 +590,7 @@ function UserManagementView() {
               <TableHeader>Position</TableHeader>
               <TableHeader>Role</TableHeader>
               <TableHeader>Status</TableHeader>
+              <TableHeader>Shifts</TableHeader>
               <TableHeader>Actions</TableHeader>
             </TableRow>
           </TableHead>
@@ -594,6 +608,18 @@ function UserManagementView() {
                     <StatusTag status={user.status || 'active'}>
                       {user.status || 'active'}
                     </StatusTag>
+                  </TableCell>
+                  <TableCell>
+                    {user.schedule && Array.isArray(user.schedule) ? (
+                      <div>
+                        <div><strong>{user.schedule.length}</strong> shifts</div>
+                        <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                          {calculateTotalHours(user.schedule)} total hours
+                        </div>
+                      </div>
+                    ) : (
+                      'No shifts'  
+                    )}
                   </TableCell>
                   <TableCell>
                     <ActionButton 
@@ -656,6 +682,17 @@ function UserManagementView() {
                 Manage Schedule for {selectedUser.name || selectedUser.email}
               </div>
             </ModalTitle>
+            
+            <div style={{ marginBottom: '1rem', background: '#f5f9ff', padding: '0.75rem', borderRadius: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Total Shifts:</strong> {scheduleData.length}
+                </div>
+                <div>
+                  <strong>Total Hours:</strong> {calculateTotalHours(scheduleData)} hours/week
+                </div>
+              </div>
+            </div>
             
             <div style={{ marginBottom: '1.5rem' }}>
               <h4 style={{ marginBottom: '0.5rem' }}>Current Schedule</h4>
