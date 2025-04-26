@@ -449,7 +449,6 @@ const DashboardLayout = ({
           <>
             <NavItem 
               className={activeTab === 'registration_requests' ? 'active' : ''}
-              className={activeTab === 'registration_requests' ? 'active' : ''} 
               onClick={() => setActiveTab('registration_requests')}
             >
               <Icon><UserPlus size={16} /></Icon>
