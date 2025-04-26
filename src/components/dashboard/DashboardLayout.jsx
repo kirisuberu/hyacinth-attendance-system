@@ -14,7 +14,7 @@ const DashboardContainer = styled.div`
 
 const Sidebar = styled.div`
   width: 250px;
-  background: linear-gradient(180deg, #6e8efb 0%, #a777e3 100%);
+  background: linear-gradient(180deg, #000000 0%, #800000 100%);
   color: white;
   padding: 2rem 1rem;
   display: flex;
