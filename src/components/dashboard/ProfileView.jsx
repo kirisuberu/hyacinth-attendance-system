@@ -1,45 +1,80 @@
 import React from 'react';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
-import { Envelope, IdentificationCard, User, Buildings, UserCircle, Calendar, Clock, MapPin, Phone, Heart, Briefcase, IdentificationBadge, CheckCircle } from 'phosphor-react';
+import { 
+  Envelope, 
+  IdentificationCard, 
+  User, 
+  Buildings, 
+  UserCircle, 
+  Calendar, 
+  Clock, 
+  MapPin, 
+  Phone, 
+  Heart, 
+  Briefcase, 
+  IdentificationBadge, 
+  CheckCircle,
+  Info
+} from 'phosphor-react';
 
 const ProfileSection = styled.div`
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  }
 `;
 
 const ProfileField = styled.p`
   margin: 0.75rem 0;
   display: flex;
   align-items: center;
-  padding: 0.5rem;
-  border-radius: 4px;
-  transition: background-color 0.2s ease;
+  padding: 0.75rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f0f0f0;
   
   &:hover {
-    background-color: #f5f5f5;
+    background-color: #f9f9f9;
+  }
+  
+  &:last-child {
+    border-bottom: none;
   }
 `;
 
 const FieldLabel = styled.strong`
-  min-width: 120px;
+  min-width: 140px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #555;
+  gap: 10px;
+  color: #444;
+  font-weight: 500;
 `;
 
 const SectionTitle = styled.h3`
   font-size: 1.1rem;
-  color: #444;
-  margin-bottom: 1rem;
+  color: #333;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #800000;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  font-weight: 600;
 `;
 
 const FieldValue = styled.span`
   color: #333;
   word-break: break-word;
+  font-weight: 400;
+  flex: 1;
 `;
 
 const ProfileView = ({ user, userData, loadingUserData }) => {
@@ -69,154 +104,203 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     }
   };
 
+const ProfileContainer = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  
+  @media (max-width: 992px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const FullWidthSection = styled(ProfileSection)`
+  grid-column: 1 / -1;
+`;
+
+const ProfileHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+`;
+
+const ProfileAvatar = styled.div`
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: #800000;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: bold;
+  margin-right: 1.5rem;
+`;
+
+const ProfileInfo = styled.div`
+  flex: 1;
+`;
+
+const ProfileName = styled.h2`
+  margin: 0 0 0.5rem 0;
+  color: #333;
+  font-size: 1.5rem;
+`;
+
+const ProfileRole = styled.div`
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background-color: #800000;
+  color: white;
+  margin-right: 0.5rem;
+`;
+
   return (
     <Card>
-      <CardTitle>User Profile</CardTitle>
+      <CardTitle>
+        <UserCircle size={24} weight="bold" style={{ marginRight: '8px' }} />
+        User Profile
+      </CardTitle>
       <CardContent>
         {loadingUserData ? (
-          <p>Loading user data...</p>
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+            <p>Loading user profile data...</p>
+          </div>
         ) : (
           <>
-            <ProfileSection>
-              <SectionTitle>
-                <UserCircle size={20} weight="bold" />
-                Basic Information
-              </SectionTitle>
+            <FullWidthSection>
+              <ProfileHeader>
+                <ProfileAvatar>
+                  {userData?.name ? userData.name.charAt(0).toUpperCase() : user?.email ? user.email.charAt(0).toUpperCase() : 'U'}
+                </ProfileAvatar>
+                <ProfileInfo>
+                  <ProfileName>{userData?.name || user?.displayName || 'User'}</ProfileName>
+                  <div>
+                    <ProfileRole>{userData?.role || 'member'}</ProfileRole>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '20px',
+                      fontSize: '0.85rem',
+                      fontWeight: '500',
+                      backgroundColor: userData?.status === 'active' ? '#e6f7ed' : '#ffebee',
+                      color: userData?.status === 'active' ? '#4caf50' : '#f44336'
+                    }}>
+                      {userData?.status || 'active'}
+                    </span>
+                  </div>
+                </ProfileInfo>
+              </ProfileHeader>
+              
               <ProfileField>
                 <FieldLabel>
-                  <IdentificationBadge size={18} />
+                  <IdentificationBadge size={18} weight="bold" />
                   User ID:
                 </FieldLabel>
                 <FieldValue>{userData?.userId || user?.uid}</FieldValue>
               </ProfileField>
               <ProfileField>
                 <FieldLabel>
-                  <Envelope size={18} />
+                  <Envelope size={18} weight="bold" />
                   Email:
                 </FieldLabel>
                 <FieldValue>{user?.email}</FieldValue>
               </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <User size={18} />
-                  Name:
-                </FieldLabel>
-                <FieldValue>{userData?.name || user?.displayName}</FieldValue>
-              </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <Buildings size={18} />
-                  Position:
-                </FieldLabel>
-                <FieldValue>{userData?.position || 'Not specified'}</FieldValue>
-              </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <UserCircle size={18} />
-                  Role:
-                </FieldLabel>
-                <FieldValue>{userData?.role || 'Not specified'}</FieldValue>
-              </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <CheckCircle size={18} />
-                  Status:
-                </FieldLabel>
-                <FieldValue>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '0.25rem 0.5rem',
-                    borderRadius: '4px',
-                    fontSize: '0.85rem',
-                    fontWeight: '600',
-                    backgroundColor: userData?.status === 'active' ? '#e6f7ed' : '#ffebee',
-                    color: userData?.status === 'active' ? '#4caf50' : '#f44336'
-                  }}>
-                    {userData?.status || 'active'}
-                  </span>
-                </FieldValue>
-              </ProfileField>
-
-            </ProfileSection>
-
-            <ProfileSection>
-              <SectionTitle>
-                <MapPin size={20} weight="bold" />
-                Contact Information
-              </SectionTitle>
-              <ProfileField>
-                <FieldLabel>
-                  <MapPin size={18} />
-                  Address:
-                </FieldLabel>
-                <FieldValue>{userData?.address || 'Not specified'}</FieldValue>
-              </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <Phone size={18} />
-                  Phone Number:
-                </FieldLabel>
-                <FieldValue>{userData?.phoneNumber || userData?.contactNumber || 'Not specified'}</FieldValue>
-              </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <Calendar size={18} />
-                  Date of Birth:
-                </FieldLabel>
-                <FieldValue>{userData?.dateOfBirth || 'Not specified'}</FieldValue>
-              </ProfileField>
-            </ProfileSection>
-
-            <ProfileSection>
-              <SectionTitle>
-                <Heart size={20} weight="bold" />
-                Emergency Contact
-              </SectionTitle>
-              <ProfileField>
-                <FieldLabel>
-                  <User size={18} />
-                  Name:
-                </FieldLabel>
-                <FieldValue>{userData?.emergencyContactName || 'Not specified'}</FieldValue>
-              </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <Phone size={18} />
-                  Phone:
-                </FieldLabel>
-                <FieldValue>{userData?.emergencyContactPhone || 'Not specified'}</FieldValue>
-              </ProfileField>
-              <ProfileField>
-                <FieldLabel>
-                  <Heart size={18} />
-                  Relationship:
-                </FieldLabel>
-                <FieldValue>{userData?.emergencyContactRelationship || 'Not specified'}</FieldValue>
-              </ProfileField>
-            </ProfileSection>
+            </FullWidthSection>
             
-            <ProfileSection>
-              <SectionTitle>
-                <Clock size={20} weight="bold" />
-                Account Information
-              </SectionTitle>
-              <ProfileField>
-                <FieldLabel>
-                  <Calendar size={18} />
-                  Created At:
-                </FieldLabel>
-                <FieldValue>{userData?.createdAt ? formatTimestamp(userData.createdAt) : 'Not specified'}</FieldValue>
-              </ProfileField>
-              {userData?.timeRegion && (
+            <ProfileContainer>
+              <ProfileSection>
+                <SectionTitle>
+                  <UserCircle size={20} weight="bold" />
+                  Basic Information
+                </SectionTitle>
                 <ProfileField>
                   <FieldLabel>
-                    <Clock size={18} />
-                    Time Region:
+                    <Buildings size={18} />
+                    Position:
                   </FieldLabel>
-                  <FieldValue>{userData.timeRegion.replace('_', ' ')}</FieldValue>
+                  <FieldValue>{userData?.position || 'Not specified'}</FieldValue>
                 </ProfileField>
-              )}
-            </ProfileSection>
+                <ProfileField>
+                  <FieldLabel>
+                    <Calendar size={18} />
+                    Date of Birth:
+                  </FieldLabel>
+                  <FieldValue>{userData?.dateOfBirth || 'Not specified'}</FieldValue>
+                </ProfileField>
+                <ProfileField>
+                  <FieldLabel>
+                    <Calendar size={18} />
+                    Created At:
+                  </FieldLabel>
+                  <FieldValue>{userData?.createdAt ? formatTimestamp(userData.createdAt) : 'Not specified'}</FieldValue>
+                </ProfileField>
+                {userData?.timeRegion && (
+                  <ProfileField>
+                    <FieldLabel>
+                      <Clock size={18} />
+                      Time Region:
+                    </FieldLabel>
+                    <FieldValue>{userData.timeRegion.replace('_', ' ')}</FieldValue>
+                  </ProfileField>
+                )}
+              </ProfileSection>
+
+              <ProfileSection>
+                <SectionTitle>
+                  <MapPin size={20} weight="bold" />
+                  Contact Information
+                </SectionTitle>
+                <ProfileField>
+                  <FieldLabel>
+                    <MapPin size={18} />
+                    Address:
+                  </FieldLabel>
+                  <FieldValue>{userData?.address || 'Not specified'}</FieldValue>
+                </ProfileField>
+                <ProfileField>
+                  <FieldLabel>
+                    <Phone size={18} />
+                    Phone Number:
+                  </FieldLabel>
+                  <FieldValue>{userData?.phoneNumber || userData?.contactNumber || 'Not specified'}</FieldValue>
+                </ProfileField>
+              </ProfileSection>
+
+              <ProfileSection>
+                <SectionTitle>
+                  <Heart size={20} weight="bold" />
+                  Emergency Contact
+                </SectionTitle>
+                <ProfileField>
+                  <FieldLabel>
+                    <User size={18} />
+                    Name:
+                  </FieldLabel>
+                  <FieldValue>{userData?.emergencyContactName || 'Not specified'}</FieldValue>
+                </ProfileField>
+                <ProfileField>
+                  <FieldLabel>
+                    <Phone size={18} />
+                    Phone:
+                  </FieldLabel>
+                  <FieldValue>{userData?.emergencyContactPhone || 'Not specified'}</FieldValue>
+                </ProfileField>
+                <ProfileField>
+                  <FieldLabel>
+                    <Heart size={18} />
+                    Relationship:
+                  </FieldLabel>
+                  <FieldValue>{userData?.emergencyContactRelationship || 'Not specified'}</FieldValue>
+                </ProfileField>
+              </ProfileSection>
+            </ProfileContainer>
           </>
         )}
       </CardContent>
