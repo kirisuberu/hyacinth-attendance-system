@@ -9,7 +9,8 @@ import 'react-toastify/dist/ReactToastify.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import './App.css';
+import GlobalStyles from './GlobalStyles';
+import theme from './theme';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
@@ -42,13 +43,14 @@ const LoadingContainer = styled.div`
   align-items: center;
   height: 100vh;
   font-size: 1.2rem;
-  color: #6e8efb;
-  background-color: #f5f5f5;
+  color: ${theme.colors.primary.main};
+  background-color: ${theme.colors.background.paper};
 `;
 
 function App() {
   return (
     <>
+      <GlobalStyles />
       <Router>
         <Routes>
           <Route path="/" element={<Login />} />
@@ -64,7 +66,15 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
-      <ToastContainer position="top-right" autoClose={3000} />
+      <ToastContainer 
+        position="top-right" 
+        autoClose={3000} 
+        theme="colored"
+        toastStyle={{
+          backgroundColor: theme.colors.primary.main,
+          color: theme.colors.primary.contrastText
+        }}
+      />
     </>
   );
 }

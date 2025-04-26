@@ -7,6 +7,7 @@ import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, User, ArrowLeft, CheckCircle, IdentificationCard, Eye, EyeSlash, SpinnerGap } from 'phosphor-react';
 import { submitRegistrationRequest } from '../services/registrationService';
+import theme from '../theme';
 
 const RegisterContainer = styled.div`
   display: flex;
@@ -14,14 +15,14 @@ const RegisterContainer = styled.div`
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
+  background: linear-gradient(135deg, ${theme.colors.primary.main} 0%, ${theme.colors.primary.dark} 100%);
   padding: 2rem 1rem;
 `;
 
 const RegisterCard = styled.div`
-  background-color: white;
-  border-radius: 10px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  background-color: ${theme.colors.background.default};
+  border-radius: ${theme.borders.radius};
+  box-shadow: ${theme.shadows.large};
   padding: 2rem;
   width: 100%;
   max-width: 550px;
@@ -29,7 +30,7 @@ const RegisterCard = styled.div`
 `;
 
 const Title = styled.h1`
-  color: #333;
+  color: ${theme.colors.text.primary};
   font-size: 2rem;
   margin-bottom: 1.5rem;
   text-align: center;
@@ -70,21 +71,21 @@ const NameField = styled.div`
 
 const Label = styled.label`
   font-size: 0.9rem;
-  color: #555;
+  color: ${theme.colors.text.secondary};
 `;
 
 const InputWrapper = styled.div`
   display: flex;
   align-items: center;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 1px solid ${theme.colors.border};
+  border-radius: ${theme.borders.radius};
   padding: 0 1rem;
-  background-color: #f9f9f9;
+  background-color: ${theme.colors.background.paper};
   position: relative;
   
   &:focus-within {
-    border-color: #6e8efb;
-    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
+    border-color: ${theme.colors.primary.main};
+    box-shadow: 0 0 0 2px ${theme.colors.primary.main}25;
   }
 `;
 
@@ -92,7 +93,7 @@ const Icon = styled.span`
   display: inline-flex;
   align-items: center;
   margin-right: 0.5rem;
-  color: #888;
+  color: ${theme.colors.primary.main};
 `;
 
 const Input = styled.input`
@@ -114,58 +115,59 @@ const Select = styled.select`
   background: transparent;
   font-size: 1rem;
   appearance: none;
+  cursor: pointer;
+  width: 100%;
   
   &:focus {
     outline: none;
   }
   
   option {
-    padding: 0.5rem;
+    background-color: ${theme.colors.background.default};
+    color: ${theme.colors.text.primary};
   }
 `;
 
 const Button = styled.button`
-  background: linear-gradient(135deg, #6e8efb 0%, #a777e3 100%);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.75rem;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 1rem;
+  background-color: ${theme.colors.primary.main};
+  color: ${theme.colors.primary.contrastText};
+  border: none;
+  border-radius: ${theme.borders.radius};
+  padding: 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+  transition: background-color ${theme.transitions.default};
+  margin-top: 1.5rem;
   
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
+    background-color: ${theme.colors.primary.dark};
   }
   
   &:disabled {
-    background: #ccc;
+    background-color: ${theme.colors.primary.light};
+    opacity: 0.7;
     cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
   }
 `;
 
 const PasswordToggle = styled.button`
-  position: absolute;
-  right: 0.5rem;
   background: none;
   border: none;
-  color: #888;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: ${theme.colors.primary.main};
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem;
   
-  &:hover {
-    color: #6e8efb;
+  &:focus {
+    outline: none;
   }
 `;
 
@@ -179,29 +181,33 @@ const Spinner = styled(SpinnerGap)`
 `;
 
 const BackLink = styled(Link)`
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  color: #6e8efb;
-  text-decoration: none;
+  color: ${theme.colors.primary.main};
   font-size: 0.9rem;
   margin-bottom: 1.5rem;
+  text-decoration: none;
+  transition: color ${theme.transitions.default};
   
   &:hover {
-    text-decoration: underline;
+    color: ${theme.colors.primary.dark};
+  }
+  
+  ${Icon} {
+    margin-right: 0.25rem;
   }
 `;
 
-const ErrorMessage = styled.p`
-  color: #e74c3c;
-  font-size: 0.9rem;
-  margin-top: 0.5rem;
+const ErrorMessage = styled.div`
+  color: ${theme.colors.status.error};
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
 `;
 
 const PasswordRequirements = styled.div`
   margin-top: 0.5rem;
   font-size: 0.8rem;
-  color: #666;
+  color: ${theme.colors.text.secondary};
 `;
 
 const RequirementItem = styled.div`
@@ -209,7 +215,7 @@ const RequirementItem = styled.div`
   align-items: center;
   gap: 0.5rem;
   margin-top: 0.25rem;
-  color: ${props => props.met ? '#27ae60' : '#666'};
+  color: ${props => props.met ? theme.colors.status.success : theme.colors.text.secondary};
 `;
 
 function Register() {

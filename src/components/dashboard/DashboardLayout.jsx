@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus } from 'phosphor-react';
 import { auth } from '../../firebase';
 import { toast } from 'react-toastify';
+import theme from '../../theme';
 
 // Styled components for layout
 const DashboardContainer = styled.div`
@@ -14,8 +15,8 @@ const DashboardContainer = styled.div`
 
 const Sidebar = styled.div`
   width: 250px;
-  background: linear-gradient(180deg, #6e8efb 0%, #a777e3 100%);
-  color: white;
+  background: linear-gradient(180deg, ${theme.colors.primary.main} 0%, ${theme.colors.primary.dark} 100%);
+  color: ${theme.colors.primary.contrastText};
   padding: 2rem 1rem;
   display: flex;
   flex-direction: column;
@@ -26,6 +27,8 @@ const Logo = styled.div`
   font-weight: bold;
   margin-bottom: 2rem;
   text-align: center;
+  color: ${theme.colors.accent.main};
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
 `;
 
 const NavItem = styled.div`
@@ -50,17 +53,21 @@ const NavItem = styled.div`
 const SidebarTimeButton = styled.button`
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  width: 100%;
+  margin-top: auto;
+  padding: 0.75rem;
+  background-color: ${theme.colors.accent.main};
+  color: ${theme.colors.accent.contrastText};
   border: none;
+  border-radius: ${theme.borders.radius};
+  cursor: pointer;
+  font-weight: 500;
+  transition: all ${theme.transitions.default};
+  
+  &:hover {
+    background-color: ${theme.colors.accent.dark};
+  }
   
   &:disabled {
     opacity: 0.6;
@@ -99,7 +106,7 @@ const Icon = styled.span`
 const Content = styled.div`
   flex: 1;
   padding: 2rem;
-  background-color: #f5f5f5;
+  background-color: ${theme.colors.background.default};
   overflow-y: auto;
 `;
 
@@ -108,6 +115,8 @@ const Header = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid ${theme.colors.divider};
 `;
 
 const Title = styled.h1`
@@ -120,6 +129,9 @@ const Title = styled.h1`
 const UserInfo = styled.div`
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+  color: ${theme.colors.text.secondary};
+  font-size: 0.9rem;
 `;
 
 const UserName = styled.span`
@@ -130,16 +142,19 @@ const UserName = styled.span`
 const LogoutButton = styled.button`
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
   background: none;
   border: none;
-  color: #666;
+  color: ${theme.colors.text.secondary};
   cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+  border-radius: ${theme.borders.radius};
+  transition: all ${theme.transitions.default};
   
   &:hover {
-    background-color: #f0f0f0;
+    background-color: ${theme.colors.primary.main}15;
+    color: ${theme.colors.primary.main};
   }
 `;
 
