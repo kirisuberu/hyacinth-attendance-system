@@ -434,16 +434,21 @@ function Dashboard() {
     setLoading(true);
     
     try {
-      // Add the attendance record to Firestore
-      await addDoc(collection(db, 'attendance'), pendingAttendance);
+      // Create a copy of the attendance data without the status field
+      const { status, ...attendanceDataToStore } = pendingAttendance;
+      
+      // Add the attendance record to Firestore (without status field)
+      const docRef = await addDoc(collection(db, 'attendance'), attendanceDataToStore);
       
       toast.success(`Time ${pendingAttendance.type} recorded successfully!`);
       setAttendanceStatus(pendingAttendance.type);
-      setLastRecord(pendingAttendance);
+      setLastRecord(pendingAttendance); // Keep the status in the UI for display purposes
       
       // Close the confirmation modal
       setShowConfirmModal(false);
       setPendingAttendance(null);
+      
+      console.log(`Time ${pendingAttendance.type} recorded with ID: ${docRef.id}`);
     } catch (error) {
       console.error(`Error recording time ${pendingAttendance.type}:`, error);
       toast.error(`Failed to record time ${pendingAttendance.type}`);
