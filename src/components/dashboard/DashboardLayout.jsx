@@ -532,55 +532,33 @@ const DashboardLayout = ({
                   value={selectedTimeRegion}
                   onChange={(e) => setSelectedTimeRegion(e.target.value)}
                 >
-                  <optgroup label="UTC+8 (Asia)">
-                    <option value="Asia/Manila">Asia/Manila (PHT)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                  <optgroup label="Asia & Pacific">
+                    <option value="Asia/Manila">Asia/Manila (PHT, UTC+8)</option>
+                    <option value="Asia/Singapore">Asia/Singapore (SGT, UTC+8)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST, UTC+9)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT, UTC+10/+11)</option>
                   </optgroup>
-                  <optgroup label="UTC+9 (Asia)">
-                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                  <optgroup label="Americas">
+                    <option value="America/New_York">America/New_York (Eastern, UTC-5/-4)</option>
+                    <option value="America/Chicago">America/Chicago (Central, UTC-6/-5)</option>
+                    <option value="America/Denver">America/Denver (Mountain, UTC-7/-6)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific, UTC-8/-7)</option>
+                    <option value="America/Anchorage">America/Anchorage (Alaska, UTC-9/-8)</option>
+                    <option value="America/Adak">America/Adak (Hawaii-Aleutian, UTC-10/-9)</option>
+                    <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii, UTC-10)</option>
+                    <option value="America/Phoenix">America/Phoenix (Arizona, UTC-7)</option>
+                    <option value="America/Toronto">America/Toronto (Eastern Canada, UTC-5/-4)</option>
+                    <option value="America/Vancouver">America/Vancouver (Pacific Canada, UTC-8/-7)</option>
                   </optgroup>
-                  <optgroup label="UTC+10/+11 (Australia)">
-                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
-                  </optgroup>
-                  <optgroup label="UTC+0/+1 (Europe)">
-                    <option value="Europe/London">Europe/London (GMT/BST)</option>
-                  </optgroup>
-                  <optgroup label="UTC+1/+2 (Europe)">
-                    <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
-                    <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
-                  </optgroup>
-                  <optgroup label="UTC+3 (Europe/Asia)">
-                    <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
-                  </optgroup>
-                  <optgroup label="UTC-5/-4 (Americas)">
-                    <option value="America/New_York">America/New_York (Eastern US)</option>
-                    <option value="America/Toronto">America/Toronto (Eastern Canada)</option>
-                  </optgroup>
-                  <optgroup label="UTC-6/-5 (Americas)">
-                    <option value="America/Chicago">America/Chicago (Central)</option>
-                  </optgroup>
-                  <optgroup label="UTC-7/-6 (Americas)">
-                    <option value="America/Denver">America/Denver (Mountain)</option>
-                  </optgroup>
-                  <optgroup label="UTC-7 (Americas - No DST)">
-                    <option value="America/Phoenix">America/Phoenix (Arizona)</option>
-                  </optgroup>
-                  <optgroup label="UTC-8/-7 (Americas)">
-                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific US)</option>
-                    <option value="America/Vancouver">America/Vancouver (Pacific Canada)</option>
-                  </optgroup>
-                  <optgroup label="UTC-9/-8 (Americas)">
-                    <option value="America/Anchorage">America/Anchorage (Alaska)</option>
-                  </optgroup>
-                  <optgroup label="UTC-10/-9 (Americas)">
-                    <option value="America/Adak">America/Adak (Hawaii-Aleutian)</option>
-                  </optgroup>
-                  <optgroup label="UTC-10 (Pacific - No DST)">
-                    <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
+                  <optgroup label="Europe & Africa">
+                    <option value="Europe/London">Europe/London (GMT/BST, UTC+0/+1)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET/CEST, UTC+1/+2)</option>
+                    <option value="Europe/Berlin">Europe/Berlin (CET/CEST, UTC+1/+2)</option>
+                    <option value="Europe/Moscow">Europe/Moscow (MSK, UTC+3)</option>
                   </optgroup>
                 </Select>
                 <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#666' }}>
-                  Note: Regions are grouped by UTC offset. DST = Daylight Saving Time.
+                  Note: UTC offsets may vary during Daylight Saving Time transitions.
                 </div>
               </FormGroup>
             </ModalBody>
