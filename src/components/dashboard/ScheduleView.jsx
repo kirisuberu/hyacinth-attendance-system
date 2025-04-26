@@ -3,6 +3,8 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import { db } from '../../firebase';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
+import { format, addHours, parse } from 'date-fns';
+import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
 
 const ScheduleTable = styled.table`
   width: 100%;
@@ -46,9 +48,17 @@ const EmptyState = styled.div`
   color: #666;
 `;
 
-const ScheduleView = ({ user }) => {
+const ScheduleView = ({ user, userData }) => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [userTimeRegion, setUserTimeRegion] = useState('Asia/Manila');
+
+  // Update user time region when userData changes
+  useEffect(() => {
+    if (userData?.timeRegion) {
+      setUserTimeRegion(userData.timeRegion);
+    }
+  }, [userData]);
 
   useEffect(() => {
     const fetchUserSchedule = async () => {
@@ -63,6 +73,11 @@ const ScheduleView = ({ user }) => {
         
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          
+          // Set the user's time region
+          if (userData.timeRegion) {
+            setUserTimeRegion(userData.timeRegion);
+          }
           
           // Check if the user has a schedule array in their document
           if (userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
@@ -104,18 +119,62 @@ const ScheduleView = ({ user }) => {
     return days[dayIndex];
   };
   
-  const formatTime = (timeString) => {
+  const formatTime = (timeString, sourceTimeRegion = null, targetTimeRegion = userTimeRegion) => {
     if (!timeString) return 'N/A';
     
     try {
-      const [hours, minutes] = timeString.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours, 10));
-      date.setMinutes(parseInt(minutes, 10));
+      // If no source time region is provided, just format the time string
+      if (!sourceTimeRegion || sourceTimeRegion === targetTimeRegion) {
+        const [hours, minutes] = timeString.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hours, 10));
+        date.setMinutes(parseInt(minutes, 10));
+        
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
       
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      // Convert time from source time region to target time region
+      const [hours, minutes] = timeString.split(':');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset to start of day
+      
+      // Create a date object in the source time zone
+      const sourceDate = new Date(today);
+      sourceDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+      
+      // Convert to UTC then to target time zone
+      const sourceZonedDate = zonedTimeToUtc(sourceDate, sourceTimeRegion);
+      const targetZonedDate = utcToZonedTime(sourceZonedDate, targetTimeRegion);
+      
+      return formatTZ(targetZonedDate, 'HH:mm', { timeZone: targetTimeRegion });
     } catch (error) {
+      console.error('Error formatting time:', error);
       return timeString;
+    }
+  };
+  
+  const calculateEndTime = (startTime, duration, timeRegion) => {
+    try {
+      // Parse the start time
+      const [hours, minutes] = startTime.split(':').map(Number);
+      
+      // Create a date object for today with the start time
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset to start of day
+      
+      const startDate = new Date(today);
+      startDate.setHours(hours, minutes, 0, 0);
+      
+      // Add the duration to get the end time
+      const endDate = addHours(startDate, duration);
+      
+      // Format the end time
+      return format(endDate, 'HH:mm');
+    } catch (error) {
+      console.error('Error calculating end time:', error);
+      let endHour = (parseInt(startTime.split(':')[0], 10) + duration) % 24;
+      let endMinute = startTime.split(':')[1];
+      return `${endHour.toString().padStart(2, '0')}:${endMinute}`;
     }
   };
   
@@ -142,27 +201,32 @@ const ScheduleView = ({ user }) => {
                   const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
                   const isToday = today.getDay() === dayIndex;
                   
-                  // Calculate end time based on start time and duration
-                  const startTime = scheduleItem.timeIn;
+                  // Get the schedule's time region
+                  const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
+                  
+                  // Format the time in the user's preferred time region
+                  const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
                   const duration = scheduleItem.shiftDuration || 8;
                   
-                  // Parse start time to calculate end time
-                  let [startHour, startMinute] = startTime.split(':').map(Number);
-                  let endHour = (startHour + duration) % 24;
-                  const endTime = `${endHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+                  // Calculate end time based on start time and duration
+                  const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
+                  const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
                   
                   return (
                     <DayCard key={index} isToday={isToday}>
                       <h3>{scheduleItem.dayOfWeek}</h3>
                       <p>
-                        <strong>Time In:</strong> {scheduleItem.timeIn} | 
+                        <strong>Time In:</strong> {formattedTimeIn} | 
                         <strong>Duration:</strong> {scheduleItem.shiftDuration} hours
                       </p>
                       <p>
-                        <strong>Estimated Time Out:</strong> {endTime}
+                        <strong>Estimated Time Out:</strong> {formattedEndTime}
                       </p>
                       <p>
-                        <strong>Time Region:</strong> {scheduleItem.timeRegion}
+                        <strong>Original Time Region:</strong> {scheduleTimeRegion}
+                      </p>
+                      <p>
+                        <strong>Displayed In:</strong> {userTimeRegion}
                       </p>
                     </DayCard>
                   );
@@ -180,22 +244,29 @@ const ScheduleView = ({ user }) => {
                   </thead>
                   <tbody>
                     {schedule.map((scheduleItem, index) => {
-                      // Calculate end time based on start time and duration
-                      const startTime = scheduleItem.timeIn;
+                      // Get the schedule's time region
+                      const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
+                      
+                      // Format the time in the user's preferred time region
+                      const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
                       const duration = scheduleItem.shiftDuration || 8;
                       
-                      // Parse start time to calculate end time
-                      let [startHour, startMinute] = startTime.split(':').map(Number);
-                      let endHour = (startHour + duration) % 24;
-                      const endTime = `${endHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
+                      // Calculate end time based on start time and duration
+                      const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
+                      const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
                       
                       return (
                         <tr key={index}>
                           <td>{scheduleItem.dayOfWeek}</td>
-                          <td>{scheduleItem.timeIn}</td>
-                          <td>{endTime}</td>
+                          <td>{formattedTimeIn}</td>
+                          <td>{formattedEndTime}</td>
                           <td>{scheduleItem.shiftDuration} hours</td>
-                          <td>{scheduleItem.timeRegion}</td>
+                          <td>
+                            <div>{scheduleTimeRegion}</div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                              Displayed in: {userTimeRegion}
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}

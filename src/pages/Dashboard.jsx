@@ -282,7 +282,7 @@ function Dashboard() {
       )}
       
       {activeTab === 'schedule' && (
-        <ScheduleView user={user} />
+        <ScheduleView user={user} userData={userData} />
       )}
       
       {activeTab === 'profile' && (
