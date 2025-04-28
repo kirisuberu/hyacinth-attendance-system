@@ -75,7 +75,7 @@ const NavLink = styled(Link)`
   }
 `;
 
-const NavItem = styled.div`
+const ActionButton = styled.div`
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   margin-bottom: 0.5rem;
@@ -611,13 +611,13 @@ const DashboardLayout = ({
           <div style={{ marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>User Settings</p>
             
-            <NavItem onClick={() => setShowTimeRegionModal(true)}>
+            <ActionButton onClick={() => setShowTimeRegionModal(true)}>
               <Icon><GlobeHemisphereWest size={16} /></Icon>
               Change Time Region
               <div style={{ fontSize: '0.75rem', marginLeft: 'auto', opacity: 0.7 }}>
                 {userData?.timeRegion?.replace('_', ' ') || 'Asia/Manila'}
               </div>
-            </NavItem>
+            </ActionButton>
           </div>
           
           <div style={{ marginBottom: '1.5rem' }}>
@@ -646,10 +646,10 @@ const DashboardLayout = ({
             )}
           </div>
           
-          <NavItem onClick={handleLogout}>
+          <ActionButton onClick={handleLogout}>
             <Icon><SignOut size={16} /></Icon>
             Logout
-          </NavItem>
+          </ActionButton>
         </div>
       </Sidebar>
       
