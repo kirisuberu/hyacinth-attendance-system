@@ -225,41 +225,35 @@ const ProfileRole = styled.div`
                 </ProfileInfo>
               </ProfileHeader>
               
-              <ProfileField>
-                <FieldLabel>
-                  <IdentificationBadge size={18} weight="bold" />
-                  User ID:
-                </FieldLabel>
-                <FieldValue style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>••••••••••••••••••••••</span>
-                  <button 
-                    onClick={copyUserId}
-                    style={{
-                      background: copied ? '#e6f7ed' : '#f0f0f0',
-                      border: 'none',
-                      borderRadius: '4px',
-                      padding: '6px 12px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {copied ? (
-                      <>
-                        <CheckSquare size={16} weight="bold" color="#4caf50" />
-                        <span style={{ color: '#4caf50' }}>Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={16} />
-                        <span>Copy ID</span>
-                      </>
-                    )}
-                  </button>
-                </FieldValue>
-              </ProfileField>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                <button 
+                  onClick={copyUserId}
+                  style={{
+                    background: copied ? '#e6f7ed' : '#f0f0f0',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '8px 16px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    transition: 'all 0.2s ease',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                  }}
+                >
+                  {copied ? (
+                    <>
+                      <CheckSquare size={18} weight="bold" color="#4caf50" />
+                      <span style={{ color: '#4caf50', fontWeight: 500 }}>User ID Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <IdentificationBadge size={18} />
+                      <span>Copy User ID</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <ProfileField>
                 <FieldLabel>
                   <Envelope size={18} weight="bold" />
