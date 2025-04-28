@@ -461,13 +461,107 @@ function Dashboard() {
     setLoading(true);
     
     try {
-      // Create a copy of the attendance data without the status field
-      const { status, ...attendanceDataToStore } = pendingAttendance;
+      // Calculate time difference for the record
+      let timeDiff = null;
       
-      // Add the notes from the text area
-      attendanceDataToStore.notes = attendanceNotes;
+      if (pendingAttendance.type === 'In') {
+        // For Time In: Calculate difference from scheduled time
+        try {
+          // Fetch user's schedule from Firestore
+          const userDoc = await getDoc(doc(db, 'users', pendingAttendance.userId));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const userSchedule = userData.schedule || [];
+            
+            const now = new Date();
+            const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+            
+            // Find today's schedule if it exists
+            const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
+              userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+            
+            if (todaySchedule) {
+              // Parse schedule time
+              const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
+              
+              // Create Date objects for comparison
+              const scheduleDate = new Date();
+              scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+              
+              // Calculate time difference in minutes
+              timeDiff = Math.round((now - scheduleDate) / (1000 * 60));
+              console.log('Time difference in minutes:', timeDiff);
+            }
+          }
+        } catch (error) {
+          console.error('Error calculating time difference:', error);
+        }
+      } else if (pendingAttendance.type === 'Out') {
+        // For Time Out: Calculate difference from last time in
+        try {
+          // Query the most recent time in record for this user
+          const attendanceRef = collection(db, 'attendance');
+          const q = query(
+            attendanceRef,
+            where('userId', '==', pendingAttendance.userId),
+            where('type', '==', 'In'),
+            orderBy('timestamp', 'desc'),
+            limit(1)
+          );
+          
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const lastTimeIn = querySnapshot.docs[0].data();
+            const lastTimeInDate = lastTimeIn.timestamp.toDate();
+            const now = new Date();
+            
+            // Calculate time difference in minutes
+            timeDiff = Math.round((now - lastTimeInDate) / (1000 * 60));
+            console.log('Time worked in minutes:', timeDiff);
+            
+            // Determine if shift is complete based on scheduled duration
+            const userDoc = await getDoc(doc(db, 'users', pendingAttendance.userId));
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              const userSchedule = userData.schedule || [];
+              
+              const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][lastTimeInDate.getDay()];
+              
+              // Find the schedule for the day of the time in
+              const daySchedule = userSchedule && Array.isArray(userSchedule) ?
+                userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+              
+              if (daySchedule && daySchedule.shiftDuration) {
+                const scheduledMinutes = daySchedule.shiftDuration * 60;
+                
+                // Update status based on scheduled duration
+                if (timeDiff < scheduledMinutes - 30) { // 30 minutes early
+                  pendingAttendance.status = 'Incomplete';
+                } else if (timeDiff > scheduledMinutes + 30) { // 30 minutes overtime
+                  pendingAttendance.status = 'Overtime';
+                } else {
+                  pendingAttendance.status = 'Complete';
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error calculating time worked:', error);
+        }
+      }
       
-      // Add the attendance record to Firestore (without status field)
+      // Prepare attendance data to store
+      const attendanceDataToStore = {
+        ...pendingAttendance,
+        notes: attendanceNotes
+      };
+      
+      // Add timeDiff if calculated
+      if (timeDiff !== null) {
+        attendanceDataToStore.timeDiff = timeDiff;
+      }
+      
+      // Add the attendance record to Firestore (including status field)
       const docRef = await addDoc(collection(db, 'attendance'), attendanceDataToStore);
       
       toast.success(`Time ${pendingAttendance.type} recorded successfully!`);
@@ -476,7 +570,8 @@ function Dashboard() {
       // Update lastRecord with the notes
       const updatedRecord = {
         ...pendingAttendance,
-        notes: attendanceNotes
+        notes: attendanceNotes,
+        timeDiff: timeDiff
       };
       setLastRecord(updatedRecord); // Keep the status in the UI for display purposes
       
