@@ -326,7 +326,8 @@ function UserManagementView({ isSuperAdmin }) {
     lastName: '',
     middleInitial: '',
     email: '',
-    position: 'regular',
+    position: '',
+    employmentStatus: 'regular',
     role: 'member',
     dateOfBirth: '',
     phoneNumber: '',
@@ -341,12 +342,12 @@ function UserManagementView({ isSuperAdmin }) {
     lastName: '',
     middleInitial: '',
     email: '',
-    position: 'regular',
+    position: '',
+    employmentStatus: 'regular',
     role: 'member',
     status: 'active',
     address: '',
-    contactNumber: '',
-    employeeStatus: 'regular'
+    contactNumber: ''
   });
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -427,6 +428,7 @@ function UserManagementView({ isSuperAdmin }) {
       middleInitial,
       email: user.email || '',
       position: user.position || '',
+      employmentStatus: user.employmentStatus || user.position || 'regular',
       role: user.role || 'member',
       dateOfBirth: user.dateOfBirth || '',
       phoneNumber: user.phoneNumber || '',
@@ -534,6 +536,7 @@ function UserManagementView({ isSuperAdmin }) {
         name: fullName.trim(),
         email: editUserData.email.trim(),
         position: editUserData.position,
+        employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
         dateOfBirth: editUserData.dateOfBirth,
         phoneNumber: editUserData.phoneNumber,
@@ -553,6 +556,7 @@ function UserManagementView({ isSuperAdmin }) {
           name: fullName.trim(),
           email: editUserData.email.trim(),
           position: editUserData.position,
+          employmentStatus: editUserData.employmentStatus,
           role: editUserData.role,
           dateOfBirth: editUserData.dateOfBirth,
           phoneNumber: editUserData.phoneNumber,
@@ -605,11 +609,11 @@ function UserManagementView({ isSuperAdmin }) {
         name: fullName.trim(),
         email: newUserData.email.trim(),
         position: newUserData.position,
+        employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
         status: newUserData.status,
         address: newUserData.address.trim(),
         contactNumber: newUserData.contactNumber.trim(),
-        employeeStatus: newUserData.employeeStatus,
         createdAt: serverTimestamp(),
         schedule: []
       });
@@ -621,11 +625,11 @@ function UserManagementView({ isSuperAdmin }) {
         name: fullName.trim(),
         email: newUserData.email.trim(),
         position: newUserData.position,
+        employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
         status: newUserData.status,
         address: newUserData.address.trim(),
         contactNumber: newUserData.contactNumber.trim(),
-        employeeStatus: newUserData.employeeStatus,
         schedule: [],
         createdAt: new Date() // Local representation of server timestamp
       };
@@ -643,11 +647,11 @@ function UserManagementView({ isSuperAdmin }) {
         middleInitial: '',
         email: '',
         position: '',
+        employmentStatus: 'regular',
         role: 'member',
         status: 'active',
         address: '',
-        contactNumber: '',
-        employeeStatus: 'regular'
+        contactNumber: ''
       });
     } catch (error) {
       console.error('Error adding user:', error);
@@ -828,6 +832,7 @@ function UserManagementView({ isSuperAdmin }) {
             <TableRow>
               <TableHeader>Name</TableHeader>
               <TableHeader>Email</TableHeader>
+              <TableHeader>Employment Status</TableHeader>
               <TableHeader>Position</TableHeader>
               <TableHeader>Role</TableHeader>
               <TableHeader>Status</TableHeader>
@@ -841,6 +846,7 @@ function UserManagementView({ isSuperAdmin }) {
                 <TableRow key={user.id}>
                   <TableCell>{user.name || 'N/A'}</TableCell>
                   <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.employmentStatus || user.position || 'N/A'}</TableCell>
                   <TableCell>{user.position || 'N/A'}</TableCell>
                   <TableCell>
                     <RoleTag role={user.role}>{user.role || 'member'}</RoleTag>
@@ -979,15 +985,25 @@ function UserManagementView({ isSuperAdmin }) {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>Position</Label>
+                  <Label>Employment Status</Label>
                   <Select
-                    value={editUserData.position}
-                    onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
+                    value={editUserData.employmentStatus || editUserData.position}
+                    onChange={(e) => setEditUserData({...editUserData, employmentStatus: e.target.value})}
                   >
                     <option value="regular">Regular</option>
                     <option value="probationary">Probationary</option>
                     <option value="intern">Intern</option>
                   </Select>
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Position</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.position || ''}
+                    onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
+                    placeholder="Job Position"
+                  />
                 </FormGroup>
                 
                 <FormGroup>
@@ -1162,15 +1178,25 @@ function UserManagementView({ isSuperAdmin }) {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>Position</Label>
+                  <Label>Employment Status</Label>
                   <Select
-                    value={newUserData.position}
-                    onChange={(e) => setNewUserData({...newUserData, position: e.target.value})}
+                    value={newUserData.employmentStatus}
+                    onChange={(e) => setNewUserData({...newUserData, employmentStatus: e.target.value})}
                   >
                     <option value="regular">Regular</option>
                     <option value="probationary">Probationary</option>
                     <option value="intern">Intern</option>
                   </Select>
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Position</Label>
+                  <Input 
+                    type="text" 
+                    value={newUserData.position}
+                    onChange={(e) => setNewUserData({...newUserData, position: e.target.value})}
+                    placeholder="Job Position"
+                  />
                 </FormGroup>
                 
                 <FormGroup>
@@ -1229,17 +1255,7 @@ function UserManagementView({ isSuperAdmin }) {
                   />
                 </FormGroup>
                 
-                <FormGroup>
-                  <Label>Employee Status</Label>
-                  <Select
-                    value={newUserData.employeeStatus}
-                    onChange={(e) => setNewUserData({...newUserData, employeeStatus: e.target.value})}
-                  >
-                    <option value="regular">Regular</option>
-                    <option value="probationary">Probationary</option>
-                    <option value="intern">Intern</option>
-                  </Select>
-                </FormGroup>
+
               </div>
             )}
             
