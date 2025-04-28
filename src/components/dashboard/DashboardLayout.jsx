@@ -52,7 +52,7 @@ const Logo = styled.div`
   text-align: center;
 `;
 
-const NavItem = styled(Link)`
+const NavLink = styled(Link)`
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   margin-bottom: 0.5rem;
@@ -72,6 +72,22 @@ const NavItem = styled(Link)`
     background-color: rgba(110, 142, 251, 0.2);
     color: #6e8efb;
     font-weight: 500;
+  }
+`;
+
+const NavItem = styled.div`
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  color: #333;
+  
+  &:hover {
+    background-color: rgba(110, 142, 251, 0.1);
   }
 `;
 
@@ -464,37 +480,37 @@ const DashboardLayout = ({
         <div style={{ marginBottom: '1.5rem' }}>
           <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Main Pages</p>
           
-          <NavItem 
+          <NavLink 
             to="/dashboard"
             className={currentPath === '/dashboard' ? 'active' : ''}
           >
             <Icon><House size={16} /></Icon>
             Dashboard
-          </NavItem>
+          </NavLink>
           
-          <NavItem 
+          <NavLink 
             to="/schedule"
             className={currentPath === '/schedule' ? 'active' : ''}
           >
             <Icon><Calendar size={16} /></Icon>
             Schedule
-          </NavItem>
+          </NavLink>
           
-          <NavItem 
+          <NavLink 
             to="/attendance"
             className={currentPath === '/attendance' ? 'active' : ''}
           >
             <Icon><ClockClockwise size={16} /></Icon>
             Attendance Logs
-          </NavItem>
+          </NavLink>
           
-          <NavItem 
+          <NavLink 
             to="/profile"
             className={currentPath === '/profile' ? 'active' : ''}
           >
             <Icon><UserCircle size={16} /></Icon>
             My Profile
-          </NavItem>
+          </NavLink>
         </div>
         
         {/* Admin Panel Section - For both admins and super admins */}
@@ -527,24 +543,24 @@ const DashboardLayout = ({
               <div style={{ paddingLeft: '0.5rem' }}>
                 {/* Registration Requests - Available to super admins and admins with permission */}
                 {(isSuperAdmin || canManageRegistrations) && (
-                  <NavItem 
+                  <NavLink 
                     to="/registration-requests"
                     className={currentPath === '/registration-requests' ? 'active' : ''}
                   >
                     <Icon><UserPlus size={16} /></Icon>
                     Registration Requests
-                  </NavItem>
+                  </NavLink>
                 )}
                 
                 {/* User Management - Available to super admins and admins with permission */}
                 {(isSuperAdmin || canManageUsers) && (
-                  <NavItem 
+                  <NavLink 
                     to="/user-management"
                     className={currentPath === '/user-management' ? 'active' : ''}
                   >
                     <Icon><Users size={16} /></Icon>
                     User Management
-                  </NavItem>
+                  </NavLink>
                 )}
               </div>
             )}
@@ -579,13 +595,13 @@ const DashboardLayout = ({
             
             {superAdminPanelExpanded && (
               <div style={{ paddingLeft: '0.5rem' }}>
-                <NavItem 
+                <NavLink 
                   to="/admin-privileges"
                   className={currentPath === '/admin-privileges' ? 'active' : ''}
                 >
                   <Icon><Shield size={16} /></Icon>
                   Admin Privileges
-                </NavItem>
+                </NavLink>
               </div>
             )}
           </div>
@@ -640,13 +656,13 @@ const DashboardLayout = ({
       <Content>
         <Header>
           <Title>
-            {activeTab === 'dashboard' && 'Dashboard'}
-            {activeTab === 'attendance' && 'Attendance'}
-            {activeTab === 'schedule' && 'Schedule'}
-            {activeTab === 'profile' && 'Profile'}
-            {activeTab === 'registration_requests' && 'Registration Requests'}
-            {activeTab === 'user_management' && 'User Management'}
-            {activeTab === 'admin_privileges' && 'Admin Privileges'}
+            {currentPath === '/dashboard' && 'Dashboard'}
+            {currentPath === '/attendance' && 'Attendance'}
+            {currentPath === '/schedule' && 'Schedule'}
+            {currentPath === '/profile' && 'Profile'}
+            {currentPath === '/registration-requests' && 'Registration Requests'}
+            {currentPath === '/user-management' && 'User Management'}
+            {currentPath === '/admin-privileges' && 'Admin Privileges'}
           </Title>
           
           <UserInfo>
