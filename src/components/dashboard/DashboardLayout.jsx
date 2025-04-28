@@ -112,6 +112,7 @@ const TimeFormatToggle = styled.button`
   }
 `;
 
+// Regular button component that doesn't use styled-components for the onClick handler
 const SidebarTimeButton = styled.button`
   display: flex;
   align-items: center;
@@ -624,7 +625,8 @@ const DashboardLayout = ({
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Attendance Actions</p>
             
             <TimeInSidebarButton 
-              onClick={() => handleTimeInOut('In')} 
+              type="button"
+              onClick={handleTimeInOut ? () => handleTimeInOut('In') : undefined} 
               disabled={loading || attendanceStatus === 'In'}
             >
               <Icon><SignIn size={16} /></Icon>
@@ -632,7 +634,8 @@ const DashboardLayout = ({
             </TimeInSidebarButton>
             
             <TimeOutSidebarButton 
-              onClick={() => handleTimeInOut('Out')} 
+              type="button"
+              onClick={handleTimeInOut ? () => handleTimeInOut('Out') : undefined} 
               disabled={loading || attendanceStatus === 'Out' || !attendanceStatus}
             >
               <Icon><SignOutIcon size={16} /></Icon>
