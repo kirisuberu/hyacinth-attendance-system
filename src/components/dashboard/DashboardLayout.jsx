@@ -526,9 +526,6 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
               Change Time Region
               <div style={{ fontSize: '0.75rem', marginLeft: 'auto', opacity: 0.7 }}>
                 {userData?.timeRegion?.replace('_', ' ') || 'Asia/Manila'}
-                <div style={{ fontSize: '0.7rem', marginTop: '2px' }}>
-                  {getUTCOffset(userData?.timeRegion || 'Asia/Manila')}
-                </div>
               </div>
             </NavItem>
           </div>
