@@ -52,7 +52,7 @@ const ProfileField = styled.p`
 `;
 
 const FieldLabel = styled.strong`
-  min-width: 140px;
+  min-width: 180px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -280,7 +280,13 @@ const ProfileRole = styled.div`
                     <Buildings size={18} />
                     Employment Status:
                   </FieldLabel>
-                  <FieldValue>{userData?.employmentStatus || userData?.position || 'Not specified'}</FieldValue>
+                  <FieldValue>
+                    {userData?.employmentStatus 
+                      ? userData.employmentStatus.charAt(0).toUpperCase() + userData.employmentStatus.slice(1) 
+                      : userData?.position 
+                        ? userData.position.charAt(0).toUpperCase() + userData.position.slice(1)
+                        : 'Not specified'}
+                  </FieldValue>
                 </ProfileField>
                 <ProfileField>
                   <FieldLabel>
