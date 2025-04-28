@@ -18,7 +18,9 @@ import {
   UserCircle,
   ChartBar,
   Gear,
-  ListChecks
+  ListChecks,
+  CaretDown,
+  CaretRight
 } from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
@@ -306,22 +308,26 @@ const Button = styled.button`
 `;
 
 // Main layout component
-function DashboardLayout({ 
-user, 
-activeTab, 
-setActiveTab, 
-attendanceStatus, 
-loading, 
-handleTimeInOut, 
-lastRecord,
-isSuperAdmin,
-userData,
-setUserData,
-children 
-}) {
-// Check if admin user has specific privileges
-const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
-const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false;
+const DashboardLayout = ({ 
+  user, 
+  activeTab, 
+  setActiveTab, 
+  attendanceStatus, 
+  loading, 
+  handleTimeInOut, 
+  lastRecord,
+  isSuperAdmin,
+  userData,
+  setUserData,
+  children 
+}) => {
+  // State for collapsible panels
+  const [adminPanelExpanded, setAdminPanelExpanded] = useState(true);
+  const [superAdminPanelExpanded, setSuperAdminPanelExpanded] = useState(true);
+
+  // Check if admin user has specific privileges
+  const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
+  const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false;
   const navigate = useNavigate();
   const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
   const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
@@ -488,28 +494,53 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
         {/* Admin Panel Section - For both admins and super admins */}
         {(userData?.role === 'admin' || isSuperAdmin) && (
           <div style={{ marginBottom: '1.5rem' }}>
-            <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Admin Panel</p>
+            <div 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                cursor: 'pointer',
+                marginBottom: '0.75rem',
+                userSelect: 'none'
+              }}
+              onClick={() => setAdminPanelExpanded(!adminPanelExpanded)}
+            >
+              <Icon>
+                {adminPanelExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
+              </Icon>
+              <p style={{ 
+                fontSize: '0.9rem', 
+                margin: 0, 
+                opacity: '0.8',
+                fontWeight: '500'
+              }}>
+                Admin Panel
+              </p>
+            </div>
             
-            {/* Registration Requests - Available to super admins and admins with permission */}
-            {(isSuperAdmin || canManageRegistrations) && (
-              <NavItem 
-                className={activeTab === 'registration_requests' ? 'active' : ''}
-                onClick={() => setActiveTab('registration_requests')}
-              >
-                <Icon><UserPlus size={16} /></Icon>
-                Registration Requests
-              </NavItem>
-            )}
-            
-            {/* User Management - Available to super admins and admins with permission */}
-            {(isSuperAdmin || canManageUsers) && (
-              <NavItem 
-                className={activeTab === 'user_management' ? 'active' : ''} 
-                onClick={() => setActiveTab('user_management')}
-              >
-                <Icon><Users size={16} /></Icon>
-                User Management
-              </NavItem>
+            {adminPanelExpanded && (
+              <div style={{ paddingLeft: '0.5rem' }}>
+                {/* Registration Requests - Available to super admins and admins with permission */}
+                {(isSuperAdmin || canManageRegistrations) && (
+                  <NavItem 
+                    className={activeTab === 'registration_requests' ? 'active' : ''}
+                    onClick={() => setActiveTab('registration_requests')}
+                  >
+                    <Icon><UserPlus size={16} /></Icon>
+                    Registration Requests
+                  </NavItem>
+                )}
+                
+                {/* User Management - Available to super admins and admins with permission */}
+                {(isSuperAdmin || canManageUsers) && (
+                  <NavItem 
+                    className={activeTab === 'user_management' ? 'active' : ''} 
+                    onClick={() => setActiveTab('user_management')}
+                  >
+                    <Icon><Users size={16} /></Icon>
+                    User Management
+                  </NavItem>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -517,15 +548,40 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
         {/* Super Admin Panel Section - Only for super admins */}
         {isSuperAdmin && (
           <div style={{ marginBottom: '1.5rem' }}>
-            <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Super Admin Panel</p>
-            
-            <NavItem 
-              className={activeTab === 'admin_privileges' ? 'active' : ''} 
-              onClick={() => setActiveTab('admin_privileges')}
+            <div 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                cursor: 'pointer',
+                marginBottom: '0.75rem',
+                userSelect: 'none'
+              }}
+              onClick={() => setSuperAdminPanelExpanded(!superAdminPanelExpanded)}
             >
-              <Icon><Shield size={16} /></Icon>
-              Admin Privileges
-            </NavItem>
+              <Icon>
+                {superAdminPanelExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
+              </Icon>
+              <p style={{ 
+                fontSize: '0.9rem', 
+                margin: 0, 
+                opacity: '0.8',
+                fontWeight: '500'
+              }}>
+                Super Admin Panel
+              </p>
+            </div>
+            
+            {superAdminPanelExpanded && (
+              <div style={{ paddingLeft: '0.5rem' }}>
+                <NavItem 
+                  className={activeTab === 'admin_privileges' ? 'active' : ''} 
+                  onClick={() => setActiveTab('admin_privileges')}
+                >
+                  <Icon><Shield size={16} /></Icon>
+                  Admin Privileges
+                </NavItem>
+              </div>
+            )}
           </div>
         )}
         
