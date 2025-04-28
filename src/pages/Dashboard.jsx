@@ -153,7 +153,6 @@ const TextArea = styled.textarea`
 
 function Dashboard() {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [lastRecord, setLastRecord] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -604,8 +603,6 @@ function Dashboard() {
     <>
       <DashboardLayout
         user={user}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
         attendanceStatus={attendanceStatus}
         loading={loading}
         handleTimeInOut={handleTimeInOutClick}
@@ -614,40 +611,10 @@ function Dashboard() {
         userData={userData}
         setUserData={setUserData}
       >
-      {activeTab === 'dashboard' && (
         <DashboardHome 
           attendanceStatus={attendanceStatus} 
           lastRecord={lastRecord} 
         />
-      )}
-      
-      {activeTab === 'attendance' && (
-        <AttendanceView user={user} />
-      )}
-      
-      {activeTab === 'schedule' && (
-        <ScheduleView user={user} userData={userData} />
-      )}
-      
-      {activeTab === 'profile' && (
-        <ProfileView 
-          user={user} 
-          userData={userData} 
-          loadingUserData={loadingUserData} 
-        />
-      )}
-
-      {activeTab === 'registration_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false)) && (
-        <RegistrationRequestsView />
-      )}
-      
-      {activeTab === 'user_management' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false)) && (
-        <UserManagementView isSuperAdmin={userData?.role === 'super_admin'} />
-      )}
-      
-      {activeTab === 'admin_privileges' && userData?.role === 'super_admin' && (
-        <AdminPrivilegesView />
-      )}
       </DashboardLayout>
       
       {/* Confirmation Modal */}

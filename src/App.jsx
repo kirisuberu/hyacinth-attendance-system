@@ -7,6 +7,12 @@ import 'react-toastify/dist/ReactToastify.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import SchedulePage from './pages/SchedulePage';
+import AttendancePage from './pages/AttendancePage';
+import ProfilePage from './pages/ProfilePage';
+import RegistrationRequestsPage from './pages/RegistrationRequestsPage';
+import UserManagementPage from './pages/UserManagementPage';
+import AdminPrivilegesPage from './pages/AdminPrivilegesPage';
 import './App.css';
 
 import { AuthProvider } from './contexts/AuthContext';
@@ -51,6 +57,54 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/schedule" 
+                element={
+                  <ProtectedRoute>
+                    <SchedulePage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/attendance" 
+                element={
+                  <ProtectedRoute>
+                    <AttendancePage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/profile" 
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/registration-requests" 
+                element={
+                  <ProtectedRoute>
+                    <RegistrationRequestsPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/user-management" 
+                element={
+                  <ProtectedRoute>
+                    <UserManagementPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin-privileges" 
+                element={
+                  <ProtectedRoute>
+                    <AdminPrivilegesPage />
                   </ProtectedRoute>
                 } 
               />

@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../../firebase';
+import { toast } from 'react-toastify';
 import styled from 'styled-components';
+import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { 
   House, 
   SignOut, 
@@ -22,10 +26,6 @@ import {
   CaretDown,
   CaretRight
 } from 'phosphor-react';
-import { useTimeFormat } from '../../contexts/TimeFormatContext';
-import { auth, db } from '../../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
-import { toast } from 'react-toastify';
 
 // Styled components for layout
 const DashboardContainer = styled.div`
@@ -52,22 +52,26 @@ const Logo = styled.div`
   text-align: center;
 `;
 
-const NavItem = styled.div`
-  display: flex;
-  align-items: center;
+const NavItem = styled(Link)`
   padding: 0.75rem 1rem;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   margin-bottom: 0.5rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+  color: #333;
+  text-decoration: none;
   
   &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(110, 142, 251, 0.1);
   }
   
   &.active {
-    background-color: rgba(255, 255, 255, 0.2);
-    font-weight: bold;
+    background-color: rgba(110, 142, 251, 0.2);
+    color: #6e8efb;
+    font-weight: 500;
   }
 `;
 
@@ -310,8 +314,6 @@ const Button = styled.button`
 // Main layout component
 const DashboardLayout = ({ 
   user, 
-  activeTab, 
-  setActiveTab, 
   attendanceStatus, 
   loading, 
   handleTimeInOut, 
@@ -324,6 +326,10 @@ const DashboardLayout = ({
   // State for collapsible panels
   const [adminPanelExpanded, setAdminPanelExpanded] = useState(true);
   const [superAdminPanelExpanded, setSuperAdminPanelExpanded] = useState(true);
+  
+  // Get current location for active tab highlighting
+  const location = useLocation();
+  const currentPath = location.pathname;
 
   // Check if admin user has specific privileges
   const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
@@ -459,32 +465,32 @@ const DashboardLayout = ({
           <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Main Pages</p>
           
           <NavItem 
-            className={activeTab === 'home' ? 'active' : ''}
-            onClick={() => setActiveTab('home')}
+            to="/dashboard"
+            className={currentPath === '/dashboard' ? 'active' : ''}
           >
             <Icon><House size={16} /></Icon>
             Dashboard
           </NavItem>
           
           <NavItem 
-            className={activeTab === 'schedule' ? 'active' : ''}
-            onClick={() => setActiveTab('schedule')}
+            to="/schedule"
+            className={currentPath === '/schedule' ? 'active' : ''}
           >
             <Icon><Calendar size={16} /></Icon>
             Schedule
           </NavItem>
           
           <NavItem 
-            className={activeTab === 'attendance' ? 'active' : ''}
-            onClick={() => setActiveTab('attendance')}
+            to="/attendance"
+            className={currentPath === '/attendance' ? 'active' : ''}
           >
             <Icon><ClockClockwise size={16} /></Icon>
             Attendance Logs
           </NavItem>
           
           <NavItem 
-            className={activeTab === 'profile' ? 'active' : ''}
-            onClick={() => setActiveTab('profile')}
+            to="/profile"
+            className={currentPath === '/profile' ? 'active' : ''}
           >
             <Icon><UserCircle size={16} /></Icon>
             My Profile
@@ -522,8 +528,8 @@ const DashboardLayout = ({
                 {/* Registration Requests - Available to super admins and admins with permission */}
                 {(isSuperAdmin || canManageRegistrations) && (
                   <NavItem 
-                    className={activeTab === 'registration_requests' ? 'active' : ''}
-                    onClick={() => setActiveTab('registration_requests')}
+                    to="/registration-requests"
+                    className={currentPath === '/registration-requests' ? 'active' : ''}
                   >
                     <Icon><UserPlus size={16} /></Icon>
                     Registration Requests
@@ -533,8 +539,8 @@ const DashboardLayout = ({
                 {/* User Management - Available to super admins and admins with permission */}
                 {(isSuperAdmin || canManageUsers) && (
                   <NavItem 
-                    className={activeTab === 'user_management' ? 'active' : ''} 
-                    onClick={() => setActiveTab('user_management')}
+                    to="/user-management"
+                    className={currentPath === '/user-management' ? 'active' : ''}
                   >
                     <Icon><Users size={16} /></Icon>
                     User Management
@@ -574,8 +580,8 @@ const DashboardLayout = ({
             {superAdminPanelExpanded && (
               <div style={{ paddingLeft: '0.5rem' }}>
                 <NavItem 
-                  className={activeTab === 'admin_privileges' ? 'active' : ''} 
-                  onClick={() => setActiveTab('admin_privileges')}
+                  to="/admin-privileges"
+                  className={currentPath === '/admin-privileges' ? 'active' : ''}
                 >
                   <Icon><Shield size={16} /></Icon>
                   Admin Privileges
