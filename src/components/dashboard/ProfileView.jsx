@@ -151,6 +151,7 @@ const ProfileHeader = styled.div`
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid #eee;
+  position: relative;
 `;
 
 const ProfileAvatar = styled.div`
@@ -223,37 +224,36 @@ const ProfileRole = styled.div`
                     </span>
                   </div>
                 </ProfileInfo>
-              </ProfileHeader>
-              
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
                 <button 
                   onClick={copyUserId}
                   style={{
                     background: copied ? '#e6f7ed' : '#f0f0f0',
                     border: 'none',
                     borderRadius: '4px',
-                    padding: '8px 16px',
+                    padding: '6px 12px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
+                    gap: '6px',
                     transition: 'all 0.2s ease',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                    marginLeft: 'auto',
+                    fontSize: '0.85rem'
                   }}
                 >
                   {copied ? (
                     <>
-                      <CheckSquare size={18} weight="bold" color="#4caf50" />
-                      <span style={{ color: '#4caf50', fontWeight: 500 }}>User ID Copied!</span>
+                      <CheckSquare size={16} weight="bold" color="#4caf50" />
+                      <span style={{ color: '#4caf50', fontWeight: 500 }}>Copied!</span>
                     </>
                   ) : (
                     <>
-                      <IdentificationBadge size={18} />
-                      <span>Copy User ID</span>
+                      <IdentificationBadge size={16} />
+                      <span>Copy ID</span>
                     </>
                   )}
                 </button>
-              </div>
+              </ProfileHeader>
               <ProfileField>
                 <FieldLabel>
                   <Envelope size={18} weight="bold" />
