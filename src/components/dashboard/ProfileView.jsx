@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
 import { 
@@ -15,7 +15,9 @@ import {
   Briefcase, 
   IdentificationBadge, 
   CheckCircle,
-  Info
+  Info,
+  Copy,
+  CheckSquare
 } from 'phosphor-react';
 
 const ProfileSection = styled.div`
@@ -78,29 +80,54 @@ const FieldValue = styled.span`
 `;
 
 const ProfileView = ({ user, userData, loadingUserData }) => {
-  // Helper function to format timestamps
+  const [copied, setCopied] = useState(false);
+  
+  // Helper function to format timestamps in a more readable format (e.g., "May 8, 2000")
   const formatTimestamp = (timestamp) => {
     try {
+      let date;
+      
       // Check for different timestamp formats
       if (timestamp?.seconds) {
         // Firebase Timestamp object
-        const date = new Date(timestamp.seconds * 1000);
-        return date.toLocaleString();
+        date = new Date(timestamp.seconds * 1000);
       } else if (timestamp?.toDate) {
         // Firebase Timestamp with toDate method
-        return timestamp.toDate().toLocaleString();
+        date = timestamp.toDate();
       } else if (timestamp instanceof Date) {
         // JavaScript Date object
-        return timestamp.toLocaleString();
+        date = timestamp;
       } else if (typeof timestamp === 'string') {
         // ISO string or other string format
-        const date = new Date(timestamp);
-        return date.toLocaleString();
+        date = new Date(timestamp);
+      } else {
+        return 'Not specified';
       }
-      return 'Not specified';
+      
+      // Format date as "Month Day, Year"
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
     } catch (error) {
       console.error('Error formatting timestamp:', error);
       return 'Not specified';
+    }
+  };
+  
+  // Function to copy user ID to clipboard
+  const copyUserId = () => {
+    const userId = userData?.userId || user?.uid;
+    if (userId) {
+      navigator.clipboard.writeText(userId)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(err => {
+          console.error('Failed to copy: ', err);
+        });
     }
   };
 
@@ -203,7 +230,35 @@ const ProfileRole = styled.div`
                   <IdentificationBadge size={18} weight="bold" />
                   User ID:
                 </FieldLabel>
-                <FieldValue>{userData?.userId || user?.uid}</FieldValue>
+                <FieldValue style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>••••••••••••••••••••••</span>
+                  <button 
+                    onClick={copyUserId}
+                    style={{
+                      background: copied ? '#e6f7ed' : '#f0f0f0',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '6px 12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {copied ? (
+                      <>
+                        <CheckSquare size={16} weight="bold" color="#4caf50" />
+                        <span style={{ color: '#4caf50' }}>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={16} />
+                        <span>Copy ID</span>
+                      </>
+                    )}
+                  </button>
+                </FieldValue>
               </ProfileField>
               <ProfileField>
                 <FieldLabel>
@@ -223,6 +278,13 @@ const ProfileRole = styled.div`
                 <ProfileField>
                   <FieldLabel>
                     <Buildings size={18} />
+                    Employment Status:
+                  </FieldLabel>
+                  <FieldValue>{userData?.employmentStatus || userData?.position || 'Not specified'}</FieldValue>
+                </ProfileField>
+                <ProfileField>
+                  <FieldLabel>
+                    <Briefcase size={18} />
                     Position:
                   </FieldLabel>
                   <FieldValue>{userData?.position || 'Not specified'}</FieldValue>
@@ -232,7 +294,9 @@ const ProfileRole = styled.div`
                     <Calendar size={18} />
                     Date of Birth:
                   </FieldLabel>
-                  <FieldValue>{userData?.dateOfBirth || 'Not specified'}</FieldValue>
+                  <FieldValue>
+                    {userData?.dateOfBirth ? formatTimestamp(userData.dateOfBirth) : 'Not specified'}
+                  </FieldValue>
                 </ProfileField>
                 <ProfileField>
                   <FieldLabel>
