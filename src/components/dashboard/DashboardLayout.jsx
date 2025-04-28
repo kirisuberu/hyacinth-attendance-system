@@ -2,7 +2,24 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
-import { House, SignOut, Calendar, Clock, User, SignIn, SignOut as SignOutIcon, UserPlus, Users, GlobeHemisphereWest, ClockClockwise, Shield } from 'phosphor-react';
+import { 
+  House, 
+  SignOut, 
+  Calendar, 
+  Clock, 
+  User, 
+  SignIn, 
+  SignOut as SignOutIcon, 
+  UserPlus, 
+  Users, 
+  GlobeHemisphereWest, 
+  ClockClockwise, 
+  Shield,
+  UserCircle,
+  ChartBar,
+  Gear,
+  ListChecks
+} from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -431,71 +448,50 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
       <Sidebar>
         <Logo>Hyacinth</Logo>
         
-        <NavItem 
-          className={activeTab === 'home' ? 'active' : ''}
-          onClick={() => setActiveTab('home')}
-        >
-          <House size={20} style={{ marginRight: '0.5rem' }} />
-          Home
-        </NavItem>
+        {/* Main Navigation Section */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Main Pages</p>
+          
+          <NavItem 
+            className={activeTab === 'home' ? 'active' : ''}
+            onClick={() => setActiveTab('home')}
+          >
+            <Icon><House size={16} /></Icon>
+            Dashboard
+          </NavItem>
+          
+          <NavItem 
+            className={activeTab === 'schedule' ? 'active' : ''}
+            onClick={() => setActiveTab('schedule')}
+          >
+            <Icon><Calendar size={16} /></Icon>
+            Schedule
+          </NavItem>
+          
+          <NavItem 
+            className={activeTab === 'attendance' ? 'active' : ''}
+            onClick={() => setActiveTab('attendance')}
+          >
+            <Icon><ClockClockwise size={16} /></Icon>
+            Attendance Logs
+          </NavItem>
+          
+          <NavItem 
+            className={activeTab === 'profile' ? 'active' : ''}
+            onClick={() => setActiveTab('profile')}
+          >
+            <Icon><UserCircle size={16} /></Icon>
+            My Profile
+          </NavItem>
+        </div>
         
-        <NavItem 
-          className={activeTab === 'schedule' ? 'active' : ''}
-          onClick={() => setActiveTab('schedule')}
-        >
-          <Calendar size={20} style={{ marginRight: '0.5rem' }} />
-          Schedule
-        </NavItem>
-        
-        <NavItem 
-          className={activeTab === 'attendance' ? 'active' : ''}
-          onClick={() => setActiveTab('attendance')}
-        >
-          <Clock size={20} style={{ marginRight: '0.5rem' }} />
-          Attendance
-        </NavItem>
-        
-        <NavItem 
-          className={activeTab === 'profile' ? 'active' : ''}
-          onClick={() => setActiveTab('profile')}
-        >
-          <User size={20} style={{ marginRight: '0.5rem' }} />
-          Profile
-        </NavItem>
-        
-        {/* Super Admin Navigation Items */}
-        {isSuperAdmin && (
-          <>
-            <NavItem 
-              className={activeTab === 'registration_requests' ? 'active' : ''}
-              onClick={() => setActiveTab('registration_requests')}
-            >
-              <Icon><UserPlus size={16} /></Icon>
-              Registration Requests
-            </NavItem>
+        {/* Admin Panel Section - For both admins and super admins */}
+        {(userData?.role === 'admin' || isSuperAdmin) && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Admin Panel</p>
             
-            <NavItem 
-              className={activeTab === 'user_management' ? 'active' : ''} 
-              onClick={() => setActiveTab('user_management')}
-            >
-              <Icon><Users size={16} /></Icon>
-              User Management
-            </NavItem>
-
-            <NavItem 
-              className={activeTab === 'admin_privileges' ? 'active' : ''} 
-              onClick={() => setActiveTab('admin_privileges')}
-            >
-              <Icon><Shield size={16} /></Icon>
-              Admin Privileges
-            </NavItem>
-          </>
-        )}
-        
-        {/* Admin Navigation Items - Based on privileges */}
-        {userData?.role === 'admin' && (
-          <>
-            {canManageRegistrations && (
+            {/* Registration Requests - Available to super admins and admins with permission */}
+            {(isSuperAdmin || canManageRegistrations) && (
               <NavItem 
                 className={activeTab === 'registration_requests' ? 'active' : ''}
                 onClick={() => setActiveTab('registration_requests')}
@@ -505,7 +501,8 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
               </NavItem>
             )}
             
-            {canManageUsers && (
+            {/* User Management - Available to super admins and admins with permission */}
+            {(isSuperAdmin || canManageUsers) && (
               <NavItem 
                 className={activeTab === 'user_management' ? 'active' : ''} 
                 onClick={() => setActiveTab('user_management')}
@@ -514,7 +511,22 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
                 User Management
               </NavItem>
             )}
-          </>
+          </div>
+        )}
+        
+        {/* Super Admin Panel Section - Only for super admins */}
+        {isSuperAdmin && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Super Admin Panel</p>
+            
+            <NavItem 
+              className={activeTab === 'admin_privileges' ? 'active' : ''} 
+              onClick={() => setActiveTab('admin_privileges')}
+            >
+              <Icon><Shield size={16} /></Icon>
+              Admin Privileges
+            </NavItem>
+          </div>
         )}
         
         <div style={{ marginTop: 'auto' }}>
