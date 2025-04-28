@@ -335,7 +335,9 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
       const hours = Math.floor(Math.abs(diffMinutes) / 60);
       const minutes = Math.abs(diffMinutes) % 60;
       const sign = diffMinutes >= 0 ? '+' : '-';
-      return `UTC${sign}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      
+      // Always show only the hours part for a more compact display
+      return `UTC${sign}${hours}`;
     } catch (error) {
       console.error('Error calculating UTC offset:', error);
       return '';
@@ -688,6 +690,6 @@ const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canMa
       )}
     </DashboardContainer>
   );
-};
+};  
 
 export default DashboardLayout;
