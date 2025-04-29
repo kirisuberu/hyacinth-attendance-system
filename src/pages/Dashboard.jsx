@@ -637,7 +637,7 @@ function Dashboard() {
           <UserManagementView isSuperAdmin={userData?.role === 'super_admin'} />
         )}
         
-        {activeTab === 'reports' && (userData?.role === 'super_admin' || userData?.role === 'admin') && (
+        {activeTab === 'reports' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canViewReports !== false)) && (
           <ReportsView />
         )}
         

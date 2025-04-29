@@ -328,6 +328,7 @@ const DashboardLayout = ({
   // Check if admin user has specific privileges
   const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
   const canManageUsers = userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false;
+  const canViewReports = userData?.role === 'admin' && userData?.privileges?.canViewReports !== false;
   const navigate = useNavigate();
   const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
   const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
@@ -541,14 +542,16 @@ const DashboardLayout = ({
                   </NavItem>
                 )}
                 
-                {/* Reports - Available to all admins */}
-                <NavItem 
-                  className={activeTab === 'reports' ? 'active' : ''} 
-                  onClick={() => setActiveTab('reports')}
-                >
-                  <Icon><ChartBar size={16} /></Icon>
-                  Reports
-                </NavItem>
+                {/* Reports - Available to super admins and admins with permission */}
+                {(isSuperAdmin || canViewReports) && (
+                  <NavItem 
+                    className={activeTab === 'reports' ? 'active' : ''} 
+                    onClick={() => setActiveTab('reports')}
+                  >
+                    <Icon><ChartBar size={16} /></Icon>
+                    Reports
+                  </NavItem>
+                )}
               </div>
             )}
           </div>
