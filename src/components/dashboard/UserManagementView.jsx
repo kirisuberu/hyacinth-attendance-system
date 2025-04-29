@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Trash, PencilSimple, Check, X, Users, Calendar, Clock, UserCircle, Plus, FloppyDisk, ArrowLeft, ArrowRight } from 'phosphor-react';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple } from 'phosphor-react';
+import * as XLSX from 'xlsx';
 
 const Container = styled.div`
   padding: 2rem;
@@ -112,18 +113,39 @@ const StatusTag = styled.span`
 `;
 
 const SearchBar = styled.input`
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   border: 1px solid #ddd;
   border-radius: 4px;
-  width: 100%;
-  max-width: 300px;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
+  width: 300px;
+  font-size: 1rem;
   
   &:focus {
     outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+    border-color: #4caf50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+  }
+`;
+
+const ExportButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #388e3c;
+  }
+  
+  &:active {
+    background-color: #2e7d32;
   }
 `;
 
@@ -291,8 +313,8 @@ const ScheduleActions = styled.div`
 const TopActions = styled.div`
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
 `;
 
 const Icon = styled.span`
@@ -330,6 +352,7 @@ function UserManagementView({ isSuperAdmin }) {
     employmentStatus: 'regular',
     role: 'member',
     dateOfBirth: '',
+    dateHired: '',
     phoneNumber: '',
     address: '',
     emergencyContactName: '',
@@ -346,6 +369,7 @@ function UserManagementView({ isSuperAdmin }) {
     employmentStatus: 'regular',
     role: 'member',
     status: 'active',
+    dateHired: '',
     address: '',
     contactNumber: ''
   });
@@ -446,6 +470,7 @@ function UserManagementView({ isSuperAdmin }) {
       employmentStatus: user.employmentStatus || user.position || 'regular',
       role: user.role || 'member',
       dateOfBirth: user.dateOfBirth || '',
+      dateHired: user.dateHired || '',
       phoneNumber: user.phoneNumber || '',
       address: user.address || '',
       emergencyContactName: user.emergencyContactName || '',
@@ -554,6 +579,7 @@ function UserManagementView({ isSuperAdmin }) {
         employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
         dateOfBirth: editUserData.dateOfBirth,
+        dateHired: editUserData.dateHired,
         phoneNumber: editUserData.phoneNumber,
         address: editUserData.address,
         emergencyContactName: editUserData.emergencyContactName,
@@ -574,6 +600,7 @@ function UserManagementView({ isSuperAdmin }) {
           employmentStatus: editUserData.employmentStatus,
           role: editUserData.role,
           dateOfBirth: editUserData.dateOfBirth,
+          dateHired: editUserData.dateHired,
           phoneNumber: editUserData.phoneNumber,
           address: editUserData.address,
           emergencyContactName: editUserData.emergencyContactName,
@@ -627,6 +654,7 @@ function UserManagementView({ isSuperAdmin }) {
         employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
         status: newUserData.status,
+        dateHired: newUserData.dateHired,
         address: newUserData.address.trim(),
         contactNumber: newUserData.contactNumber.trim(),
         createdAt: serverTimestamp(),
@@ -643,6 +671,7 @@ function UserManagementView({ isSuperAdmin }) {
         employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
         status: newUserData.status,
+        dateHired: newUserData.dateHired,
         address: newUserData.address.trim(),
         contactNumber: newUserData.contactNumber.trim(),
         schedule: [],
@@ -812,6 +841,47 @@ function UserManagementView({ isSuperAdmin }) {
       shiftDuration: '8',
     });
   };
+  
+  const exportUsersToExcel = () => {
+    try {
+      // Format the data for Excel export
+      const formattedData = users.map(user => ({
+        'Name': user.name || '',
+        'Email': user.email || '',
+        'Position': user.position || '',
+        'Employment Status': user.employmentStatus || '',
+        'Role': user.role || '',
+        'Status': user.status || '',
+        'Date Hired': user.dateHired || '',
+        'Date of Birth': user.dateOfBirth || '',
+        'Address': user.address || '',
+        'Contact Number': user.contactNumber || user.phoneNumber || '',
+        'Emergency Contact Name': user.emergencyContactName || '',
+        'Emergency Contact Phone': user.emergencyContactPhone || '',
+        'Emergency Contact Relationship': user.emergencyContactRelationship || ''
+      }));
+      
+      // Create a new workbook and add the data
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(formattedData);
+      
+      // Add the worksheet to the workbook
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+      
+      // Generate a filename with current date
+      const date = new Date();
+      const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const fileName = `hyacinth_users_${formattedDate}.xlsx`;
+      
+      // Write the workbook and trigger download
+      XLSX.writeFile(workbook, fileName);
+      
+      toast.success('Users data exported successfully');
+    } catch (error) {
+      console.error('Error exporting users data:', error);
+      toast.error(`Failed to export users data: ${error.message}`);
+    }
+  };
 
   const filteredUsers = users.filter(user => {
     const searchTermLower = searchTerm.toLowerCase();
@@ -837,6 +907,10 @@ function UserManagementView({ isSuperAdmin }) {
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
+        <ExportButton onClick={exportUsersToExcel}>
+          <DownloadSimple size={20} />
+          Export Users
+        </ExportButton>
       </TopActions>
       
       {loading ? (
@@ -1018,6 +1092,15 @@ function UserManagementView({ isSuperAdmin }) {
                     value={editUserData.position || ''}
                     onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
                     placeholder="Job Position"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Date Hired</Label>
+                  <Input 
+                    type="date" 
+                    value={editUserData.dateHired || ''}
+                    onChange={(e) => setEditUserData({...editUserData, dateHired: e.target.value})}
                   />
                 </FormGroup>
                 
@@ -1211,6 +1294,15 @@ function UserManagementView({ isSuperAdmin }) {
                     value={newUserData.position}
                     onChange={(e) => setNewUserData({...newUserData, position: e.target.value})}
                     placeholder="Job Position"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Date Hired</Label>
+                  <Input 
+                    type="date" 
+                    value={newUserData.dateHired}
+                    onChange={(e) => setNewUserData({...newUserData, dateHired: e.target.value})}
                   />
                 </FormGroup>
                 
