@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { doc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../../firebase';
-import { toast } from 'react-toastify';
 import styled from 'styled-components';
-import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { 
   House, 
   SignOut, 
@@ -26,6 +22,10 @@ import {
   CaretDown,
   CaretRight
 } from 'phosphor-react';
+import { useTimeFormat } from '../../contexts/TimeFormatContext';
+import { auth, db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { toast } from 'react-toastify';
 
 // Styled components for layout
 const DashboardContainer = styled.div`
@@ -52,42 +52,22 @@ const Logo = styled.div`
   text-align: center;
 `;
 
-const NavLink = styled(Link)`
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  margin-bottom: 0.5rem;
-  cursor: pointer;
+const NavItem = styled.div`
   display: flex;
   align-items: center;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  color: #333;
-  text-decoration: none;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
   
   &:hover {
-    background-color: rgba(110, 142, 251, 0.1);
+    background-color: rgba(255, 255, 255, 0.1);
   }
   
   &.active {
-    background-color: rgba(110, 142, 251, 0.2);
-    color: #6e8efb;
-    font-weight: 500;
-  }
-`;
-
-const ActionButton = styled.div`
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
-  margin-bottom: 0.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  font-size: 0.9rem;
-  transition: all 0.2s;
-  color: #333;
-  
-  &:hover {
-    background-color: rgba(110, 142, 251, 0.1);
+    background-color: rgba(255, 255, 255, 0.2);
+    font-weight: bold;
   }
 `;
 
@@ -112,7 +92,6 @@ const TimeFormatToggle = styled.button`
   }
 `;
 
-// Regular button component that doesn't use styled-components for the onClick handler
 const SidebarTimeButton = styled.button`
   display: flex;
   align-items: center;
@@ -331,6 +310,8 @@ const Button = styled.button`
 // Main layout component
 const DashboardLayout = ({ 
   user, 
+  activeTab, 
+  setActiveTab, 
   attendanceStatus, 
   loading, 
   handleTimeInOut, 
@@ -343,10 +324,6 @@ const DashboardLayout = ({
   // State for collapsible panels
   const [adminPanelExpanded, setAdminPanelExpanded] = useState(true);
   const [superAdminPanelExpanded, setSuperAdminPanelExpanded] = useState(true);
-  
-  // Get current location for active tab highlighting
-  const location = useLocation();
-  const currentPath = location.pathname;
 
   // Check if admin user has specific privileges
   const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
@@ -481,130 +458,62 @@ const DashboardLayout = ({
         <div style={{ marginBottom: '1.5rem' }}>
           <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Main Pages</p>
           
-          <NavLink 
-            to="/dashboard"
-            className={currentPath === '/dashboard' ? 'active' : ''}
+          <NavItem 
+            className={activeTab === 'home' ? 'active' : ''}
+            onClick={() => setActiveTab('home')}
           >
             <Icon><House size={16} /></Icon>
             Dashboard
-          </NavLink>
+          </NavItem>
           
-          <NavLink 
-            to="/schedule"
-            className={currentPath === '/schedule' ? 'active' : ''}
+          <NavItem 
+            className={activeTab === 'schedule' ? 'active' : ''}
+            onClick={() => setActiveTab('schedule')}
           >
             <Icon><Calendar size={16} /></Icon>
             Schedule
-          </NavLink>
+          </NavItem>
           
-          <NavLink 
-            to="/attendance"
-            className={currentPath === '/attendance' ? 'active' : ''}
+          <NavItem 
+            className={activeTab === 'attendance' ? 'active' : ''}
+            onClick={() => setActiveTab('attendance')}
           >
             <Icon><ClockClockwise size={16} /></Icon>
             Attendance Logs
-          </NavLink>
+          </NavItem>
           
-          <NavLink 
-            to="/profile"
-            className={currentPath === '/profile' ? 'active' : ''}
+          <NavItem 
+            className={activeTab === 'profile' ? 'active' : ''}
+            onClick={() => setActiveTab('profile')}
           >
             <Icon><UserCircle size={16} /></Icon>
             My Profile
-          </NavLink>
+          </NavItem>
         </div>
         
         {/* Admin Panel Section - For both admins and super admins */}
         {(userData?.role === 'admin' || isSuperAdmin) && (
           <div style={{ marginBottom: '1.5rem' }}>
-            <div 
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                cursor: 'pointer',
-                marginBottom: '0.75rem',
-                userSelect: 'none'
-              }}
-              onClick={() => setAdminPanelExpanded(!adminPanelExpanded)}
+            <NavItem 
+              className={activeTab === 'admin_panel' ? 'active' : ''}
+              onClick={() => navigate('/admin-panel')}
             >
-              <Icon>
-                {adminPanelExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
-              </Icon>
-              <p style={{ 
-                fontSize: '0.9rem', 
-                margin: 0, 
-                opacity: '0.8',
-                fontWeight: '500'
-              }}>
-                Admin Panel
-              </p>
-            </div>
-            
-            {adminPanelExpanded && (
-              <div style={{ paddingLeft: '0.5rem' }}>
-                {/* Registration Requests - Available to super admins and admins with permission */}
-                {(isSuperAdmin || canManageRegistrations) && (
-                  <NavLink 
-                    to="/registration-requests"
-                    className={currentPath === '/registration-requests' ? 'active' : ''}
-                  >
-                    <Icon><UserPlus size={16} /></Icon>
-                    Registration Requests
-                  </NavLink>
-                )}
-                
-                {/* User Management - Available to super admins and admins with permission */}
-                {(isSuperAdmin || canManageUsers) && (
-                  <NavLink 
-                    to="/user-management"
-                    className={currentPath === '/user-management' ? 'active' : ''}
-                  >
-                    <Icon><Users size={16} /></Icon>
-                    User Management
-                  </NavLink>
-                )}
-              </div>
-            )}
+              <Icon><Users size={16} /></Icon>
+              Admin Panel
+            </NavItem>
           </div>
         )}
         
         {/* Super Admin Panel Section - Only for super admins */}
         {isSuperAdmin && (
           <div style={{ marginBottom: '1.5rem' }}>
-            <div 
-              style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                cursor: 'pointer',
-                marginBottom: '0.75rem',
-                userSelect: 'none'
-              }}
-              onClick={() => setSuperAdminPanelExpanded(!superAdminPanelExpanded)}
+            <NavItem 
+              className={activeTab === 'super_admin_panel' ? 'active' : ''}
+              onClick={() => navigate('/super-admin-panel')}
             >
-              <Icon>
-                {superAdminPanelExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
-              </Icon>
-              <p style={{ 
-                fontSize: '0.9rem', 
-                margin: 0, 
-                opacity: '0.8',
-                fontWeight: '500'
-              }}>
-                Super Admin Panel
-              </p>
-            </div>
-            
-            {superAdminPanelExpanded && (
-              <div style={{ paddingLeft: '0.5rem' }}>
-                <NavLink 
-                  to="/admin-privileges"
-                  className={currentPath === '/admin-privileges' ? 'active' : ''}
-                >
-                  <Icon><Shield size={16} /></Icon>
-                  Admin Privileges
-                </NavLink>
-              </div>
-            )}
+              <Icon><Shield size={16} /></Icon>
+              Super Admin Panel
+            </NavItem>
           </div>
         )}
         
@@ -612,21 +521,20 @@ const DashboardLayout = ({
           <div style={{ marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>User Settings</p>
             
-            <ActionButton onClick={() => setShowTimeRegionModal(true)}>
+            <NavItem onClick={() => setShowTimeRegionModal(true)}>
               <Icon><GlobeHemisphereWest size={16} /></Icon>
               Change Time Region
               <div style={{ fontSize: '0.75rem', marginLeft: 'auto', opacity: 0.7 }}>
                 {userData?.timeRegion?.replace('_', ' ') || 'Asia/Manila'}
               </div>
-            </ActionButton>
+            </NavItem>
           </div>
           
           <div style={{ marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Attendance Actions</p>
             
             <TimeInSidebarButton 
-              type="button"
-              onClick={handleTimeInOut ? () => handleTimeInOut('In') : undefined} 
+              onClick={() => handleTimeInOut('In')} 
               disabled={loading || attendanceStatus === 'In'}
             >
               <Icon><SignIn size={16} /></Icon>
@@ -634,8 +542,7 @@ const DashboardLayout = ({
             </TimeInSidebarButton>
             
             <TimeOutSidebarButton 
-              type="button"
-              onClick={handleTimeInOut ? () => handleTimeInOut('Out') : undefined} 
+              onClick={() => handleTimeInOut('Out')} 
               disabled={loading || attendanceStatus === 'Out' || !attendanceStatus}
             >
               <Icon><SignOutIcon size={16} /></Icon>
@@ -649,23 +556,23 @@ const DashboardLayout = ({
             )}
           </div>
           
-          <ActionButton onClick={handleLogout}>
+          <NavItem onClick={handleLogout}>
             <Icon><SignOut size={16} /></Icon>
             Logout
-          </ActionButton>
+          </NavItem>
         </div>
       </Sidebar>
       
       <Content>
         <Header>
           <Title>
-            {currentPath === '/dashboard' && 'Dashboard'}
-            {currentPath === '/attendance' && 'Attendance'}
-            {currentPath === '/schedule' && 'Schedule'}
-            {currentPath === '/profile' && 'Profile'}
-            {currentPath === '/registration-requests' && 'Registration Requests'}
-            {currentPath === '/user-management' && 'User Management'}
-            {currentPath === '/admin-privileges' && 'Admin Privileges'}
+            {activeTab === 'dashboard' && 'Dashboard'}
+            {activeTab === 'attendance' && 'Attendance'}
+            {activeTab === 'schedule' && 'Schedule'}
+            {activeTab === 'profile' && 'Profile'}
+            {activeTab === 'registration_requests' && 'Registration Requests'}
+            {activeTab === 'user_management' && 'User Management'}
+            {activeTab === 'admin_privileges' && 'Admin Privileges'}
           </Title>
           
           <UserInfo>

@@ -12,9 +12,6 @@ import DashboardHome from '../components/dashboard/DashboardHome';
 import AttendanceView from '../components/dashboard/AttendanceView';
 import ScheduleView from '../components/dashboard/ScheduleView';
 import ProfileView from '../components/dashboard/ProfileView';
-import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
-import UserManagementView from '../components/dashboard/UserManagementView';
-import AdminPrivilegesView from '../components/dashboard/AdminPrivilegesView';
 
 // Styled components for confirmation modal
 const ConfirmationModal = styled.div`
@@ -153,6 +150,7 @@ const TextArea = styled.textarea`
 
 function Dashboard() {
   const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [lastRecord, setLastRecord] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -603,6 +601,8 @@ function Dashboard() {
     <>
       <DashboardLayout
         user={user}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         attendanceStatus={attendanceStatus}
         loading={loading}
         handleTimeInOut={handleTimeInOutClick}
@@ -611,10 +611,30 @@ function Dashboard() {
         userData={userData}
         setUserData={setUserData}
       >
+      {activeTab === 'dashboard' && (
         <DashboardHome 
           attendanceStatus={attendanceStatus} 
           lastRecord={lastRecord} 
         />
+      )}
+      
+      {activeTab === 'attendance' && (
+        <AttendanceView user={user} />
+      )}
+      
+      {activeTab === 'schedule' && (
+        <ScheduleView user={user} userData={userData} />
+      )}
+      
+      {activeTab === 'profile' && (
+        <ProfileView 
+          user={user} 
+          userData={userData} 
+          loadingUserData={loadingUserData} 
+        />
+      )}
+
+      {/* Admin and Super Admin components have been moved to separate pages */}
       </DashboardLayout>
       
       {/* Confirmation Modal */}
