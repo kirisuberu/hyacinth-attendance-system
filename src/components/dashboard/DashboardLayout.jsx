@@ -540,6 +540,15 @@ const DashboardLayout = ({
                     User Management
                   </NavItem>
                 )}
+                
+                {/* Reports - Available to all admins */}
+                <NavItem 
+                  className={activeTab === 'reports' ? 'active' : ''} 
+                  onClick={() => setActiveTab('reports')}
+                >
+                  <Icon><ChartBar size={16} /></Icon>
+                  Reports
+                </NavItem>
               </div>
             )}
           </div>

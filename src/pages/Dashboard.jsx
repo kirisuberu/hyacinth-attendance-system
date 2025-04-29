@@ -15,6 +15,7 @@ import ProfileView from '../components/dashboard/ProfileView';
 import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
 import UserManagementView from '../components/dashboard/UserManagementView';
 import AdminPrivilegesView from '../components/dashboard/AdminPrivilegesView';
+import ReportsView from '../components/dashboard/ReportsView';
 
 // Styled components for confirmation modal
 const ConfirmationModal = styled.div`
@@ -634,6 +635,10 @@ function Dashboard() {
         
         {activeTab === 'user_management' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false)) && (
           <UserManagementView isSuperAdmin={userData?.role === 'super_admin'} />
+        )}
+        
+        {activeTab === 'reports' && (userData?.role === 'super_admin' || userData?.role === 'admin') && (
+          <ReportsView />
         )}
         
         {activeTab === 'admin_privileges' && userData?.role === 'super_admin' && (
