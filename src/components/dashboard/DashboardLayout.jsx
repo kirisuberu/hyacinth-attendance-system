@@ -494,26 +494,94 @@ const DashboardLayout = ({
         {/* Admin Panel Section - For both admins and super admins */}
         {(userData?.role === 'admin' || isSuperAdmin) && (
           <div style={{ marginBottom: '1.5rem' }}>
-            <NavItem 
-              className={activeTab === 'admin_panel' ? 'active' : ''}
-              onClick={() => navigate('/admin-panel')}
+            <div 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                cursor: 'pointer',
+                marginBottom: '0.75rem',
+                userSelect: 'none'
+              }}
+              onClick={() => setAdminPanelExpanded(!adminPanelExpanded)}
             >
-              <Icon><Users size={16} /></Icon>
-              Admin Panel
-            </NavItem>
+              <Icon>
+                {adminPanelExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
+              </Icon>
+              <p style={{ 
+                fontSize: '0.9rem', 
+                margin: 0, 
+                opacity: '0.8',
+                fontWeight: '500'
+              }}>
+                Admin Panel
+              </p>
+            </div>
+            
+            {adminPanelExpanded && (
+              <div style={{ paddingLeft: '0.5rem' }}>
+                {/* Registration Requests - Available to super admins and admins with permission */}
+                {(isSuperAdmin || canManageRegistrations) && (
+                  <NavItem 
+                    className={activeTab === 'registration_requests' ? 'active' : ''}
+                    onClick={() => setActiveTab('registration_requests')}
+                  >
+                    <Icon><UserPlus size={16} /></Icon>
+                    Registration Requests
+                  </NavItem>
+                )}
+                
+                {/* User Management - Available to super admins and admins with permission */}
+                {(isSuperAdmin || canManageUsers) && (
+                  <NavItem 
+                    className={activeTab === 'user_management' ? 'active' : ''} 
+                    onClick={() => setActiveTab('user_management')}
+                  >
+                    <Icon><Users size={16} /></Icon>
+                    User Management
+                  </NavItem>
+                )}
+              </div>
+            )}
           </div>
         )}
         
         {/* Super Admin Panel Section - Only for super admins */}
         {isSuperAdmin && (
           <div style={{ marginBottom: '1.5rem' }}>
-            <NavItem 
-              className={activeTab === 'super_admin_panel' ? 'active' : ''}
-              onClick={() => navigate('/super-admin-panel')}
+            <div 
+              style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                cursor: 'pointer',
+                marginBottom: '0.75rem',
+                userSelect: 'none'
+              }}
+              onClick={() => setSuperAdminPanelExpanded(!superAdminPanelExpanded)}
             >
-              <Icon><Shield size={16} /></Icon>
-              Super Admin Panel
-            </NavItem>
+              <Icon>
+                {superAdminPanelExpanded ? <CaretDown size={16} /> : <CaretRight size={16} />}
+              </Icon>
+              <p style={{ 
+                fontSize: '0.9rem', 
+                margin: 0, 
+                opacity: '0.8',
+                fontWeight: '500'
+              }}>
+                Super Admin Panel
+              </p>
+            </div>
+            
+            {superAdminPanelExpanded && (
+              <div style={{ paddingLeft: '0.5rem' }}>
+                <NavItem 
+                  className={activeTab === 'admin_privileges' ? 'active' : ''} 
+                  onClick={() => setActiveTab('admin_privileges')}
+                >
+                  <Icon><Shield size={16} /></Icon>
+                  Admin Privileges
+                </NavItem>
+              </div>
+            )}
           </div>
         )}
         

@@ -12,6 +12,9 @@ import DashboardHome from '../components/dashboard/DashboardHome';
 import AttendanceView from '../components/dashboard/AttendanceView';
 import ScheduleView from '../components/dashboard/ScheduleView';
 import ProfileView from '../components/dashboard/ProfileView';
+import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
+import UserManagementView from '../components/dashboard/UserManagementView';
+import AdminPrivilegesView from '../components/dashboard/AdminPrivilegesView';
 
 // Styled components for confirmation modal
 const ConfirmationModal = styled.div`
@@ -150,7 +153,18 @@ const TextArea = styled.textarea`
 
 function Dashboard() {
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Initialize activeTab from localStorage or default to 'dashboard'
+  const [activeTab, setActiveTab] = useState(() => {
+    // Try to get the saved tab from localStorage
+    const savedTab = localStorage.getItem('activeTab');
+    return savedTab || 'dashboard';
+  });
+  
+  // Update localStorage when activeTab changes
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    localStorage.setItem('activeTab', tab);
+  };
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [lastRecord, setLastRecord] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -599,10 +613,10 @@ function Dashboard() {
 
   return (
     <>
-      <DashboardLayout
+      <DashboardLayout 
         user={user}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         attendanceStatus={attendanceStatus}
         loading={loading}
         handleTimeInOut={handleTimeInOutClick}
@@ -611,30 +625,40 @@ function Dashboard() {
         userData={userData}
         setUserData={setUserData}
       >
-      {activeTab === 'dashboard' && (
-        <DashboardHome 
-          attendanceStatus={attendanceStatus} 
-          lastRecord={lastRecord} 
-        />
-      )}
-      
-      {activeTab === 'attendance' && (
-        <AttendanceView user={user} />
-      )}
-      
-      {activeTab === 'schedule' && (
-        <ScheduleView user={user} userData={userData} />
-      )}
-      
-      {activeTab === 'profile' && (
-        <ProfileView 
-          user={user} 
-          userData={userData} 
-          loadingUserData={loadingUserData} 
-        />
-      )}
+        {activeTab === 'dashboard' && (
+          <DashboardHome 
+            attendanceStatus={attendanceStatus} 
+            lastRecord={lastRecord} 
+          />
+        )}
 
-      {/* Admin and Super Admin components have been moved to separate pages */}
+        {activeTab === 'attendance' && (
+          <AttendanceView user={user} />
+        )}
+        
+        {activeTab === 'schedule' && (
+          <ScheduleView user={user} userData={userData} />
+        )}
+        
+        {activeTab === 'profile' && (
+          <ProfileView 
+            user={user} 
+            userData={userData} 
+            loadingUserData={loadingUserData} 
+          />
+        )}
+
+        {activeTab === 'registration_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false)) && (
+          <RegistrationRequestsView />
+        )}
+        
+        {activeTab === 'user_management' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false)) && (
+          <UserManagementView isSuperAdmin={userData?.role === 'super_admin'} />
+        )}
+        
+        {activeTab === 'admin_privileges' && userData?.role === 'super_admin' && (
+          <AdminPrivilegesView />
+        )}
       </DashboardLayout>
       
       {/* Confirmation Modal */}

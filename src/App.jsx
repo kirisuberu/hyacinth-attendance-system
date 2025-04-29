@@ -7,8 +7,6 @@ import 'react-toastify/dist/ReactToastify.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import AdminPanel from './pages/AdminPanel';
-import SuperAdminPanel from './pages/SuperAdminPanel';
 import './App.css';
 
 import { AuthProvider } from './contexts/AuthContext';
@@ -53,22 +51,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Dashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin-panel" 
-                element={
-                  <ProtectedRoute>
-                    <AdminPanel />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/super-admin-panel" 
-                element={
-                  <ProtectedRoute>
-                    <SuperAdminPanel />
                   </ProtectedRoute>
                 } 
               />
