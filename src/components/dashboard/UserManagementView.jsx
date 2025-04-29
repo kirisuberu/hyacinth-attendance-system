@@ -970,7 +970,7 @@ function UserManagementView({ isSuperAdmin }) {
                       onClick={() => handleEditClick(user)}
                       title="Edit User"
                     >
-                      <PencilSimple size={20} />
+                      <Pencil size={20} />
                     </ActionButton>
                     <ActionButton 
                       color={user.status === 'active' ? '#f44336' : '#4caf50'}
