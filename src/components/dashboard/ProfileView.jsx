@@ -52,12 +52,13 @@ const ProfileField = styled.p`
 `;
 
 const FieldLabel = styled.strong`
-  min-width: 180px;
+  min-width: 200px;
   display: flex;
   align-items: center;
   gap: 10px;
   color: #444;
   font-weight: 500;
+  margin-right: 15px;
 `;
 
 const SectionTitle = styled.h3`
@@ -260,6 +261,15 @@ const ProfileRole = styled.div`
                   Email:
                 </FieldLabel>
                 <FieldValue>{user?.email}</FieldValue>
+              </ProfileField>
+              <ProfileField>
+                <FieldLabel>
+                  <Calendar size={18} weight="bold" />
+                  Date Hired:
+                </FieldLabel>
+                <FieldValue>
+                  {userData?.dateHired ? formatTimestamp(userData.dateHired) : 'Not specified'}
+                </FieldValue>
               </ProfileField>
             </FullWidthSection>
             
