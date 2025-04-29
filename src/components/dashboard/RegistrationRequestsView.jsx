@@ -6,7 +6,8 @@ import {
   getRegistrationRequests,
   updateRegistrationRequest,
   approveRegistrationRequest,
-  declineRegistrationRequest
+  declineRegistrationRequest,
+  listenToRegistrationRequests
 } from '../../services/registrationService';
 import { 
   CheckCircle, 
@@ -316,19 +317,37 @@ const RegistrationRequestsView = () => {
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
-    fetchRegistrationRequests();
+    // Set up real-time listener for registration requests
+    setLoading(true);
+    const unsubscribe = listenToRegistrationRequests(
+      // onUpdate callback
+      (requestsData) => {
+        setRequests(requestsData);
+        setLoading(false);
+        console.log('Real-time registration requests update:', requestsData.length);
+      },
+      // onError callback
+      (error) => {
+        console.error('Error in registration requests listener:', error);
+        toast.error('Failed to load registration requests');
+        setLoading(false);
+      }
+    );
+    
+    // Cleanup listener on unmount
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
-
+  
+  // Legacy function for backward compatibility
   const fetchRegistrationRequests = async () => {
     try {
-      setLoading(true);
       const requestsData = await getRegistrationRequests();
       setRequests(requestsData);
     } catch (error) {
       console.error('Error fetching registration requests:', error);
       toast.error('Failed to load registration requests');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -337,9 +356,7 @@ const RegistrationRequestsView = () => {
       setProcessing(true);
       await approveRegistrationRequest(request);
       toast.success(`Registration for ${request.name || request.email} approved`);
-      
-      // Refresh the list
-      fetchRegistrationRequests();
+      // No need to refresh the list - real-time listener will update automatically
     } catch (error) {
       console.error('Error approving registration:', error);
       toast.error('Failed to approve registration');
@@ -359,9 +376,7 @@ const RegistrationRequestsView = () => {
         'Note: The user may still exist in Firebase Authentication. ' +
         'They will be blocked from accessing the system, but the account still exists.'
       );
-      
-      // Refresh the list
-      fetchRegistrationRequests();
+      // No need to refresh the list - real-time listener will update automatically
     } catch (error) {
       console.error('Error declining registration:', error);
       toast.error('Failed to decline registration');

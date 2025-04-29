@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Card, CardTitle, CardContent, StatusBadge } from './DashboardComponents';
 import styled from 'styled-components';
@@ -72,34 +72,33 @@ const AttendanceView = ({ user }) => {
   const [userData, setUserData] = useState(null);
   const { use24HourFormat } = useTimeFormat();
 
+  // Setup real-time listeners when component mounts
   useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user?.uid) return;
-      
-      try {
-        // Fetch user data to get schedule
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data());
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      }
-    };
+    if (!user?.uid) return;
     
-    const fetchAttendanceRecords = async () => {
-      if (!user?.uid) return;
-      
+    let userUnsubscribe = null;
+    let attendanceUnsubscribe = null;
+    
+    // Set up real-time listener for user data
+    const userDocRef = doc(db, 'users', user.uid);
+    userUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
+      if (userDoc.exists()) {
+        setUserData(userDoc.data());
+      }
+    }, (error) => {
+      console.error('Error in user data listener:', error);
+    });
+    
+    // Set up real-time listener for attendance records
+    setLoading(true);
+    const attendanceRef = collection(db, 'attendance');
+    const q = query(
+      attendanceRef,
+      where('userId', '==', user.uid)
+    );
+    
+    attendanceUnsubscribe = onSnapshot(q, (querySnapshot) => {
       try {
-        setLoading(true);
-        const attendanceRef = collection(db, 'attendance');
-        const q = query(
-          attendanceRef,
-          where('userId', '==', user.uid),
-          orderBy('timestamp', 'desc') // Changed back to descending for consistency
-        );
-        
-        const querySnapshot = await getDocs(q);
         const rawRecords = [];
         
         querySnapshot.forEach((doc) => {
@@ -109,7 +108,7 @@ const AttendanceView = ({ user }) => {
           });
         });
         
-        console.log('Raw attendance records:', rawRecords.length);
+        console.log('Real-time attendance records update:', rawRecords.length);
         
         if (rawRecords.length === 0) {
           // If there are no records, set empty array and return
@@ -123,15 +122,21 @@ const AttendanceView = ({ user }) => {
         console.log('Processed attendance records:', processedRecords.length);
         setAttendanceRecords(processedRecords);
       } catch (error) {
-        console.error('Error fetching attendance records:', error);
+        console.error('Error processing attendance records:', error);
       } finally {
         setLoading(false);
       }
-    };
+    }, (error) => {
+      console.error('Error in attendance listener:', error);
+      setLoading(false);
+    });
     
-    fetchUserData();
-    fetchAttendanceRecords();
-  }, [user]);
+    // Cleanup listeners on unmount
+    return () => {
+      if (userUnsubscribe) userUnsubscribe();
+      if (attendanceUnsubscribe) attendanceUnsubscribe();
+    };
+  }, [user?.uid]);
   
   // Function to process and pair IN/OUT records
   const processAttendanceRecords = (records) => {

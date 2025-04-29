@@ -10,7 +10,8 @@ import {
   serverTimestamp, 
   query,
   where,
-  orderBy
+  orderBy,
+  onSnapshot
 } from 'firebase/firestore';
 import { deleteUser, getAuth } from 'firebase/auth';
 import { db } from '../firebase';
@@ -50,14 +51,57 @@ export const getRegistrationRequests = async () => {
       orderBy('createdAt', 'desc')
     );
     
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const querySnapshot = await getDocs(q);
+    const requests = [];
+    
+    querySnapshot.forEach((doc) => {
+      requests.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+    
+    return requests;
   } catch (error) {
     console.error('Error getting registration requests:', error);
     throw error;
+  }
+};
+
+/**
+ * Set up a real-time listener for registration requests
+ * @param {Function} onUpdate - Callback function that receives the updated requests array
+ * @param {Function} onError - Callback function that receives any errors
+ * @returns {Function} - Unsubscribe function to stop the listener
+ */
+export const listenToRegistrationRequests = (onUpdate, onError) => {
+  try {
+    const q = query(
+      collection(db, 'registration_requests'),
+      orderBy('createdAt', 'desc')
+    );
+    
+    // Set up real-time listener
+    return onSnapshot(q, (querySnapshot) => {
+      const requests = [];
+      
+      querySnapshot.forEach((doc) => {
+        requests.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      // Call the callback with the updated data
+      onUpdate(requests);
+    }, (error) => {
+      console.error('Error in registration requests listener:', error);
+      if (onError) onError(error);
+    });
+  } catch (error) {
+    console.error('Error setting up registration requests listener:', error);
+    if (onError) onError(error);
+    return () => {}; // Return empty function as fallback
   }
 };
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
@@ -208,168 +208,148 @@ function Dashboard() {
     }
   }, []);
   
-  // Fetch additional user data from Firestore
-  const fetchUserData = async (userId) => {
+  // Fetch additional user data from Firestore with real-time updates
+  const fetchUserData = (userId) => {
     if (!userId) return;
     
-    try {
-      setLoadingUserData(true);
-      
-      // First, check if this user has been declined or blocked
-      try {
-        // Query the declined_registrations collection to see if this user was declined
-        const declinedQuery = query(
-          collection(db, 'declined_registrations'),
-          where('userId', '==', userId)
-        );
-        const declinedSnapshot = await getDocs(declinedQuery);
-        
-        if (!declinedSnapshot.empty) {
-          // User was declined, sign them out and redirect to login
-          toast.error('Your registration request has been declined. Please contact an administrator.');
-          await auth.signOut();
-          navigate('/login');
-          return;
-        }
-      } catch (error) {
-        console.error('Error checking declined status:', error);
+    setLoadingUserData(true);
+    
+    // First, check if this user has been declined or blocked
+    const declinedQuery = query(
+      collection(db, 'declined_registrations'),
+      where('userId', '==', userId)
+    );
+    
+    // Real-time listener for declined status
+    const declinedUnsubscribe = onSnapshot(declinedQuery, (declinedSnapshot) => {
+      if (!declinedSnapshot.empty) {
+        // User was declined, sign them out and redirect to login
+        toast.error('Your registration request has been declined. Please contact an administrator.');
+        auth.signOut().then(() => navigate('/login'));
+        return;
       }
       
       // Check if this user has a pending registration request
-      try {
-        const pendingQuery = query(
-          collection(db, 'registration_requests'),
-          where('userId', '==', userId)
-        );
-        const pendingSnapshot = await getDocs(pendingQuery);
-        
+      const pendingQuery = query(
+        collection(db, 'registration_requests'),
+        where('userId', '==', userId)
+      );
+      
+      // Real-time listener for pending status
+      const pendingUnsubscribe = onSnapshot(pendingQuery, (pendingSnapshot) => {
         if (!pendingSnapshot.empty) {
           // User has a pending request
           toast.info('Your registration request is pending approval. You will be notified when approved.');
-          await auth.signOut();
-          navigate('/login');
+          auth.signOut().then(() => navigate('/login'));
           return;
         }
-      } catch (error) {
-        console.error('Error checking pending status:', error);
-      }
-      
-      // If we get here, check for the user in the users collection
-      const userDocRef = doc(db, 'users', userId);
-      const userDocSnap = await getDoc(userDocRef);
-      
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        setUserData(userData);
-      } else {
-        console.log('No user data found in Firestore');
         
-        // If we get here, the user is authenticated but has no data in Firestore
-        // This could be a new user or a user whose data was deleted
-        toast.error('Your account is not properly set up. Please contact an administrator.');
-        await auth.signOut();
-        navigate('/login');
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      toast.error('Error loading user data. Please try again later.');
-    } finally {
+        // If we get here, check for the user in the users collection
+        const userDocRef = doc(db, 'users', userId);
+        
+        // Real-time listener for user data
+        const userUnsubscribe = onSnapshot(userDocRef, (userDocSnap) => {
+          setLoadingUserData(false);
+          
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            setUserData(userData);
+          } else {
+            console.log('No user data found in Firestore');
+            
+            // If we get here, the user is authenticated but has no data in Firestore
+            toast.error('Your account is not properly set up. Please contact an administrator.');
+            auth.signOut().then(() => navigate('/login'));
+          }
+        }, (error) => {
+          console.error('Error fetching user data:', error);
+          toast.error('Error loading user data. Please try again later.');
+          setLoadingUserData(false);
+        });
+        
+        // Return cleanup function
+        return () => userUnsubscribe();
+      }, (error) => {
+        console.error('Error checking pending status:', error);
+        setLoadingUserData(false);
+      });
+      
+      // Return cleanup function
+      return () => pendingUnsubscribe();
+    }, (error) => {
+      console.error('Error checking declined status:', error);
       setLoadingUserData(false);
-    }
+    });
+    
+    // Return cleanup function
+    return () => declinedUnsubscribe();
   };
   
-  // Fetch user's attendance status
+  // Fetch user's attendance status with real-time updates
   useEffect(() => {
     if (user?.uid) {
-      fetchAttendanceStatus();
+      // Set up real-time listener for attendance status
+      const attendanceUnsubscribe = setupAttendanceListener();
+      
+      // Cleanup listener on unmount
+      return () => {
+        if (attendanceUnsubscribe) attendanceUnsubscribe();
+      };
     }
   }, [user]);
 
-  const fetchAttendanceStatus = async () => {
+  const setupAttendanceListener = () => {
+    if (!user?.uid) return null;
+    
+    // Query the latest attendance record for the user
+    const attendanceRef = collection(db, 'attendance');
+    
     try {
-      // Query the latest attendance record for the user
-      const attendanceRef = collection(db, 'attendance');
+      // Try with a simple query first (no ordering) to avoid index issues
+      const safeQuery = query(
+        attendanceRef,
+        where('userId', '==', user.uid)
+      );
       
-      try {
-        // First try with the index-dependent query
-        const q = query(
-          attendanceRef,
-          where('userId', '==', user.uid),
-          orderBy('timestamp', 'desc'),
-          limit(1)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const latestRecord = querySnapshot.docs[0].data();
-          setLastRecord(latestRecord);
-          setAttendanceStatus(latestRecord.type);
+      // Set up real-time listener with a simple query
+      return onSnapshot(safeQuery, (snapshot) => {
+        if (!snapshot.empty) {
+          // Manually find the latest record by comparing timestamps
+          let latestRecord = null;
+          let latestTime = new Date(0); // Start with oldest possible date
+          
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            const recordTime = data.timestamp?.toDate() || new Date(0);
+            
+            if (recordTime > latestTime) {
+              latestTime = recordTime;
+              latestRecord = data;
+            }
+          });
+          
+          if (latestRecord) {
+            setLastRecord(latestRecord);
+            setAttendanceStatus(latestRecord.type);
+          } else {
+            setAttendanceStatus(null);
+            setLastRecord(null);
+          }
         } else {
           // No attendance records found
           setAttendanceStatus(null);
           setLastRecord(null);
         }
-      } catch (indexError) {
-        // Check if this is an index building error
-        if (indexError.message && indexError.message.includes('index is currently building')) {
-          console.log('Index is still building, using fallback method');
-          
-          // Fallback: Get all attendance records for the user without ordering
-          const fallbackQuery = query(
-            attendanceRef,
-            where('userId', '==', user.uid)
-          );
-          
-          const fallbackSnapshot = await getDocs(fallbackQuery);
-          
-          if (!fallbackSnapshot.empty) {
-            // Manually find the latest record by comparing timestamps
-            let latestRecord = null;
-            let latestTime = new Date(0); // Start with oldest possible date
-            
-            fallbackSnapshot.forEach(doc => {
-              const data = doc.data();
-              const recordTime = data.timestamp?.toDate() || new Date(0);
-              
-              if (recordTime > latestTime) {
-                latestTime = recordTime;
-                latestRecord = data;
-              }
-            });
-            
-            if (latestRecord) {
-              setLastRecord(latestRecord);
-              setAttendanceStatus(latestRecord.type);
-            } else {
-              setAttendanceStatus(null);
-              setLastRecord(null);
-            }
-          } else {
-            // No attendance records found
-            setAttendanceStatus(null);
-            setLastRecord(null);
-          }
-          
-          // Show a more user-friendly message
-          toast.info('System is updating. Some features may be temporarily limited.', {
-            autoClose: 5000,
-            hideProgressBar: false,
-          });
-        } else {
-          // This is some other error, rethrow it
-          throw indexError;
-        }
-      }
+      }, (error) => {
+        console.error('Error in attendance listener:', error);
+        setAttendanceStatus(null);
+        setLastRecord(null);
+      });
     } catch (error) {
-      console.error('Error fetching attendance status:', error);
-      
-      // More user-friendly error message
-      if (error.message && error.message.includes('index')) {
-        toast.warning('System is updating attendance records. Please try again in a few minutes.');
-      } else {
-        toast.error('Unable to fetch your attendance status. Please refresh the page.');
-      }
+      console.error('Error setting up attendance listener:', error);
+      setAttendanceStatus(null);
+      setLastRecord(null);
+      return null;
     }
   };
   

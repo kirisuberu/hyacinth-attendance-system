@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
 import { Trash, PencilSimple, Check, X, Users, Calendar, Clock, UserCircle, Plus, FloppyDisk, ArrowLeft, ArrowRight } from 'phosphor-react';
@@ -366,30 +366,45 @@ function UserManagementView({ isSuperAdmin }) {
   };
 
   useEffect(() => {
-    fetchUsers();
+    // Set up real-time listener for users collection
+    const unsubscribe = setupUsersListener();
+    
+    // Cleanup listener on unmount
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
-  const fetchUsers = async () => {
+  const setupUsersListener = () => {
     try {
       setLoading(true);
       const usersCollection = collection(db, 'users');
-      const userSnapshot = await getDocs(usersCollection);
-      const usersList = userSnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          // Store both the document ID and the userId field if it exists
-          id: doc.id,
-          userId: data.userId || doc.id, // Ensure we have a userId, fallback to doc.id
-          ...data,
-          schedule: data.schedule || []
-        };
+      
+      // Set up real-time listener
+      return onSnapshot(usersCollection, (snapshot) => {
+        const usersList = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            // Store both the document ID and the userId field if it exists
+            id: doc.id,
+            userId: data.userId || doc.id, // Ensure we have a userId, fallback to doc.id
+            ...data,
+            schedule: data.schedule || []
+          };
+        });
+        setUsers(usersList);
+        setLoading(false);
+        console.log('Real-time users data update:', usersList.length);
+      }, (error) => {
+        console.error('Error in users listener:', error);
+        toast.error('Failed to load users');
+        setLoading(false);
       });
-      setUsers(usersList);
-      setLoading(false);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error setting up users listener:', error);
       toast.error('Failed to load users');
       setLoading(false);
+      return null;
     }
   };
 
