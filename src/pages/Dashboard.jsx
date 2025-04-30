@@ -423,6 +423,41 @@ function Dashboard() {
     try {
       const timestamp = Timestamp.now();
       const status = await determineStatus(type, user.uid);
+      let timeDiff = null;
+      
+      // Calculate time difference for early/late status
+      if (type === 'In') {
+        try {
+          // Fetch user's schedule from Firestore
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            const userSchedule = userData.schedule || [];
+            
+            const now = new Date();
+            const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+            
+            // Find today's schedule if it exists
+            const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
+              userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+            
+            if (todaySchedule) {
+              // Parse schedule time
+              const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
+              
+              // Create Date objects for comparison
+              const scheduleDate = new Date();
+              scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+              
+              // Calculate time difference in minutes
+              timeDiff = Math.round((now - scheduleDate) / (1000 * 60));
+              console.log('Time difference in minutes (modal):', timeDiff);
+            }
+          }
+        } catch (error) {
+          console.error('Error calculating time difference for modal:', error);
+        }
+      }
       
       // Create attendance data object
       const attendanceData = {
@@ -432,7 +467,8 @@ function Dashboard() {
         type,
         status,
         timestamp,
-        notes: ''
+        notes: '',
+        timeDiff: timeDiff
       };
       
       // Reset notes field and store the pending attendance data
