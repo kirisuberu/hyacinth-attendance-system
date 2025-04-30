@@ -375,7 +375,6 @@ const AttendanceView = ({ user }) => {
                   </td>
                 </tr>
               ))}
-
             </tbody>
           </AttendanceTable>
         ) : (
