@@ -467,8 +467,8 @@ const DashboardLayout = ({
           <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Main Pages</p>
           
           <NavItem 
-            className={activeTab === 'home' ? 'active' : ''}
-            onClick={() => setActiveTab('home')}
+            className={activeTab === 'dashboard' ? 'active' : ''}
+            onClick={() => setActiveTab('dashboard')}
           >
             <Icon><House size={16} /></Icon>
             Dashboard
