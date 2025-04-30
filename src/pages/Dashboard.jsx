@@ -707,7 +707,7 @@ function Dashboard() {
           <ReportsView />
         )}
         
-        {activeTab === 'attendance_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false)) && (
+        {activeTab === 'attendance_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageAttendanceRequests !== false)) && (
           <AttendanceRequestsView />
         )}
         
