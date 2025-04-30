@@ -453,7 +453,10 @@ const DashboardLayout = ({
   return (
     <DashboardContainer>
       <Sidebar>
-        <Logo>Hyacinth</Logo>
+        <Logo>
+          <img src="/logo.png" alt="Hyacinth Logo" style={{ height: '24px', marginRight: '10px' }} />
+          Hyacinth Hub
+        </Logo>
         
         {/* Main Navigation Section */}
         <div style={{ marginBottom: '1.5rem' }}>
