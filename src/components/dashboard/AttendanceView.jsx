@@ -298,8 +298,8 @@ const AttendanceView = ({ user }) => {
               <tr>
                 <th>Date</th>
                 <th>Day</th>
-                <th colSpan="2">IN</th>
-                <th colSpan="2">OUT</th>
+                <th colSpan="3">IN</th>
+                <th colSpan="3">OUT</th>
                 <th>Notes</th>
               </tr>
               <tr>
@@ -307,8 +307,10 @@ const AttendanceView = ({ user }) => {
                 <th></th>
                 <th>Time</th>
                 <th>Status</th>
+                <th>Difference</th>
                 <th>Time</th>
                 <th>Status</th>
+                <th>Duration</th>
                 <th></th>
               </tr>
             </thead>
@@ -327,14 +329,34 @@ const AttendanceView = ({ user }) => {
                       </StatusTag>
                     ) : '-'}
                   </td>
+                  <td>
+                    {record.inRecord && record.inRecord.timeDiff !== undefined && ['Early', 'Late'].includes(calculateTimeInStatus(record.inRecord, record.date)) ? (
+                      <>
+                        {Math.abs(record.inRecord.timeDiff) >= 60 ? 
+                          `${Math.floor(Math.abs(record.inRecord.timeDiff) / 60)}h ${Math.abs(record.inRecord.timeDiff) % 60}m` : 
+                          `${Math.abs(record.inRecord.timeDiff)}m`
+                        }
+                      </>
+                    ) : '-'}
+                  </td>
                   
                   {/* OUT record */}
                   <td>{record.outRecord ? formatTime(record.outRecord.timestamp) : '-'}</td>
                   <td>
                     {record.outRecord ? (
-                      <StatusTag status="Complete">
-                        Complete
+                      <StatusTag status={record.outRecord.status || "Complete"}>
+                        {record.outRecord.status || "Complete"}
                       </StatusTag>
+                    ) : '-'}
+                  </td>
+                  <td>
+                    {record.outRecord && record.outRecord.timeDiff !== undefined ? (
+                      <>
+                        {Math.abs(record.outRecord.timeDiff) >= 60 ? 
+                          `${Math.floor(Math.abs(record.outRecord.timeDiff) / 60)}h ${Math.abs(record.outRecord.timeDiff) % 60}m` : 
+                          `${Math.abs(record.outRecord.timeDiff)}m`
+                        }
+                      </>
                     ) : '-'}
                   </td>
                   
@@ -353,6 +375,7 @@ const AttendanceView = ({ user }) => {
                   </td>
                 </tr>
               ))}
+
             </tbody>
           </AttendanceTable>
         ) : (
