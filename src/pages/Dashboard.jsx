@@ -701,7 +701,10 @@ function Dashboard() {
               {pendingAttendance.timeDiff !== undefined && ['Early', 'Late', 'Incomplete'].includes(pendingAttendance.status) && (
                 <p>
                   <strong>Time Difference:</strong> {' '}
-                  {Math.abs(pendingAttendance.timeDiff)} minutes {pendingAttendance.status === 'Early' ? 'before scheduled time' : 
+                  {Math.abs(pendingAttendance.timeDiff) >= 60 ? 
+                    `${Math.floor(Math.abs(pendingAttendance.timeDiff) / 60)} hour${Math.floor(Math.abs(pendingAttendance.timeDiff) / 60) !== 1 ? 's' : ''} ${Math.abs(pendingAttendance.timeDiff) % 60 > 0 ? `${Math.abs(pendingAttendance.timeDiff) % 60} minute${Math.abs(pendingAttendance.timeDiff) % 60 !== 1 ? 's' : ''}` : ''}` : 
+                    `${Math.abs(pendingAttendance.timeDiff)} minute${Math.abs(pendingAttendance.timeDiff) !== 1 ? 's' : ''}`
+                  } {pendingAttendance.status === 'Early' ? 'before scheduled time' : 
                     pendingAttendance.status === 'Late' ? 'after scheduled time' : 
                     'short of required shift duration'}
                 </p>
