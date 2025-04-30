@@ -46,6 +46,8 @@ const StatusTag = styled.span`
     if (props.status === 'Late') return '#ffebee';
     if (props.status === 'Complete') return '#e8f5e9';
     if (props.status === 'Incomplete') return '#fff8e1';
+    if (props.status === 'Overtime') return '#e8f5e9';
+    if (props.status === 'Multi-Day') return '#f3e5f5';
     return '#f5f5f5';
   }};
   color: ${props => {
@@ -54,6 +56,8 @@ const StatusTag = styled.span`
     if (props.status === 'Late') return '#c62828';
     if (props.status === 'Complete') return '#2e7d32';
     if (props.status === 'Incomplete') return '#ef6c00';
+    if (props.status === 'Overtime') return '#2e7d32';
+    if (props.status === 'Multi-Day') return '#7b1fa2';
     return '#757575';
   }};
   border: 1px solid ${props => {
@@ -62,6 +66,8 @@ const StatusTag = styled.span`
     if (props.status === 'Late') return '#ffcdd2';
     if (props.status === 'Complete') return '#c8e6c9';
     if (props.status === 'Incomplete') return '#ffe0b2';
+    if (props.status === 'Overtime') return '#a5d6a7';
+    if (props.status === 'Multi-Day') return '#e1bee7';
     return '#eeeeee';
   }};
 `;
@@ -140,33 +146,27 @@ const AttendanceView = ({ user }) => {
   
   // Function to process and pair IN/OUT records
   const processAttendanceRecords = (records) => {
-    // Group records by date
-    const recordsByDate = {};
+    // Sort records by timestamp (oldest first)
+    const sortedRecords = [...records].sort((a, b) => {
+      if (!a.timestamp || !b.timestamp) return 0;
+      return a.timestamp.toDate() - b.timestamp.toDate();
+    });
     
-    records.forEach(record => {
+    // Separate in and out records
+    const inRecords = [];
+    const outRecords = [];
+    
+    sortedRecords.forEach(record => {
       if (!record.timestamp) {
         console.log('Skipping record without timestamp:', record);
         return;
       }
       
       try {
-        const date = record.timestamp.toDate();
-        const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-        
-        if (!recordsByDate[dateKey]) {
-          recordsByDate[dateKey] = {
-            date: date,
-            day: getDayOfWeek(record.timestamp),
-            inRecord: null,
-            outRecord: null
-          };
-        }
-        
-        // Assign record to in or out slot
         if (record.type === 'In') {
-          recordsByDate[dateKey].inRecord = record;
+          inRecords.push(record);
         } else if (record.type === 'Out') {
-          recordsByDate[dateKey].outRecord = record;
+          outRecords.push(record);
         } else {
           console.log('Record with unknown type:', record.type, record);
         }
@@ -175,9 +175,63 @@ const AttendanceView = ({ user }) => {
       }
     });
     
-    // Convert to array and sort by date (most recent first)
-    const result = Object.values(recordsByDate).sort((a, b) => b.date - a.date);
-    console.log('Processed records by date:', result);
+    // Match each out record with its corresponding in record
+    const pairedRecords = [];
+    const processedInRecords = new Set();
+    
+    // First, try to match out records with their in records
+    outRecords.forEach(outRecord => {
+      // Find the most recent in record that happened before this out record
+      const matchingInRecord = [...inRecords]
+        .reverse()
+        .find(inRecord => {
+          const inTime = inRecord.timestamp.toDate();
+          const outTime = outRecord.timestamp.toDate();
+          return inTime < outTime && !processedInRecords.has(inRecord.id);
+        });
+      
+      if (matchingInRecord) {
+        processedInRecords.add(matchingInRecord.id);
+        
+        const inDate = matchingInRecord.timestamp.toDate();
+        
+        pairedRecords.push({
+          date: inDate,
+          day: getDayOfWeek(matchingInRecord.timestamp),
+          inRecord: matchingInRecord,
+          outRecord: outRecord,
+          isMultiDay: inDate.toDateString() !== outRecord.timestamp.toDate().toDateString()
+        });
+      } else {
+        // If no matching in record found, create an entry with just the out record
+        const outDate = outRecord.timestamp.toDate();
+        pairedRecords.push({
+          date: outDate,
+          day: getDayOfWeek(outRecord.timestamp),
+          inRecord: null,
+          outRecord: outRecord,
+          isMultiDay: false
+        });
+      }
+    });
+    
+    // Add any remaining in records that don't have matching out records
+    inRecords.forEach(inRecord => {
+      if (!processedInRecords.has(inRecord.id)) {
+        const inDate = inRecord.timestamp.toDate();
+        pairedRecords.push({
+          date: inDate,
+          day: getDayOfWeek(inRecord.timestamp),
+          inRecord: inRecord,
+          outRecord: null,
+          isMultiDay: false
+        });
+      }
+    });
+    
+    // Sort by date (most recent first)
+    const result = pairedRecords.sort((a, b) => b.date - a.date);
+    console.log('Processed attendance records:', result);
     return result;
   };
 
@@ -318,7 +372,12 @@ const AttendanceView = ({ user }) => {
               {attendanceRecords.map((record, index) => (
                 <tr key={index}>
                   <td>{formatDate(record.date)}</td>
-                  <td>{record.day}</td>
+                  <td>
+                    {record.day}
+                    {record.isMultiDay && (
+                      <StatusTag status="Multi-Day">Multi-Day</StatusTag>
+                    )}
+                  </td>
                   
                   {/* IN record */}
                   <td>{record.inRecord ? formatTime(record.inRecord.timestamp) : '-'}</td>
@@ -341,7 +400,18 @@ const AttendanceView = ({ user }) => {
                   </td>
                   
                   {/* OUT record */}
-                  <td>{record.outRecord ? formatTime(record.outRecord.timestamp) : '-'}</td>
+                  <td>
+                    {record.outRecord ? (
+                      <>
+                        {formatTime(record.outRecord.timestamp)}
+                        {record.isMultiDay && (
+                          <div style={{ fontSize: '0.8rem', color: '#7b1fa2' }}>
+                            {formatDate(record.outRecord.timestamp.toDate())}
+                          </div>
+                        )}
+                      </>
+                    ) : '-'}
+                  </td>
                   <td>
                     {record.outRecord ? (
                       <StatusTag status={record.outRecord.status || "Complete"}>
@@ -350,7 +420,24 @@ const AttendanceView = ({ user }) => {
                     ) : '-'}
                   </td>
                   <td>
-                    {record.outRecord && record.outRecord.timeDiff !== undefined ? (
+                    {record.inRecord && record.outRecord ? (
+                      <>
+                        {(() => {
+                          // Calculate time difference between in and out
+                          const inTime = record.inRecord.timestamp.toDate();
+                          const outTime = record.outRecord.timestamp.toDate();
+                          const diffMinutes = Math.round((outTime - inTime) / (1000 * 60));
+                          
+                          if (diffMinutes >= 60) {
+                            const hours = Math.floor(diffMinutes / 60);
+                            const minutes = diffMinutes % 60;
+                            return `${hours}h ${minutes}m`;
+                          } else {
+                            return `${diffMinutes}m`;
+                          }
+                        })()} 
+                      </>
+                    ) : record.outRecord && record.outRecord.timeDiff !== undefined ? (
                       <>
                         {Math.abs(record.outRecord.timeDiff) >= 60 ? 
                           `${Math.floor(Math.abs(record.outRecord.timeDiff) / 60)}h ${Math.abs(record.outRecord.timeDiff) % 60}m` : 

@@ -547,28 +547,57 @@ function Dashboard() {
             timeDiff = Math.round((now - lastTimeInDate) / (1000 * 60));
             console.log('Time worked in minutes:', timeDiff);
             
+            // Check if this is a multi-day shift
+            const isMultiDayShift = lastTimeInDate.toDateString() !== now.toDateString();
+            console.log('Is multi-day shift:', isMultiDayShift);
+            
+            // Store the multi-day flag in the attendance record
+            pendingAttendance.isMultiDay = isMultiDayShift;
+            
             // Determine if shift is complete based on scheduled duration
             const userDoc = await getDoc(doc(db, 'users', pendingAttendance.userId));
             if (userDoc.exists()) {
               const userData = userDoc.data();
               const userSchedule = userData.schedule || [];
               
-              const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][lastTimeInDate.getDay()];
+              const timeInDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][lastTimeInDate.getDay()];
               
               // Find the schedule for the day of the time in
               const daySchedule = userSchedule && Array.isArray(userSchedule) ?
-                userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+                userSchedule.find(s => s.dayOfWeek === timeInDay) : null;
               
               if (daySchedule && daySchedule.shiftDuration) {
                 const scheduledMinutes = daySchedule.shiftDuration * 60;
                 
-                // Update status based on scheduled duration
-                if (timeDiff < scheduledMinutes - 30) { // 30 minutes early
-                  pendingAttendance.status = 'Incomplete';
-                } else if (timeDiff > scheduledMinutes + 30) { // 30 minutes overtime
-                  pendingAttendance.status = 'Overtime';
+                // For multi-day shifts, we need to handle the calculation differently
+                if (isMultiDayShift) {
+                  // For multi-day shifts, consider the actual hours worked
+                  // If the shift spans multiple days, it's likely a night shift
+                  // We'll be more lenient with the status determination
+                  
+                  // Calculate the expected end time based on the start time and shift duration
+                  const expectedEndTime = new Date(lastTimeInDate);
+                  expectedEndTime.setMinutes(expectedEndTime.getMinutes() + scheduledMinutes);
+                  
+                  // Calculate the difference between the actual end time and expected end time
+                  const endTimeDiff = Math.round((now - expectedEndTime) / (1000 * 60));
+                  
+                  if (endTimeDiff < -30) { // More than 30 minutes early
+                    pendingAttendance.status = 'Incomplete';
+                  } else if (endTimeDiff > 30) { // More than 30 minutes overtime
+                    pendingAttendance.status = 'Overtime';
+                  } else { // Within 30 minutes of expected end time
+                    pendingAttendance.status = 'Complete';
+                  }
                 } else {
-                  pendingAttendance.status = 'Complete';
+                  // For same-day shifts, use the original logic
+                  if (timeDiff < scheduledMinutes - 30) { // 30 minutes early
+                    pendingAttendance.status = 'Incomplete';
+                  } else if (timeDiff > scheduledMinutes + 30) { // 30 minutes overtime
+                    pendingAttendance.status = 'Overtime';
+                  } else {
+                    pendingAttendance.status = 'Complete';
+                  }
                 }
               }
             }
