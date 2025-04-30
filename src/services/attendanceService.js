@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, Timestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, Timestamp, doc, getDoc, updateDoc, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 
 /**
@@ -388,64 +388,252 @@ export const markUserAbsent = async (userId) => {
 export const checkAndMarkAbsentUsers = async () => {
   try {
     // Get all users
-    const usersCollection = collection(db, 'users');
-    const userSnapshot = await getDocs(usersCollection);
+    const usersRef = collection(db, 'users');
+    const usersSnapshot = await getDocs(usersRef);
+    const users = usersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
     
     let absentCount = 0;
     
-    // Process each user
-    const promises = userSnapshot.docs.map(async (userDoc) => {
-      const userId = userDoc.id;
-      const userData = userDoc.data();
-      
+    // Check each user
+    for (const user of users) {
       // Skip users without schedules
-      if (!userData.schedule || !Array.isArray(userData.schedule) || userData.schedule.length === 0) {
-        return;
+      if (!user.schedule || !Array.isArray(user.schedule) || user.schedule.length === 0) {
+        continue;
       }
       
-      // Check if the user has a scheduled shift today
-      const hasShift = await hasScheduledShiftToday(userId);
-      if (!hasShift) {
-        return;
-      }
+      // Check if user has a scheduled shift today
+      const hasShiftToday = await hasScheduledShiftToday(user.id);
       
-      // Get the user's schedule for today
-      const now = new Date();
-      const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
-      const todaySchedule = userData.schedule.find(s => s.dayOfWeek === currentDay);
-      
-      if (!todaySchedule || !todaySchedule.timeIn || !todaySchedule.shiftDuration) {
-        return;
-      }
-      
-      // Calculate the end time of the shift
-      const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
-      const scheduleDate = new Date();
-      scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
-      
-      // Add the shift duration to get the end time
-      const shiftEndTime = new Date(scheduleDate);
-      shiftEndTime.setMinutes(shiftEndTime.getMinutes() + (todaySchedule.shiftDuration * 60));
-      
-      // If the current time is past the end of the shift and the user hasn't timed in
-      if (now > shiftEndTime) {
-        const timedIn = await hasTimedInToday(userId);
-        const hasAbsent = await hasAbsentRecordToday(userId);
+      if (hasShiftToday) {
+        // Check if user has already timed in today
+        const hasTimedIn = await hasTimedInToday(user.id);
         
-        if (!timedIn && !hasAbsent) {
-          // Mark the user as absent
-          const absentId = await markUserAbsent(userId);
+        // Check if user has already been marked absent today
+        const hasAbsentRecord = await hasAbsentRecordToday(user.id);
+        
+        // If user has not timed in and has not been marked absent, mark them as absent
+        if (!hasTimedIn && !hasAbsentRecord) {
+          const absentId = await markUserAbsent(user.id);
+          
           if (absentId) {
             absentCount++;
+            console.log(`Marked user ${user.id} as absent`);
           }
         }
       }
-    });
+    }
     
-    await Promise.all(promises);
     return absentCount;
   } catch (error) {
     console.error('Error checking and marking absent users:', error);
     return 0;
+  }
+};
+
+/**
+ * Get all attendance records with pagination and filtering options
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Maximum number of records to fetch
+ * @param {string} options.userId - Optional user ID to filter by
+ * @param {Date} options.startDate - Optional start date to filter by
+ * @param {Date} options.endDate - Optional end date to filter by
+ * @param {string} options.type - Optional record type to filter by ('In', 'Out', 'Absent')
+ * @returns {Promise<Array>} - Array of attendance records
+ */
+export const getAllAttendanceRecords = async (options = {}) => {
+  try {
+    const {
+      limit: recordLimit = 50,
+      userId = null,
+      startDate = null,
+      endDate = null,
+      type = null
+    } = options;
+    
+    // Start building the query
+    let attendanceRef = collection(db, 'attendance');
+    const filters = [];
+    
+    // Add filters if provided
+    if (userId) {
+      filters.push(where('userId', '==', userId));
+    }
+    
+    if (startDate) {
+      filters.push(where('timestamp', '>=', Timestamp.fromDate(new Date(startDate))));
+    }
+    
+    if (endDate) {
+      const endDateTime = new Date(endDate);
+      endDateTime.setHours(23, 59, 59, 999);
+      filters.push(where('timestamp', '<=', Timestamp.fromDate(endDateTime)));
+    }
+    
+    if (type) {
+      filters.push(where('type', '==', type));
+    }
+    
+    // Build the query with filters and order by timestamp (descending)
+    let q;
+    if (filters.length > 0) {
+      q = query(attendanceRef, ...filters, orderBy('timestamp', 'desc'), limit(recordLimit));
+    } else {
+      q = query(attendanceRef, orderBy('timestamp', 'desc'), limit(recordLimit));
+    }
+    
+    // Execute the query
+    const querySnapshot = await getDocs(q);
+    
+    // Process the results
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      // Add a formatted date string for easier display
+      formattedDate: doc.data().timestamp ? doc.data().timestamp.toDate().toLocaleString() : 'N/A'
+    }));
+  } catch (error) {
+    console.error('Error getting attendance records:', error);
+    throw error;
+  }
+};
+
+/**
+ * Override an attendance record with new values and track the change
+ * @param {string} recordId - The ID of the attendance record to override
+ * @param {Object} newData - The new data to apply to the record
+ * @param {string} adminId - The ID of the admin making the override
+ * @param {string} adminName - The name of the admin making the override
+ * @param {string} reason - The reason for the override
+ * @returns {Promise<string>} - The ID of the updated record
+ */
+export const overrideAttendanceRecord = async (recordId, newData, adminId, adminName, reason) => {
+  try {
+    // Get the current record to track changes
+    const recordRef = doc(db, 'attendance', recordId);
+    const recordSnapshot = await getDoc(recordRef);
+    
+    if (!recordSnapshot.exists()) {
+      throw new Error('Attendance record not found');
+    }
+    
+    const currentData = recordSnapshot.data();
+    
+    // Create a history entry to track the change
+    const historyData = {
+      attendanceId: recordId,
+      userId: currentData.userId,
+      userName: currentData.name,
+      previousData: currentData,
+      newData: { ...currentData, ...newData },
+      overriddenBy: {
+        id: adminId,
+        name: adminName
+      },
+      reason,
+      timestamp: Timestamp.now()
+    };
+    
+    // Add the history record
+    const historyRef = await addDoc(collection(db, 'attendance_history'), historyData);
+    
+    // Update the attendance record with new data and override info
+    await updateDoc(recordRef, {
+      ...newData,
+      overrideInfo: {
+        overriddenBy: adminName,
+        overriddenById: adminId,
+        overriddenAt: Timestamp.now(),
+        reason,
+        historyId: historyRef.id
+      },
+      isOverridden: true
+    });
+    
+    return recordId;
+  } catch (error) {
+    console.error('Error overriding attendance record:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get the override history for an attendance record
+ * @param {string} recordId - The ID of the attendance record
+ * @returns {Promise<Array>} - Array of override history entries
+ */
+export const getAttendanceOverrideHistory = async (recordId) => {
+  try {
+    const historyRef = collection(db, 'attendance_history');
+    const q = query(
+      historyRef,
+      where('attendanceId', '==', recordId),
+      orderBy('timestamp', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp ? doc.data().timestamp.toDate() : null
+    }));
+  } catch (error) {
+    console.error('Error getting attendance override history:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all attendance override history entries
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Maximum number of records to fetch
+ * @param {string} options.userId - Optional user ID to filter by
+ * @param {string} options.adminId - Optional admin ID to filter by
+ * @returns {Promise<Array>} - Array of override history entries
+ */
+export const getAllOverrideHistory = async (options = {}) => {
+  try {
+    const {
+      limit: recordLimit = 50,
+      userId = null,
+      adminId = null
+    } = options;
+    
+    // Start building the query
+    let historyRef = collection(db, 'attendance_history');
+    const filters = [];
+    
+    // Add filters if provided
+    if (userId) {
+      filters.push(where('userId', '==', userId));
+    }
+    
+    if (adminId) {
+      filters.push(where('overriddenBy.id', '==', adminId));
+    }
+    
+    // Build the query with filters and order by timestamp (descending)
+    let q;
+    if (filters.length > 0) {
+      q = query(historyRef, ...filters, orderBy('timestamp', 'desc'), limit(recordLimit));
+    } else {
+      q = query(historyRef, orderBy('timestamp', 'desc'), limit(recordLimit));
+    }
+    
+    // Execute the query
+    const querySnapshot = await getDocs(q);
+    
+    // Process the results
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      timestamp: doc.data().timestamp ? doc.data().timestamp.toDate() : null
+    }));
+  } catch (error) {
+    console.error('Error getting override history:', error);
+    throw error;
   }
 };
