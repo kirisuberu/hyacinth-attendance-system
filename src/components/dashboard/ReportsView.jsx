@@ -282,7 +282,8 @@ const ReportsView = () => {
         onTimeCount: 0,
         lateCount: 0,
         incompleteCount: 0,
-        completeCount: 0
+        completeCount: 0,
+        absentCount: 0
       };
     });
     
@@ -327,6 +328,7 @@ const ReportsView = () => {
         if (record.status === 'Late') userDataMap[userId].lateCount += 1;
         if (record.status === 'Incomplete') userDataMap[userId].incompleteCount += 1;
         if (record.status === 'Complete') userDataMap[userId].completeCount += 1;
+        if (record.type === 'Absent') userDataMap[userId].absentCount += 1;
       });
       
       // Calculate hours worked if we have both IN and OUT
@@ -370,6 +372,7 @@ const ReportsView = () => {
         'Early Count': user.earlyCount,
         'On Time Count': user.onTimeCount,
         'Late Count': user.lateCount,
+        'Absent Count': user.absentCount,
         'Complete Count': user.completeCount,
         'Incomplete Count': user.incompleteCount
       }));
@@ -436,7 +439,7 @@ const ReportsView = () => {
       
       // Create a sheet for each date
       Object.entries(recordsByDate).forEach(([dateKey, records]) => {
-        // Group records by user and type (IN/OUT)
+        // Group records by user and type (IN/OUT/Absent)
         const userRecords = {};
         
         records.forEach(record => {
@@ -447,15 +450,18 @@ const ReportsView = () => {
             userRecords[userId] = {
               name: record.name || 'Unknown',
               inRecord: null,
-              outRecord: null
+              outRecord: null,
+              absentRecord: null
             };
           }
           
-          // Assign record to in or out
+          // Assign record to in, out, or absent
           if (record.type === 'In') {
             userRecords[userId].inRecord = record;
           } else if (record.type === 'Out') {
             userRecords[userId].outRecord = record;
+          } else if (record.type === 'Absent') {
+            userRecords[userId].absentRecord = record;
           }
         });
         
@@ -472,6 +478,22 @@ const ReportsView = () => {
             timeDiff = diffMinutes;
           }
           
+          // If this is an absent record
+          if (user.absentRecord) {
+            return {
+              'Name': user.name,
+              'Time IN': 'N/A',
+              'IN Status': 'Absent',
+              'Time Difference': 'N/A',
+              'IN Notes': user.absentRecord.notes || '',
+              'Time OUT': 'N/A',
+              'OUT Status': 'N/A',
+              'Duration': 'N/A',
+              'OUT Notes': ''
+            };
+          }
+          
+          // For regular attendance records
           return {
             'Name': user.name,
             'Time IN': user.inRecord ? formatTime(user.inRecord.timestamp) : 'N/A',

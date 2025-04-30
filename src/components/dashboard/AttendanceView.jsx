@@ -48,6 +48,7 @@ const StatusTag = styled.span`
     if (props.status === 'Incomplete') return '#fff8e1';
     if (props.status === 'Overtime') return '#e8f5e9';
     if (props.status === 'Multi-Day') return '#f3e5f5';
+    if (props.status === 'Absent') return '#fce4ec';
     return '#f5f5f5';
   }};
   color: ${props => {
@@ -58,6 +59,7 @@ const StatusTag = styled.span`
     if (props.status === 'Incomplete') return '#ef6c00';
     if (props.status === 'Overtime') return '#2e7d32';
     if (props.status === 'Multi-Day') return '#7b1fa2';
+    if (props.status === 'Absent') return '#c2185b';
     return '#757575';
   }};
   border: 1px solid ${props => {
@@ -68,6 +70,7 @@ const StatusTag = styled.span`
     if (props.status === 'Incomplete') return '#ffe0b2';
     if (props.status === 'Overtime') return '#a5d6a7';
     if (props.status === 'Multi-Day') return '#e1bee7';
+    if (props.status === 'Absent') return '#f8bbd0';
     return '#eeeeee';
   }};
 `;
@@ -152,9 +155,10 @@ const AttendanceView = ({ user }) => {
       return a.timestamp.toDate() - b.timestamp.toDate();
     });
     
-    // Separate in and out records
+    // Separate in, out, and absent records
     const inRecords = [];
     const outRecords = [];
+    const absentRecords = [];
     
     sortedRecords.forEach(record => {
       if (!record.timestamp) {
@@ -167,6 +171,8 @@ const AttendanceView = ({ user }) => {
           inRecords.push(record);
         } else if (record.type === 'Out') {
           outRecords.push(record);
+        } else if (record.type === 'Absent') {
+          absentRecords.push(record);
         } else {
           console.log('Record with unknown type:', record.type, record);
         }
@@ -227,6 +233,19 @@ const AttendanceView = ({ user }) => {
           isMultiDay: false
         });
       }
+    });
+    
+    // Add absent records
+    absentRecords.forEach(absentRecord => {
+      const absentDate = absentRecord.timestamp.toDate();
+      pairedRecords.push({
+        date: absentDate,
+        day: getDayOfWeek(absentRecord.timestamp),
+        absentRecord: absentRecord,
+        inRecord: null,
+        outRecord: null,
+        isMultiDay: false
+      });
     });
     
     // Sort by date (most recent first)
@@ -337,6 +356,11 @@ const AttendanceView = ({ user }) => {
       return calculateTimeInStatus(record);
     }
     
+    // For absent records, return Absent
+    if (record.type === 'Absent') {
+      return 'Absent';
+    }
+    
     return 'N/A';
   };
 
@@ -379,87 +403,105 @@ const AttendanceView = ({ user }) => {
                     )}
                   </td>
                   
-                  {/* IN record */}
-                  <td>{record.inRecord ? formatTime(record.inRecord.timestamp) : '-'}</td>
-                  <td>
-                    {record.inRecord ? (
-                      <StatusTag status={calculateTimeInStatus(record.inRecord, record.date)}>
-                        {calculateTimeInStatus(record.inRecord, record.date)}
-                      </StatusTag>
-                    ) : '-'}
-                  </td>
-                  <td>
-                    {record.inRecord && record.inRecord.timeDiff !== undefined && ['Early', 'Late'].includes(calculateTimeInStatus(record.inRecord, record.date)) ? (
-                      <>
-                        {Math.abs(record.inRecord.timeDiff) >= 60 ? 
-                          `${Math.floor(Math.abs(record.inRecord.timeDiff) / 60)}h ${Math.abs(record.inRecord.timeDiff) % 60}m` : 
-                          `${Math.abs(record.inRecord.timeDiff)}m`
-                        }
-                      </>
-                    ) : '-'}
-                  </td>
-                  
-                  {/* OUT record */}
-                  <td>
-                    {record.outRecord ? (
-                      <>
-                        {formatTime(record.outRecord.timestamp)}
-                        {record.isMultiDay && (
-                          <div style={{ fontSize: '0.8rem', color: '#7b1fa2' }}>
-                            {formatDate(record.outRecord.timestamp.toDate())}
-                          </div>
-                        )}
-                      </>
-                    ) : '-'}
-                  </td>
-                  <td>
-                    {record.outRecord ? (
-                      <StatusTag status={record.outRecord.status || "Complete"}>
-                        {record.outRecord.status || "Complete"}
-                      </StatusTag>
-                    ) : '-'}
-                  </td>
-                  <td>
-                    {record.inRecord && record.outRecord ? (
-                      <>
-                        {(() => {
-                          // Calculate time difference between in and out
-                          const inTime = record.inRecord.timestamp.toDate();
-                          const outTime = record.outRecord.timestamp.toDate();
-                          const diffMinutes = Math.round((outTime - inTime) / (1000 * 60));
-                          
-                          if (diffMinutes >= 60) {
-                            const hours = Math.floor(diffMinutes / 60);
-                            const minutes = diffMinutes % 60;
-                            return `${hours}h ${minutes}m`;
-                          } else {
-                            return `${diffMinutes}m`;
-                          }
-                        })()} 
-                      </>
-                    ) : record.outRecord && record.outRecord.timeDiff !== undefined ? (
-                      <>
-                        {Math.abs(record.outRecord.timeDiff) >= 60 ? 
-                          `${Math.floor(Math.abs(record.outRecord.timeDiff) / 60)}h ${Math.abs(record.outRecord.timeDiff) % 60}m` : 
-                          `${Math.abs(record.outRecord.timeDiff)}m`
-                        }
-                      </>
-                    ) : '-'}
-                  </td>
-                  
-                  {/* Notes (combining both IN and OUT notes if available) */}
-                  <td>
-                    {record.inRecord?.notes && record.outRecord?.notes ? (
-                      <>
-                        <strong>IN:</strong> {record.inRecord.notes}<br/>
-                        <strong>OUT:</strong> {record.outRecord.notes}
-                      </>
-                    ) : record.inRecord?.notes ? (
-                      record.inRecord.notes
-                    ) : record.outRecord?.notes ? (
-                      record.outRecord.notes
-                    ) : '-'}
-                  </td>
+                  {/* Check if this is an absent record */}
+                  {record.absentRecord ? (
+                    <>
+                      {/* For absent records, span across all columns */}
+                      <td colSpan="6" style={{ textAlign: 'center' }}>
+                        <StatusTag status="Absent">Absent</StatusTag>
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+                          Missed scheduled shift on {formatDate(record.date)} at {formatTime(record.absentRecord.timestamp)}
+                        </div>
+                      </td>
+                      <td>
+                        {record.absentRecord.notes || '-'}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      {/* IN record */}
+                      <td>{record.inRecord ? formatTime(record.inRecord.timestamp) : '-'}</td>
+                      <td>
+                        {record.inRecord ? (
+                          <StatusTag status={calculateTimeInStatus(record.inRecord, record.date)}>
+                            {calculateTimeInStatus(record.inRecord, record.date)}
+                          </StatusTag>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        {record.inRecord && record.inRecord.timeDiff !== undefined && ['Early', 'Late'].includes(calculateTimeInStatus(record.inRecord, record.date)) ? (
+                          <>
+                            {Math.abs(record.inRecord.timeDiff) >= 60 ? 
+                              `${Math.floor(Math.abs(record.inRecord.timeDiff) / 60)}h ${Math.abs(record.inRecord.timeDiff) % 60}m` : 
+                              `${Math.abs(record.inRecord.timeDiff)}m`
+                            }
+                          </>
+                        ) : '-'}
+                      </td>
+                      
+                      {/* OUT record */}
+                      <td>
+                        {record.outRecord ? (
+                          <>
+                            {formatTime(record.outRecord.timestamp)}
+                            {record.isMultiDay && (
+                              <div style={{ fontSize: '0.8rem', color: '#7b1fa2' }}>
+                                {formatDate(record.outRecord.timestamp.toDate())}
+                              </div>
+                            )}
+                          </>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        {record.outRecord ? (
+                          <StatusTag status={record.outRecord.status || "Complete"}>
+                            {record.outRecord.status || "Complete"}
+                          </StatusTag>
+                        ) : '-'}
+                      </td>
+                      <td>
+                        {record.inRecord && record.outRecord ? (
+                          <>
+                            {(() => {
+                              // Calculate time difference between in and out
+                              const inTime = record.inRecord.timestamp.toDate();
+                              const outTime = record.outRecord.timestamp.toDate();
+                              const diffMinutes = Math.round((outTime - inTime) / (1000 * 60));
+                              
+                              if (diffMinutes >= 60) {
+                                const hours = Math.floor(diffMinutes / 60);
+                                const minutes = diffMinutes % 60;
+                                return `${hours}h ${minutes}m`;
+                              } else {
+                                return `${diffMinutes}m`;
+                              }
+                            })()} 
+                          </>
+                        ) : record.outRecord && record.outRecord.timeDiff !== undefined ? (
+                          <>
+                            {Math.abs(record.outRecord.timeDiff) >= 60 ? 
+                              `${Math.floor(Math.abs(record.outRecord.timeDiff) / 60)}h ${Math.abs(record.outRecord.timeDiff) % 60}m` : 
+                              `${Math.abs(record.outRecord.timeDiff)}m`
+                            }
+                          </>
+                        ) : '-'}
+                      </td>
+                      
+                      {/* Notes (combining both IN and OUT notes if available) */}
+                      <td>
+                        {record.inRecord?.notes && record.outRecord?.notes ? (
+                          <>
+                            <strong>IN:</strong> {record.inRecord.notes}<br/>
+                            <strong>OUT:</strong> {record.outRecord.notes}
+                          </>
+                        ) : record.inRecord?.notes ? (
+                          record.inRecord.notes
+                        ) : record.outRecord?.notes ? (
+                          record.outRecord.notes
+                        ) : '-'}
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
