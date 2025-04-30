@@ -662,6 +662,14 @@ function Dashboard() {
                   {pendingAttendance.status}
                 </StatusTag>
               </p>
+              {pendingAttendance.timeDiff !== undefined && ['Early', 'Late', 'Incomplete'].includes(pendingAttendance.status) && (
+                <p>
+                  <strong>Time Difference:</strong> {' '}
+                  {Math.abs(pendingAttendance.timeDiff)} minutes {pendingAttendance.status === 'Early' ? 'before scheduled time' : 
+                    pendingAttendance.status === 'Late' ? 'after scheduled time' : 
+                    'short of required shift duration'}
+                </p>
+              )}
               <div style={{ marginTop: '1rem' }}>
                 <strong>Notes (Optional):</strong>
                 <TextArea 
