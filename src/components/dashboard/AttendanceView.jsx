@@ -3,6 +3,8 @@ import { collection, query, where, orderBy, getDocs, onSnapshot, doc, getDoc } f
 import { db } from '../../firebase';
 import { Card, CardTitle, CardContent, StatusBadge } from './DashboardComponents';
 import styled from 'styled-components';
+import { createAbsencePetition } from '../../services/requestService';
+import { toast } from 'react-toastify';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 
 const AttendanceTable = styled.table`
@@ -68,11 +70,118 @@ const StatusTag = styled.span`
     if (props.status === 'Late') return '#ffcdd2';
     if (props.status === 'Complete') return '#c8e6c9';
     if (props.status === 'Incomplete') return '#ffe0b2';
-    if (props.status === 'Overtime') return '#a5d6a7';
+    if (props.status === 'Overtime') return '#c8e6c9';
     if (props.status === 'Multi-Day') return '#e1bee7';
     if (props.status === 'Absent') return '#f8bbd0';
-    return '#eeeeee';
+    return '#e0e0e0';
   }};
+`;
+
+const RequestButton = styled.button`
+  background-color: #f8bbd0;
+  color: #c2185b;
+  border: 1px solid #f48fb1;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  margin-top: 5px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #f48fb1;
+    color: #fff;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+`;
+
+const ModalTitle = styled.h3`
+  margin-top: 0;
+  color: #333;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+`;
+
+const ModalForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  min-height: 100px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  resize: vertical;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+`;
+
+const Button = styled.button`
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const CancelButton = styled(Button)`
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+`;
+
+const SubmitButton = styled(Button)`
+  background-color: #e91e63;
+  color: white;
+  border: 1px solid #c2185b;
+  
+  &:hover {
+    background-color: #c2185b;
+  }
 `;
 
 const AttendanceView = ({ user }) => {
@@ -80,6 +189,10 @@ const AttendanceView = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const { use24HourFormat } = useTimeFormat();
+  const [showPetitionModal, setShowPetitionModal] = useState(false);
+  const [selectedAbsence, setSelectedAbsence] = useState(null);
+  const [petitionRemarks, setPetitionRemarks] = useState('');
+  const [submittingPetition, setSubmittingPetition] = useState(false);
 
   // Setup real-time listeners when component mounts
   useEffect(() => {
@@ -364,6 +477,47 @@ const AttendanceView = ({ user }) => {
     return 'N/A';
   };
 
+  // Handle opening the petition modal for an absence record
+  const handleRequestRemoval = (record) => {
+    setSelectedAbsence(record.absentRecord);
+    setShowPetitionModal(true);
+  };
+  
+  // Handle closing the petition modal
+  const handleCloseModal = () => {
+    setShowPetitionModal(false);
+    setSelectedAbsence(null);
+    setPetitionRemarks('');
+  };
+  
+  // Handle submitting the petition
+  const handleSubmitPetition = async (e) => {
+    e.preventDefault();
+    
+    if (!petitionRemarks.trim()) {
+      toast.error('Please provide remarks for your petition');
+      return;
+    }
+    
+    try {
+      setSubmittingPetition(true);
+      
+      await createAbsencePetition(
+        user.uid,
+        selectedAbsence.id,
+        petitionRemarks
+      );
+      
+      toast.success('Absence petition submitted successfully');
+      handleCloseModal();
+    } catch (error) {
+      console.error('Error submitting absence petition:', error);
+      toast.error('Failed to submit petition: ' + error.message);
+    } finally {
+      setSubmittingPetition(false);
+    }
+  };
+
   return (
     <Card>
       <CardTitle>Attendance Records</CardTitle>
@@ -412,6 +566,12 @@ const AttendanceView = ({ user }) => {
                         <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
                           Missed scheduled shift on {formatDate(record.date)} at {formatTime(record.absentRecord.timestamp)}
                         </div>
+                        <RequestButton 
+                          onClick={() => handleRequestRemoval(record)}
+                          disabled={submittingPetition}
+                        >
+                          Request Removal
+                        </RequestButton>
                       </td>
                       <td>
                         {record.absentRecord.notes || '-'}
@@ -507,9 +667,39 @@ const AttendanceView = ({ user }) => {
             </tbody>
           </AttendanceTable>
         ) : (
-          <EmptyState>
-            <p>No attendance records found</p>
-          </EmptyState>
+          <p>No attendance records found.</p>
+        )}
+        
+        {/* Petition Modal */}
+        {showPetitionModal && (
+          <Modal>
+            <ModalContent>
+              <ModalTitle>Request Absence Removal</ModalTitle>
+              <ModalForm onSubmit={handleSubmitPetition}>
+                <div>
+                  <p>Please provide a reason for requesting the removal of this absence record:</p>
+                  <p>
+                    <strong>Date:</strong> {selectedAbsence && formatDate(selectedAbsence.timestamp.toDate())}<br/>
+                    <strong>Time:</strong> {selectedAbsence && formatTime(selectedAbsence.timestamp)}
+                  </p>
+                </div>
+                <TextArea
+                  value={petitionRemarks}
+                  onChange={(e) => setPetitionRemarks(e.target.value)}
+                  placeholder="Explain why this absence should be removed (required)"
+                  required
+                />
+                <ButtonGroup>
+                  <CancelButton type="button" onClick={handleCloseModal} disabled={submittingPetition}>
+                    Cancel
+                  </CancelButton>
+                  <SubmitButton type="submit" disabled={submittingPetition || !petitionRemarks.trim()}>
+                    {submittingPetition ? 'Submitting...' : 'Submit Petition'}
+                  </SubmitButton>
+                </ButtonGroup>
+              </ModalForm>
+            </ModalContent>
+          </Modal>
         )}
       </CardContent>
     </Card>

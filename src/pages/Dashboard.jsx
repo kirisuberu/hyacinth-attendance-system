@@ -16,6 +16,7 @@ import RegistrationRequestsView from '../components/dashboard/RegistrationReques
 import UserManagementView from '../components/dashboard/UserManagementView';
 import AdminPrivilegesView from '../components/dashboard/AdminPrivilegesView';
 import ReportsView from '../components/dashboard/ReportsView';
+import AttendanceRequestsView from '../components/dashboard/AttendanceRequestsView';
 
 // Styled components for confirmation modal
 const ConfirmationModal = styled.div`
@@ -704,6 +705,10 @@ function Dashboard() {
         
         {activeTab === 'reports' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canViewReports !== false)) && (
           <ReportsView />
+        )}
+        
+        {activeTab === 'attendance_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false)) && (
+          <AttendanceRequestsView />
         )}
         
         {activeTab === 'admin_privileges' && userData?.role === 'super_admin' && (

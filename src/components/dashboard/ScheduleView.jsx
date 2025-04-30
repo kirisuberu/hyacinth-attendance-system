@@ -7,6 +7,7 @@ import { format, addHours, parse, isToday as isDateToday } from 'date-fns';
 import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { Clock, Calendar, ArrowRight } from 'phosphor-react';
+import OvertimeRequestForm from './OvertimeRequestForm';
 
 const ScheduleTable = styled.table`
   width: 100%;
@@ -240,49 +241,50 @@ const ScheduleView = ({ user, userData }) => {
   };
 
   return (
-    <Card>
-      <CardTitle>My Schedule</CardTitle>
-      <CardContent>
-        {loading ? (
-          <p>Loading your schedule...</p>
-        ) : error ? (
-          <EmptyState>
-            <div style={{ marginBottom: '1rem' }}>
-              <Calendar size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
-            </div>
-            <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>No Schedule Found</h3>
-            <p style={{ margin: '0 0 1rem 0' }}>You don't have any assigned schedule yet.</p>
-            <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>Please contact your administrator to set up your work schedule.</p>
-          </EmptyState>
-        ) : schedule ? (
-          <div>
-            {Array.isArray(schedule) ? (
-              // New format: schedule is an array of schedule objects
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-                  {schedule.map((scheduleItem, index) => {
-                    const today = new Date();
-                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                    const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
-                    const isToday = today.getDay() === dayIndex;
-                    
-                    // Get the schedule's time region
-                    const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
-                    
-                    // Format the time in the user's preferred time region
-                    const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
-                    const duration = scheduleItem.shiftDuration || 8;
-                    
-                    // Calculate end time based on start time and duration
-                    const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
-                    const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
-                    
-                    return (
-                      <DayCard key={index} isToday={isToday}>
-                        <h3>
-                          <Calendar weight="fill" size={20} style={{ color: isToday ? '#1a73e8' : '#666' }} />
-                          {scheduleItem.dayOfWeek}
-                        </h3>
+    <>
+      <Card>
+        <CardTitle>My Schedule</CardTitle>
+        <CardContent>
+          {loading ? (
+            <p>Loading your schedule...</p>
+          ) : error ? (
+            <EmptyState>
+              <div style={{ marginBottom: '1rem' }}>
+                <Calendar size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
+              </div>
+              <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>No Schedule Found</h3>
+              <p style={{ margin: '0 0 1rem 0' }}>You don't have any assigned schedule yet.</p>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>Please contact your administrator to set up your work schedule.</p>
+            </EmptyState>
+          ) : schedule ? (
+            <div>
+              {Array.isArray(schedule) ? (
+                // New format: schedule is an array of schedule objects
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+                    {schedule.map((scheduleItem, index) => {
+                      const today = new Date();
+                      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                      const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
+                      const isToday = today.getDay() === dayIndex;
+                      
+                      // Get the schedule's time region
+                      const scheduleTimeRegion = scheduleItem.timeRegion || 'Asia/Manila';
+                      
+                      // Format the time in the user's preferred time region
+                      const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
+                      const duration = scheduleItem.shiftDuration || 8;
+                      
+                      // Calculate end time based on start time and duration
+                      const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
+                      const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
+                      
+                      return (
+                        <DayCard key={index} isToday={isToday}>
+                          <h3>
+                            <Calendar weight="fill" size={20} style={{ color: isToday ? '#1a73e8' : '#666' }} />
+                            {scheduleItem.dayOfWeek}
+                          </h3>
                         
                         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.75rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', marginRight: '1rem' }}>
@@ -478,7 +480,12 @@ const ScheduleView = ({ user, userData }) => {
         )}
       </CardContent>
     </Card>
-  );
+    
+    {/* Add the OvertimeRequestForm below the schedule */}
+    <div style={{ marginTop: '2rem' }}>
+      <OvertimeRequestForm user={user} />
+    </div>
+  </>);
 };
 
 export default ScheduleView;

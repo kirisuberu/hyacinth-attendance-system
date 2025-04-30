@@ -552,6 +552,17 @@ const DashboardLayout = ({
                     Reports
                   </NavItem>
                 )}
+                
+                {/* Attendance Requests - Available to super admins and admins with permission */}
+                {(isSuperAdmin || canManageUsers) && (
+                  <NavItem 
+                    className={activeTab === 'attendance_requests' ? 'active' : ''} 
+                    onClick={() => setActiveTab('attendance_requests')}
+                  >
+                    <Icon><ListChecks size={16} /></Icon>
+                    Attendance Requests
+                  </NavItem>
+                )}
               </div>
             )}
           </div>
