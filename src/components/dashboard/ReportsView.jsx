@@ -357,7 +357,10 @@ const ReportsView = () => {
     
     try {
       // Create a new workbook
-      const data = consolidatedData.map(user => ({
+      const wb = utils.book_new();
+      
+      // Create summary sheet with consolidated data
+      const summaryData = consolidatedData.map(user => ({
         'Name': user.name,
         'Email': user.email,
         'Position': user.position,
@@ -371,9 +374,132 @@ const ReportsView = () => {
         'Incomplete Count': user.incompleteCount
       }));
       
-      const ws = utils.json_to_sheet(data);
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, ws, 'Attendance Report');
+      const summarySheet = utils.json_to_sheet(summaryData);
+      utils.book_append_sheet(wb, summarySheet, 'Summary Report');
+      
+      // Format time function
+      const formatTime = (timestamp) => {
+        if (!timestamp) return 'N/A';
+        try {
+          const date = timestamp.toDate();
+          return date.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true
+          });
+        } catch (error) {
+          console.error('Error formatting time:', error);
+          return 'Invalid Time';
+        }
+      };
+      
+      // Format date function
+      const formatDate = (timestamp) => {
+        if (!timestamp) return 'N/A';
+        try {
+          const date = timestamp.toDate();
+          return date.toLocaleDateString();
+        } catch (error) {
+          console.error('Error formatting date:', error);
+          return 'Invalid Date';
+        }
+      };
+      
+      // Format duration function (minutes to hours and minutes)
+      const formatDuration = (minutes) => {
+        if (minutes === undefined || minutes === null) return 'N/A';
+        if (minutes >= 60) {
+          const hours = Math.floor(minutes / 60);
+          const mins = minutes % 60;
+          return `${hours}h ${mins}m`;
+        } else {
+          return `${minutes}m`;
+        }
+      };
+      
+      // Group records by date
+      const recordsByDate = {};
+      
+      // Process all attendance records to group by date
+      attendanceData.forEach(record => {
+        if (!record.timestamp) return;
+        
+        const date = record.timestamp.toDate();
+        const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+        
+        if (!recordsByDate[dateKey]) {
+          recordsByDate[dateKey] = [];
+        }
+        
+        recordsByDate[dateKey].push(record);
+      });
+      
+      // Create a sheet for each date
+      Object.entries(recordsByDate).forEach(([dateKey, records]) => {
+        // Group records by user and type (IN/OUT)
+        const userRecords = {};
+        
+        records.forEach(record => {
+          const userId = record.userId;
+          if (!userId) return;
+          
+          if (!userRecords[userId]) {
+            userRecords[userId] = {
+              name: record.name || 'Unknown',
+              inRecord: null,
+              outRecord: null
+            };
+          }
+          
+          // Assign record to in or out
+          if (record.type === 'In') {
+            userRecords[userId].inRecord = record;
+          } else if (record.type === 'Out') {
+            userRecords[userId].outRecord = record;
+          }
+        });
+        
+        // Create data for this date's sheet
+        const dateData = Object.values(userRecords).map(user => {
+          // Calculate shift duration if both in and out records exist
+          let duration = 'N/A';
+          let timeDiff = null;
+          
+          if (user.inRecord && user.outRecord) {
+            const inTime = user.inRecord.timestamp.toDate();
+            const outTime = user.outRecord.timestamp.toDate();
+            const diffMinutes = Math.round((outTime - inTime) / (1000 * 60));
+            timeDiff = diffMinutes;
+          }
+          
+          return {
+            'Name': user.name,
+            'Time IN': user.inRecord ? formatTime(user.inRecord.timestamp) : 'N/A',
+            'IN Status': user.inRecord ? user.inRecord.status || 'N/A' : 'N/A',
+            'Time Difference': user.inRecord && user.inRecord.timeDiff !== undefined ? 
+              formatDuration(Math.abs(user.inRecord.timeDiff)) : 'N/A',
+            'IN Notes': user.inRecord ? user.inRecord.notes || '' : '',
+            'Time OUT': user.outRecord ? formatTime(user.outRecord.timestamp) : 'N/A',
+            'OUT Status': user.outRecord ? user.outRecord.status || 'N/A' : 'N/A',
+            'Duration': timeDiff !== null ? formatDuration(timeDiff) : 'N/A',
+            'OUT Notes': user.outRecord ? user.outRecord.notes || '' : ''
+          };
+        });
+        
+        // Skip empty dates
+        if (dateData.length === 0) return;
+        
+        // Format date for sheet name (e.g., "2025-04-30" to "Apr 30")
+        const sheetDate = new Date(dateKey);
+        const sheetName = sheetDate.toLocaleDateString('en-US', { 
+          month: 'short', 
+          day: 'numeric'
+        }).replace(' ', ' '); // Replace space with non-breaking space for Excel
+        
+        // Create and add sheet
+        const dateSheet = utils.json_to_sheet(dateData);
+        utils.book_append_sheet(wb, dateSheet, sheetName);
+      });
       
       // Generate filename with date range
       const filename = `Attendance_Report_${startDate}_to_${endDate}.xlsx`;
