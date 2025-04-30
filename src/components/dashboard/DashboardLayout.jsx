@@ -49,7 +49,11 @@ const Logo = styled.div`
   font-size: 1.5rem;
   font-weight: bold;
   margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
+  width: 100%;
 `;
 
 const NavItem = styled.div`
@@ -453,7 +457,7 @@ const DashboardLayout = ({
   return (
     <DashboardContainer>
       <Sidebar>
-        <Logo style={{ flexDirection: 'column', alignItems: 'center' }}>
+        <Logo>
           <img src="/logo.png" alt="Hyacinth Logo" style={{ height: '48px', marginBottom: '10px' }} />
           <span>Hyacinth Hub</span>
         </Logo>
