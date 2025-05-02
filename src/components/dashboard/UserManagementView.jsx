@@ -89,6 +89,7 @@ const TableHeader = styled.th`
     left: 0;
     z-index: 20;
     box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
+    background-color: #f5f5f5;
   }
   
   &.sticky-right {
@@ -96,6 +97,7 @@ const TableHeader = styled.th`
     right: 0;
     z-index: 20;
     box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
+    background-color: #f5f5f5;
   }
   
   /* Resizer handle */
@@ -128,12 +130,10 @@ const TableHeader = styled.th`
 `;
 
 const TableCell = styled.td`
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid #ddd;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background-color: inherit;
+  background-color: white;
   
   /* Match the widths from TableHeader */
   &.col-name { min-width: 200px; }
@@ -1360,8 +1360,8 @@ function UserManagementView({ isSuperAdmin }) {
                           <TableCell key={column.id} className="col-dateHired" style={{ width: `${column.width}px` }}>
                             {user.dateHired ? (
                               user.dateHired.seconds ? 
-                                new Date(user.dateHired.seconds * 1000).toLocaleDateString() : 
-                                user.dateHired.toString()
+                                new Date(user.dateHired.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
+                                new Date(user.dateHired).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
                             ) : 'Not specified'}
                           </TableCell>
                         );
@@ -1372,8 +1372,8 @@ function UserManagementView({ isSuperAdmin }) {
                           <TableCell key={column.id} className="col-dateOfBirth" style={{ width: `${column.width}px` }}>
                             {user.dateOfBirth ? (
                               user.dateOfBirth.seconds ? 
-                                new Date(user.dateOfBirth.seconds * 1000).toLocaleDateString() : 
-                                user.dateOfBirth.toString()
+                                new Date(user.dateOfBirth.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
+                                new Date(user.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
                             ) : 'Not specified'}
                           </TableCell>
                         );
