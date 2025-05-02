@@ -17,8 +17,13 @@ import {
   CheckCircle,
   Info,
   Copy,
-  CheckSquare
+  CheckSquare,
+  PencilSimple,
+  X
 } from 'phosphor-react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { toast } from 'react-toastify';
 
 const ProfileSection = styled.div`
   margin-bottom: 2rem;
@@ -71,6 +76,13 @@ const SectionTitle = styled.h3`
   align-items: center;
   gap: 10px;
   font-weight: 600;
+  position: relative;
+  
+  ${EditButton} {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
 `;
 
 const FieldValue = styled.span`
@@ -80,8 +92,253 @@ const FieldValue = styled.span`
   flex: 1;
 `;
 
+const EditButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #800000;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+  color: #333;
+`;
+
+const ModalCloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  
+  &:hover {
+    color: #333;
+  }
+`;
+
+const ModalForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`;
+
+const FormLabel = styled.label`
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #555;
+`;
+
+const FormInput = styled.input`
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+`;
+
+const FormActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 15px;
+`;
+
+const CancelButton = styled.button`
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  color: #333;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;
+
+const SubmitButton = styled.button`
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background-color: #800000;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #600000;
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;
+
 const ProfileView = ({ user, userData, loadingUserData }) => {
   const [copied, setCopied] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showEmergencyContactModal, setShowEmergencyContactModal] = useState(false);
+  const [editData, setEditData] = useState({
+    address: '',
+    phoneNumber: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    emergencyContactRelationship: ''
+  });
+  const [processing, setProcessing] = useState(false);
+  
+  // Initialize edit data when opening modals
+  const handleOpenContactModal = () => {
+    setEditData(prev => ({
+      ...prev,
+      address: userData?.address || '',
+      phoneNumber: userData?.phoneNumber || userData?.contactNumber || ''
+    }));
+    setShowContactModal(true);
+  };
+  
+  const handleOpenEmergencyContactModal = () => {
+    setEditData(prev => ({
+      ...prev,
+      emergencyContactName: userData?.emergencyContactName || '',
+      emergencyContactPhone: userData?.emergencyContactPhone || '',
+      emergencyContactRelationship: userData?.emergencyContactRelationship || ''
+    }));
+    setShowEmergencyContactModal(true);
+  };
+  
+  const handleCloseContactModal = () => {
+    setShowContactModal(false);
+  };
+  
+  const handleCloseEmergencyContactModal = () => {
+    setShowEmergencyContactModal(false);
+  };
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleUpdateContactInfo = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setProcessing(true);
+      
+      // Get the user document ID
+      const userId = userData?.userId || user?.uid;
+      if (!userId) {
+        toast.error('User ID not found');
+        return;
+      }
+      
+      // Update the user document in Firestore
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        address: editData.address.trim(),
+        phoneNumber: editData.phoneNumber.trim()
+      });
+      
+      toast.success('Contact information updated successfully');
+      handleCloseContactModal();
+    } catch (error) {
+      console.error('Error updating contact information:', error);
+      toast.error(`Failed to update contact information: ${error.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+  
+  const handleUpdateEmergencyContact = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setProcessing(true);
+      
+      // Get the user document ID
+      const userId = userData?.userId || user?.uid;
+      if (!userId) {
+        toast.error('User ID not found');
+        return;
+      }
+      
+      // Update the user document in Firestore
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        emergencyContactName: editData.emergencyContactName.trim(),
+        emergencyContactPhone: editData.emergencyContactPhone.trim(),
+        emergencyContactRelationship: editData.emergencyContactRelationship.trim()
+      });
+      
+      toast.success('Emergency contact information updated successfully');
+      handleCloseEmergencyContactModal();
+    } catch (error) {
+      console.error('Error updating emergency contact information:', error);
+      toast.error(`Failed to update emergency contact information: ${error.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
   
   // Helper function to format timestamps in a more readable format (e.g., "May 8, 2000")
   const formatTimestamp = (timestamp) => {
@@ -330,6 +587,10 @@ const ProfileRole = styled.div`
                 <SectionTitle>
                   <MapPin size={20} weight="bold" />
                   Contact Information
+                  <EditButton onClick={handleOpenContactModal} title="Edit Contact Information">
+                    <PencilSimple size={16} weight="bold" />
+                    <span style={{ marginLeft: '4px' }}>Edit</span>
+                  </EditButton>
                 </SectionTitle>
                 <ProfileField>
                   <FieldLabel>
@@ -351,6 +612,10 @@ const ProfileRole = styled.div`
                 <SectionTitle>
                   <Heart size={20} weight="bold" />
                   Emergency Contact
+                  <EditButton onClick={handleOpenEmergencyContactModal} title="Edit Emergency Contact">
+                    <PencilSimple size={16} weight="bold" />
+                    <span style={{ marginLeft: '4px' }}>Edit</span>
+                  </EditButton>
                 </SectionTitle>
                 <ProfileField>
                   <FieldLabel>
@@ -378,6 +643,121 @@ const ProfileRole = styled.div`
           </>
         )}
       </CardContent>
+      
+      {/* Contact Information Edit Modal */}
+      {showContactModal && (
+        <Modal>
+          <ModalContent>
+            <ModalHeader>
+              <ModalTitle>Edit Contact Information</ModalTitle>
+              <ModalCloseButton onClick={handleCloseContactModal}>&times;</ModalCloseButton>
+            </ModalHeader>
+            
+            <ModalForm onSubmit={handleUpdateContactInfo}>
+              <FormGroup>
+                <FormLabel>Address</FormLabel>
+                <FormInput
+                  type="text"
+                  name="address"
+                  value={editData.address}
+                  onChange={handleInputChange}
+                  placeholder="Enter your address"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <FormLabel>Phone Number</FormLabel>
+                <FormInput
+                  type="text"
+                  name="phoneNumber"
+                  value={editData.phoneNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter your phone number"
+                />
+              </FormGroup>
+              
+              <FormActions>
+                <CancelButton 
+                  type="button" 
+                  onClick={handleCloseContactModal}
+                  disabled={processing}
+                >
+                  Cancel
+                </CancelButton>
+                <SubmitButton 
+                  type="submit" 
+                  disabled={processing}
+                >
+                  {processing ? 'Saving...' : 'Save Changes'}
+                </SubmitButton>
+              </FormActions>
+            </ModalForm>
+          </ModalContent>
+        </Modal>
+      )}
+      
+      {/* Emergency Contact Edit Modal */}
+      {showEmergencyContactModal && (
+        <Modal>
+          <ModalContent>
+            <ModalHeader>
+              <ModalTitle>Edit Emergency Contact</ModalTitle>
+              <ModalCloseButton onClick={handleCloseEmergencyContactModal}>&times;</ModalCloseButton>
+            </ModalHeader>
+            
+            <ModalForm onSubmit={handleUpdateEmergencyContact}>
+              <FormGroup>
+                <FormLabel>Contact Name</FormLabel>
+                <FormInput
+                  type="text"
+                  name="emergencyContactName"
+                  value={editData.emergencyContactName}
+                  onChange={handleInputChange}
+                  placeholder="Enter emergency contact name"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <FormLabel>Contact Phone</FormLabel>
+                <FormInput
+                  type="text"
+                  name="emergencyContactPhone"
+                  value={editData.emergencyContactPhone}
+                  onChange={handleInputChange}
+                  placeholder="Enter emergency contact phone"
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <FormLabel>Relationship</FormLabel>
+                <FormInput
+                  type="text"
+                  name="emergencyContactRelationship"
+                  value={editData.emergencyContactRelationship}
+                  onChange={handleInputChange}
+                  placeholder="Enter relationship (e.g., Parent, Spouse)"
+                />
+              </FormGroup>
+              
+              <FormActions>
+                <CancelButton 
+                  type="button" 
+                  onClick={handleCloseEmergencyContactModal}
+                  disabled={processing}
+                >
+                  Cancel
+                </CancelButton>
+                <SubmitButton 
+                  type="submit" 
+                  disabled={processing}
+                >
+                  {processing ? 'Saving...' : 'Save Changes'}
+                </SubmitButton>
+              </FormActions>
+            </ModalForm>
+          </ModalContent>
+        </Modal>
+      )}
     </Card>
   );
 };
