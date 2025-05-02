@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { createOvertimeRequest } from '../../services/requestService';
 import { toast } from 'react-toastify';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
-import { Clock } from 'phosphor-react';
+import { Clock, CalendarBlank, Timer, ClipboardText } from 'phosphor-react';
 
 const FormGroup = styled.div`
   margin-bottom: 1.5rem;
@@ -73,20 +73,22 @@ const SubmitButton = styled.button`
 
 const OvertimeRequestForm = ({ user }) => {
   const [date, setDate] = useState('');
-  const [hours, setHours] = useState('');
+  const [timeFrom, setTimeFrom] = useState('');
+  const [timeTo, setTimeTo] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!date || !hours || !remarks.trim()) {
+    if (!date || !timeFrom || !timeTo || !remarks.trim()) {
       toast.error('Please fill in all fields');
       return;
     }
     
-    if (isNaN(hours) || hours <= 0) {
-      toast.error('Hours must be a positive number');
+    // Validate that timeTo is after timeFrom
+    if (timeFrom >= timeTo) {
+      toast.error('End time must be after start time');
       return;
     }
     
@@ -96,7 +98,8 @@ const OvertimeRequestForm = ({ user }) => {
       await createOvertimeRequest(
         user.uid,
         date,
-        Number(hours),
+        timeFrom,
+        timeTo,
         remarks
       );
       
@@ -104,7 +107,8 @@ const OvertimeRequestForm = ({ user }) => {
       
       // Reset form
       setDate('');
-      setHours('');
+      setTimeFrom('');
+      setTimeTo('');
       setRemarks('');
     } catch (error) {
       console.error('Error submitting overtime request:', error);
@@ -119,11 +123,17 @@ const OvertimeRequestForm = ({ user }) => {
   
   return (
     <Card>
-      <CardTitle>Submit Overtime Request</CardTitle>
+      <CardTitle>
+        <Clock size={24} weight="bold" style={{ marginRight: '8px' }} />
+        Submit Overtime Request
+      </CardTitle>
       <CardContent>
         <form onSubmit={handleSubmit}>
           <FormGroup>
-            <Label htmlFor="date">Date</Label>
+            <Label htmlFor="date">
+              <CalendarBlank size={16} style={{ marginRight: '8px' }} />
+              Date
+            </Label>
             <Input
               type="date"
               id="date"
@@ -134,22 +144,41 @@ const OvertimeRequestForm = ({ user }) => {
             />
           </FormGroup>
           
-          <FormGroup>
-            <Label htmlFor="hours">Hours Requested</Label>
-            <Input
-              type="number"
-              id="hours"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-              min="0.5"
-              step="0.5"
-              max="24"
-              required
-            />
-          </FormGroup>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <FormGroup style={{ flex: 1 }}>
+              <Label htmlFor="timeFrom">
+                <Timer size={16} style={{ marginRight: '8px' }} />
+                Start Time
+              </Label>
+              <Input
+                type="time"
+                id="timeFrom"
+                value={timeFrom}
+                onChange={(e) => setTimeFrom(e.target.value)}
+                required
+              />
+            </FormGroup>
+            
+            <FormGroup style={{ flex: 1 }}>
+              <Label htmlFor="timeTo">
+                <Timer size={16} style={{ marginRight: '8px' }} />
+                End Time
+              </Label>
+              <Input
+                type="time"
+                id="timeTo"
+                value={timeTo}
+                onChange={(e) => setTimeTo(e.target.value)}
+                required
+              />
+            </FormGroup>
+          </div>
           
           <FormGroup>
-            <Label htmlFor="remarks">Reason for Overtime</Label>
+            <Label htmlFor="remarks">
+              <ClipboardText size={16} style={{ marginRight: '8px' }} />
+              Reason for Overtime
+            </Label>
             <TextArea
               id="remarks"
               value={remarks}

@@ -75,12 +75,13 @@ export const createAbsencePetition = async (userId, attendanceId, remarks) => {
 /**
  * Create a new overtime request
  * @param {string} userId - The user ID
- * @param {Date} date - The date of the overtime
- * @param {number} hours - The number of hours requested
+ * @param {string} date - The date of the overtime
+ * @param {string} timeFrom - The start time of the overtime
+ * @param {string} timeTo - The end time of the overtime
  * @param {string} remarks - The reason for the overtime
  * @returns {Promise<string>} - The ID of the created request
  */
-export const createOvertimeRequest = async (userId, date, hours, remarks) => {
+export const createOvertimeRequest = async (userId, date, timeFrom, timeTo, remarks) => {
   try {
     // Get user details
     const userDoc = await getDoc(doc(db, 'users', userId));
@@ -97,7 +98,8 @@ export const createOvertimeRequest = async (userId, date, hours, remarks) => {
       type: REQUEST_TYPES.OVERTIME_REQUEST,
       status: REQUEST_STATUS.PENDING,
       date: Timestamp.fromDate(new Date(date)),
-      hours,
+      timeFrom,
+      timeTo,
       remarks,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),

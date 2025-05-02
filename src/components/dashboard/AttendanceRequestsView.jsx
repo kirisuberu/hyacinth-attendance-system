@@ -809,8 +809,8 @@ const AttendanceRequestsView = () => {
           <tr>
             <th>Employee</th>
             <th>Date</th>
-            <th>Hours</th>
-            <th>Remarks</th>
+            <th>Time Range</th>
+            <th>Reason</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -820,7 +820,15 @@ const AttendanceRequestsView = () => {
             <tr key={request.id}>
               <td>{request.userName}</td>
               <td>{formatDate(request.date)}</td>
-              <td>{request.hours} hours</td>
+              <td>
+                {request.timeFrom && request.timeTo ? (
+                  <>
+                    {request.timeFrom} - {request.timeTo}
+                  </>
+                ) : (
+                  request.hours ? `${request.hours} hours` : 'N/A'
+                )}
+              </td>
               <td>{request.remarks}</td>
               <td>
                 <StatusBadge status={request.status}>
@@ -1032,7 +1040,11 @@ const AttendanceRequestsView = () => {
                     <p><strong>Date:</strong> {selectedRequest?.date ? formatDate(selectedRequest.date) : 'N/A'}</p>
                     <p><strong>Type:</strong> {selectedRequest?.type === REQUEST_TYPES.ABSENCE_PETITION ? 'Absence Petition' : 'Overtime Request'}</p>
                     {selectedRequest?.type === REQUEST_TYPES.OVERTIME_REQUEST && (
-                      <p><strong>Hours:</strong> {selectedRequest?.hours} hours</p>
+                      selectedRequest?.timeFrom && selectedRequest?.timeTo ? (
+                        <p><strong>Time Range:</strong> {selectedRequest.timeFrom} - {selectedRequest.timeTo}</p>
+                      ) : (
+                        <p><strong>Hours:</strong> {selectedRequest?.hours} hours</p>
+                      )
                     )}
                     <p><strong>Remarks:</strong> {selectedRequest?.remarks}</p>
                     <p><strong>Status:</strong> {selectedRequest?.status}</p>
