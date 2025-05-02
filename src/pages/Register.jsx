@@ -216,7 +216,7 @@ function Register() {
   const [formData, setFormData] = useState({
     lastName: '',
     firstName: '',
-    middleInitial: '',
+    middleName: '', // Changed from middleInitial to middleName to better handle second names
     email: '',
     password: '',
     confirmPassword: ''
@@ -394,7 +394,7 @@ function Register() {
       }
       
       // Create full name from parts
-      const fullName = `${formData.lastName}, ${formData.firstName}${formData.middleInitial ? ' ' + formData.middleInitial + '.' : ''}`;
+      const fullName = `${formData.lastName}, ${formData.firstName}${formData.middleName ? ' ' + formData.middleName : ''}`;
       
       // Update profile with display name if we have a user credential
       if (userCredential?.user) {
@@ -421,7 +421,7 @@ function Register() {
         userId: userId,
         lastName: formData.lastName,
         firstName: formData.firstName,
-        middleInitial: formData.middleInitial,
+        middleName: formData.middleName, // Changed from middleInitial to middleName
         name: fullName,
         email: formData.email,
         position: 'regular', // Default position
@@ -550,17 +550,16 @@ function Register() {
                 {errors.firstName && <ErrorMessage>{errors.firstName}</ErrorMessage>}
               </NameField>
               
-              <NameField flex="1" minWidth="80px">
-                <Label htmlFor="middleInitial">M.I.</Label>
+              <NameField flex="2" minWidth="150px">
+                <Label htmlFor="middleName">Middle/Second Name</Label>
                 <InputWrapper>
                   <Input
-                    id="middleInitial"
-                    name="middleInitial"
+                    id="middleName"
+                    name="middleName"
                     type="text"
-                    value={formData.middleInitial}
+                    value={formData.middleName}
                     onChange={handleChange}
-                    placeholder="M.I."
-                    maxLength="1"
+                    placeholder="Middle or second name (optional)"
                   />
                 </InputWrapper>
               </NameField>
