@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardTitle, CardContent, Grid, StatusBadge, Button } from './DashboardComponents';
 import styled from 'styled-components';
 import { Clock, Calendar, ChartBar, ClockClockwise, Users, Bell, UserCircle, CheckCircle, XCircle, Warning } from 'phosphor-react';
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
+import { format } from 'date-fns';
 
 const WelcomeCard = styled(Card)`
   background: linear-gradient(135deg, #800000 0%, #330000 100%);
@@ -122,6 +123,9 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
   
   const [notifications, setNotifications] = useState([]);
   const [userName, setUserName] = useState('');
+  const [userSchedule, setUserSchedule] = useState(null);
+  const [todaySchedule, setTodaySchedule] = useState(null);
+  const [loadingSchedule, setLoadingSchedule] = useState(true);
   
   useEffect(() => {
     const fetchUserData = async () => {
@@ -129,10 +133,52 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
         try {
           const userDoc = await getDocs(query(collection(db, 'users'), where('userId', '==', auth.currentUser.uid)));
           if (!userDoc.empty) {
-            setUserName(userDoc.docs[0].data().name || 'User');
+            const userData = userDoc.docs[0].data();
+            setUserName(userData.name || 'User');
+            
+            // Get user schedule
+            if (userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
+              setUserSchedule(userData.schedule);
+              
+              // Find today's schedule
+              const now = new Date();
+              const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+              const todayScheduleItem = userData.schedule.find(s => s.dayOfWeek === currentDay);
+              
+              if (todayScheduleItem) {
+                setTodaySchedule(todayScheduleItem);
+              }
+            } else if (userData.scheduleId) {
+              // Legacy support: If user still has a scheduleId, fetch that schedule
+              const scheduleId = userData.scheduleId;
+              const scheduleDocRef = doc(db, 'schedules', scheduleId);
+              const scheduleDoc = await getDoc(scheduleDocRef);
+              
+              if (scheduleDoc.exists()) {
+                const scheduleData = scheduleDoc.data();
+                setUserSchedule(scheduleData);
+                
+                // For legacy schedule format
+                if (scheduleData.shifts && Array.isArray(scheduleData.shifts)) {
+                  const now = new Date();
+                  const currentDay = now.getDay(); // 0-6 (Sunday-Saturday)
+                  const todayShift = scheduleData.shifts.find(s => s.day === currentDay);
+                  
+                  if (todayShift) {
+                    setTodaySchedule({
+                      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][currentDay],
+                      timeIn: todayShift.timeIn,
+                      timeOut: todayShift.timeOut
+                    });
+                  }
+                }
+              }
+            }
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
+        } finally {
+          setLoadingSchedule(false);
         }
       }
     };
@@ -310,65 +356,92 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
             Today's Schedule
           </CardTitle>
           <CardContent>
-            {(() => {
-              // Calculate shift progress
-              const now = new Date();
-              const shiftStart = new Date();
-              shiftStart.setHours(8, 0, 0, 0); // 8:00 AM
-              const shiftEnd = new Date();
-              shiftEnd.setHours(17, 0, 0, 0); // 5:00 PM
-              
-              const totalShiftDuration = shiftEnd - shiftStart;
-              const elapsedTime = now - shiftStart;
-              
-              // Calculate progress percentage
-              let progressPercentage = 0;
-              let statusText = "";
-              
-              if (now < shiftStart) {
-                progressPercentage = 0;
-                statusText = "Upcoming";
-              } else if (now > shiftEnd) {
-                progressPercentage = 100;
-                statusText = "Completed";
-              } else {
-                progressPercentage = Math.min(100, Math.max(0, (elapsedTime / totalShiftDuration) * 100));
-                statusText = "In Progress";
-              }
-              
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
-                    <div>
-                      <div style={{ fontWeight: 'bold' }}>Today's Shift</div>
-                      <div style={{ fontSize: '0.85rem', color: '#555' }}>8:00 AM - 5:00 PM</div>
+            {loadingSchedule ? (
+              <div style={{ textAlign: 'center', padding: '1rem' }}>Loading schedule...</div>
+            ) : !todaySchedule ? (
+              <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px' }}>
+                <Warning size={20} style={{ marginRight: '10px', color: '#f57f17' }} />
+                <span>No schedule found for today</span>
+              </div>
+            ) : (
+              (() => {
+                // Parse time strings
+                const parseTimeString = (timeStr) => {
+                  const [hours, minutes] = timeStr.split(':').map(Number);
+                  const date = new Date();
+                  date.setHours(hours, minutes, 0, 0);
+                  return date;
+                };
+                
+                // Calculate shift progress
+                const now = new Date();
+                const shiftStart = parseTimeString(todaySchedule.timeIn);
+                const shiftEnd = parseTimeString(todaySchedule.timeOut);
+                
+                // Handle overnight shifts
+                if (shiftEnd < shiftStart) {
+                  shiftEnd.setDate(shiftEnd.getDate() + 1);
+                }
+                
+                const totalShiftDuration = shiftEnd - shiftStart;
+                const elapsedTime = now - shiftStart;
+                
+                // Calculate progress percentage
+                let progressPercentage = 0;
+                let statusText = "";
+                
+                if (now < shiftStart) {
+                  progressPercentage = 0;
+                  statusText = "Upcoming";
+                } else if (now > shiftEnd) {
+                  progressPercentage = 100;
+                  statusText = "Completed";
+                } else {
+                  progressPercentage = Math.min(100, Math.max(0, (elapsedTime / totalShiftDuration) * 100));
+                  statusText = "In Progress";
+                }
+                
+                // Format times for display
+                const formatTimeDisplay = (date) => {
+                  return format(date, 'h:mm a');
+                };
+                
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold' }}>{todaySchedule.dayOfWeek}'s Shift</div>
+                        <div style={{ fontSize: '0.85rem', color: '#555' }}>
+                          {formatTimeDisplay(shiftStart)} - {formatTimeDisplay(shiftEnd)}
+                        </div>
+                      </div>
+                      <StatusBadge status={statusText === "In Progress" ? "In" : statusText === "Completed" ? "Out" : "Pending"}>
+                        {statusText}
+                      </StatusBadge>
                     </div>
-                    <StatusBadge status={statusText === "In Progress" ? "In" : statusText === "Completed" ? "Out" : "Pending"}>
-                      {statusText}
-                    </StatusBadge>
+                    
+                    {/* Progress Bar */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#666' }}>
+                        <span>Shift Progress</span>
+                        <span>{Math.round(progressPercentage)}%</span>
+                      </div>
+                      <div style={{ height: '8px', backgroundColor: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div 
+                          style={{ 
+                            height: '100%', 
+                            width: `${progressPercentage}%`, 
+                            backgroundColor: progressPercentage < 30 ? '#42a5f5' : progressPercentage < 70 ? '#66bb6a' : '#8d6e63',
+                            borderRadius: '4px',
+                            transition: 'width 0.5s ease-in-out'
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  
-                  {/* Progress Bar */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#666' }}>
-                      <span>Shift Progress</span>
-                      <span>{Math.round(progressPercentage)}%</span>
-                    </div>
-                    <div style={{ height: '8px', backgroundColor: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div 
-                        style={{ 
-                          height: '100%', 
-                          width: `${progressPercentage}%`, 
-                          backgroundColor: progressPercentage < 30 ? '#42a5f5' : progressPercentage < 70 ? '#66bb6a' : '#8d6e63',
-                          borderRadius: '4px',
-                          transition: 'width 0.5s ease-in-out'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })()} 
+                );
+              })()
+            )}
           </CardContent>
         </Card>
         
