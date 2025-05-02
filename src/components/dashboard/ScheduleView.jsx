@@ -171,6 +171,12 @@ const ScheduleView = ({ user, userData }) => {
     return days[dayIndex];
   };
   
+  // Function to get day index for sorting (Sunday = 0, Monday = 1, etc.)
+  const getDayIndex = (dayName) => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days.indexOf(dayName);
+  };
+  
   const formatTime = (timeString, sourceTimeRegion = null, targetTimeRegion = userTimeRegion) => {
     if (!timeString) return 'N/A';
     
@@ -262,7 +268,9 @@ const ScheduleView = ({ user, userData }) => {
                 // New format: schedule is an array of schedule objects
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-                    {schedule.map((scheduleItem, index) => {
+                    {[...schedule]
+                      .sort((a, b) => getDayIndex(a.dayOfWeek) - getDayIndex(b.dayOfWeek))
+                      .map((scheduleItem, index) => {
                       const today = new Date();
                       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                       const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
@@ -341,7 +349,9 @@ const ScheduleView = ({ user, userData }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {schedule.map((scheduleItem, index) => {
+                      {[...schedule]
+                        .sort((a, b) => getDayIndex(a.dayOfWeek) - getDayIndex(b.dayOfWeek))
+                        .map((scheduleItem, index) => {
                         const today = new Date();
                         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                         const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
@@ -390,7 +400,9 @@ const ScheduleView = ({ user, userData }) => {
                 </div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-                  {schedule.shifts && schedule.shifts.map((shift, index) => {
+                  {schedule.shifts && [...schedule.shifts]
+                    .sort((a, b) => a.day - b.day)
+                    .map((shift, index) => {
                     const today = new Date();
                     const isToday = today.getDay() === shift.day;
                     
@@ -437,7 +449,9 @@ const ScheduleView = ({ user, userData }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {schedule.shifts && schedule.shifts.map((shift, index) => {
+                      {schedule.shifts && [...schedule.shifts]
+                        .sort((a, b) => a.day - b.day)
+                        .map((shift, index) => {
                         const today = new Date();
                         const isToday = today.getDay() === shift.day;
                         
