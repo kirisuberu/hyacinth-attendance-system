@@ -1257,7 +1257,7 @@ const AttendanceRequestsView = () => {
                   
                   <FormGroup>
                     <FormLabel>Reason for Deletion (required)</FormLabel>
-                    <FormTextArea
+                    <FormTextarea
                       name="deleteReason"
                       value={deleteReason}
                       onChange={(e) => setDeleteReason(e.target.value)}
