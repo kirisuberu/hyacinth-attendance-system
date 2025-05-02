@@ -9,11 +9,12 @@ import {
 import {
   getAllAttendanceRecords,
   overrideAttendanceRecord,
+  deleteAttendanceRecord,
   getAttendanceOverrideHistory
 } from '../../services/attendanceService';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import { toast } from 'react-toastify';
-import { Check, X, Clock, FileText, PencilSimple, Calendar, User, ClockClockwise, CaretDown, CaretUp, Eye } from 'phosphor-react';
+import { Check, X, Clock, FileText, PencilSimple, Calendar, User, ClockClockwise, CaretDown, CaretUp, Eye, Trash } from 'phosphor-react';
 import { auth } from '../../firebase';
 
 const TabContainer = styled.div`
@@ -431,11 +432,13 @@ const AttendanceRequestsView = () => {
   const [showModal, setShowModal] = useState(false);
   const [showOverrideModal, setShowOverrideModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [selectedAttendance, setSelectedAttendance] = useState(null);
   const [adminRemarks, setAdminRemarks] = useState('');
   const [actionType, setActionType] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
   const [overrideData, setOverrideData] = useState({
     type: '',
     status: '',
@@ -635,6 +638,52 @@ const AttendanceRequestsView = () => {
     setSelectedAttendance(null);
     setOverrideHistory([]);
     setExpandedHistoryItems({});
+  };
+  
+  const handleOpenDeleteModal = (record) => {
+    setSelectedAttendance(record);
+    setDeleteReason('');
+    setShowDeleteModal(true);
+  };
+  
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setSelectedAttendance(null);
+    setDeleteReason('');
+  };
+  
+  const handleDeleteAttendance = async (e) => {
+    e.preventDefault();
+    
+    if (!deleteReason.trim()) {
+      toast.error('Please provide a reason for deleting this record');
+      return;
+    }
+    
+    try {
+      setProcessing(true);
+      
+      // Get current user info (admin)
+      const currentUser = auth.currentUser;
+      const adminId = currentUser?.uid || 'unknown-admin';
+      const adminName = currentUser?.displayName || currentUser?.email || 'Admin User';
+      
+      await deleteAttendanceRecord(
+        selectedAttendance.id,
+        adminId,
+        adminName,
+        deleteReason
+      );
+      
+      toast.success('Attendance record deleted successfully');
+      handleCloseDeleteModal();
+      fetchAttendanceRecords(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting attendance record:', error);
+      toast.error('Failed to delete attendance record: ' + error.message);
+    } finally {
+      setProcessing(false);
+    }
   };
   
   const toggleHistoryItemExpand = (historyId) => {
@@ -916,6 +965,15 @@ const AttendanceRequestsView = () => {
                         <ClockClockwise size={16} weight="bold" />
                       </ViewHistoryButton>
                     )}
+                    
+                    {/* Delete button for duplicate records */}
+                    <ActionButton 
+                      reject
+                      onClick={() => handleOpenDeleteModal(record)}
+                      title="Delete Record (for duplicates)"
+                    >
+                      <Trash size={16} weight="bold" />
+                    </ActionButton>
                   </td>
                 </tr>
               ))}
@@ -1176,6 +1234,56 @@ const AttendanceRequestsView = () => {
                   )}
                 </HistoryContainer>
               </div>
+            </ModalContent>
+          </Modal>
+        )}
+        
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <Modal>
+            <ModalContent>
+              <ModalHeader>
+                <ModalTitle>Delete Attendance Record</ModalTitle>
+                <ModalCloseButton onClick={handleCloseDeleteModal}>&times;</ModalCloseButton>
+              </ModalHeader>
+              
+              <ModalForm onSubmit={handleDeleteAttendance}>
+                <div>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#d32f2f' }}>Warning: This action cannot be undone</h4>
+                  <p><strong>Employee:</strong> {selectedAttendance?.name}</p>
+                  <p><strong>Date & Time:</strong> {selectedAttendance?.formattedDate}</p>
+                  <p><strong>Type:</strong> {selectedAttendance?.type}</p>
+                  <p><strong>Status:</strong> {selectedAttendance?.status}</p>
+                  
+                  <FormGroup>
+                    <FormLabel>Reason for Deletion (required)</FormLabel>
+                    <FormTextArea
+                      name="deleteReason"
+                      value={deleteReason}
+                      onChange={(e) => setDeleteReason(e.target.value)}
+                      placeholder="Explain why this record is being deleted (e.g., duplicate record)"
+                      required
+                    />
+                  </FormGroup>
+                </div>
+                
+                <FormActions>
+                  <CancelButton 
+                    type="button" 
+                    onClick={handleCloseDeleteModal}
+                    disabled={processing}
+                  >
+                    Cancel
+                  </CancelButton>
+                  <SubmitButton 
+                    type="submit" 
+                    disabled={processing}
+                    style={{ backgroundColor: '#d32f2f' }}
+                  >
+                    {processing ? 'Processing...' : 'Delete Record'}
+                  </SubmitButton>
+                </FormActions>
+              </ModalForm>
             </ModalContent>
           </Modal>
         )}

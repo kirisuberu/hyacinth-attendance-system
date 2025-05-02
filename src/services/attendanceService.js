@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, addDoc, Timestamp, doc, getDoc, updateDoc, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, Timestamp, doc, getDoc, updateDoc, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 /**
@@ -634,6 +634,55 @@ export const getAllOverrideHistory = async (options = {}) => {
     }));
   } catch (error) {
     console.error('Error getting override history:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete an attendance record and track the deletion in history
+ * @param {string} recordId - The ID of the attendance record to delete
+ * @param {string} adminId - The ID of the admin performing the deletion
+ * @param {string} adminName - The name of the admin performing the deletion
+ * @param {string} reason - The reason for the deletion
+ * @returns {Promise<string>} - The ID of the deleted record
+ */
+export const deleteAttendanceRecord = async (recordId, adminId, adminName, reason) => {
+  try {
+    // Get the current record to track in history before deletion
+    const recordRef = doc(db, 'attendance', recordId);
+    const recordSnapshot = await getDoc(recordRef);
+    
+    if (!recordSnapshot.exists()) {
+      throw new Error('Attendance record not found');
+    }
+    
+    const currentData = recordSnapshot.data();
+    
+    // Create a history entry to track the deletion
+    const historyData = {
+      attendanceId: recordId,
+      userId: currentData.userId,
+      userName: currentData.name,
+      previousData: currentData,
+      newData: null, // null indicates deletion
+      overriddenBy: {
+        id: adminId,
+        name: adminName
+      },
+      reason,
+      action: 'DELETE',
+      timestamp: Timestamp.now()
+    };
+    
+    // Add the history record
+    const historyRef = await addDoc(collection(db, 'attendance_history'), historyData);
+    
+    // Delete the attendance record
+    await deleteDoc(recordRef);
+    
+    return recordId;
+  } catch (error) {
+    console.error('Error deleting attendance record:', error);
     throw error;
   }
 };
