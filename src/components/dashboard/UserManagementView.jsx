@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple } from 'phosphor-react';
+import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List } from 'phosphor-react';
 import * as XLSX from 'xlsx';
 
 const Container = styled.div`
@@ -18,18 +18,30 @@ const Title = styled.h2`
   gap: 0.5rem;
 `;
 
-const UserTable = styled.table`
+const TableContainer = styled.div`
   width: 100%;
-  border-collapse: collapse;
+  overflow-x: auto;
   margin-top: 1rem;
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  position: relative;
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+`;
+
+const UserTable = styled.table`
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
 `;
 
 const TableHead = styled.thead`
   background-color: #f5f5f5;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 `;
 
 const TableRow = styled.tr`
@@ -48,11 +60,48 @@ const TableHeader = styled.th`
   font-weight: 600;
   color: #333;
   border-bottom: 1px solid #ddd;
+  background-color: #f5f5f5;
+  white-space: nowrap;
+  min-width: 150px;
+  
+  &.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
+  }
+  
+  &.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 20;
+    box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
+  }
 `;
 
 const TableCell = styled.td`
   padding: 1rem;
   border-bottom: 1px solid #ddd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background-color: inherit;
+  
+  &.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background-color: inherit;
+    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
+  }
+  
+  &.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 5;
+    background-color: inherit;
+    box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
+  }
 `;
 
 const ActionButton = styled.button`
@@ -113,16 +162,98 @@ const StatusTag = styled.span`
 `;
 
 const SearchBar = styled.input`
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
   border: 1px solid #ddd;
   border-radius: 4px;
   width: 300px;
-  font-size: 1rem;
+  font-size: 0.9rem;
   
   &:focus {
     outline: none;
-    border-color: #4caf50;
-    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+    border-color: #800000;
+  }
+  
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+`;
+
+const ColumnControlContainer = styled.div`
+  position: relative;
+  display: inline-block;
+`;
+
+const ColumnControlButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1rem;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #e5e5e5;
+  }
+`;
+
+const ColumnControlDropdown = styled.div`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 250px;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  padding: 0.75rem;
+  margin-top: 5px;
+  max-height: 400px;
+  overflow-y: auto;
+`;
+
+const ColumnCheckboxLabel = styled.label`
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #f5f5f5;
+  }
+  
+  & > input {
+    margin-right: 10px;
+  }
+`;
+
+const ColumnControlActions = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+`;
+
+const ColumnControlButton2 = styled.button`
+  padding: 6px 12px;
+  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
+  color: ${props => props.primary ? 'white' : '#333'};
+  border: 1px solid ${props => props.primary ? '#800000' : '#ddd'};
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
   }
 `;
 
@@ -343,6 +474,26 @@ function UserManagementView({ isSuperAdmin }) {
   });
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showColumnControl, setShowColumnControl] = useState(false);
+  
+  // Define all possible columns
+  const [allColumns, setAllColumns] = useState([
+    { id: 'name', label: 'Name', visible: true, required: true },
+    { id: 'email', label: 'Email', visible: true },
+    { id: 'employmentStatus', label: 'Employment Status', visible: true },
+    { id: 'position', label: 'Position', visible: true },
+    { id: 'role', label: 'Role', visible: true },
+    { id: 'status', label: 'Status', visible: true },
+    { id: 'shifts', label: 'Shifts', visible: true },
+    { id: 'dateHired', label: 'Date Hired', visible: false },
+    { id: 'dateOfBirth', label: 'Date of Birth', visible: false },
+    { id: 'phoneNumber', label: 'Phone Number', visible: false },
+    { id: 'address', label: 'Address', visible: false },
+    { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false },
+    { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false },
+    { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false },
+    { id: 'actions', label: 'Actions', visible: true, required: true }
+  ]);
   const [editUserData, setEditUserData] = useState({
     firstName: '',
     lastName: '',
@@ -882,14 +1033,40 @@ function UserManagementView({ isSuperAdmin }) {
       toast.error(`Failed to export users data: ${error.message}`);
     }
   };
-
+  
+  // Column visibility control functions
+  const toggleColumnVisibility = (columnId) => {
+    setAllColumns(prev => prev.map(col => {
+      if (col.id === columnId && !col.required) {
+        return { ...col, visible: !col.visible };
+      }
+      return col;
+    }));
+  };
+  
+  const showAllColumns = () => {
+    setAllColumns(prev => prev.map(col => ({ ...col, visible: true })));
+  };
+  
+  const hideAllColumns = () => {
+    setAllColumns(prev => prev.map(col => {
+      if (col.required) {
+        return col;
+      }
+      return { ...col, visible: false };
+    }));
+  };
+  
+  // Get visible columns
+  const visibleColumns = allColumns.filter(col => col.visible);
+  
   const filteredUsers = users.filter(user => {
     const searchTermLower = searchTerm.toLowerCase();
     return (
       (user.name && user.name.toLowerCase().includes(searchTermLower)) ||
       (user.email && user.email.toLowerCase().includes(searchTermLower)) ||
-      (user.role && user.role.toLowerCase().includes(searchTermLower)) ||
-      (user.position && user.position.toLowerCase().includes(searchTermLower))
+      (user.position && user.position.toLowerCase().includes(searchTermLower)) ||
+      (user.role && user.role.toLowerCase().includes(searchTermLower))
     );
   });
 
@@ -901,12 +1078,47 @@ function UserManagementView({ isSuperAdmin }) {
       </Title>
       
       <TopActions>
-        <SearchBar
-          type="text"
-          placeholder="Search users..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <SearchBar
+            type="text"
+            placeholder="Search users..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          
+          <ColumnControlContainer>
+            <ColumnControlButton onClick={() => setShowColumnControl(!showColumnControl)}>
+              <List size={18} />
+              Columns
+              <CaretDown size={14} />
+            </ColumnControlButton>
+            
+            {showColumnControl && (
+              <ColumnControlDropdown>
+                <div style={{ marginBottom: '10px', fontWeight: '500' }}>Show/Hide Columns</div>
+                
+                {allColumns.map(column => (
+                  <ColumnCheckboxLabel key={column.id}>
+                    <input
+                      type="checkbox"
+                      checked={column.visible}
+                      onChange={() => toggleColumnVisibility(column.id)}
+                      disabled={column.required}
+                    />
+                    {column.label}
+                  </ColumnCheckboxLabel>
+                ))}
+                
+                <ColumnControlActions>
+                  <ColumnControlButton2 onClick={showAllColumns}>Show All</ColumnControlButton2>
+                  <ColumnControlButton2 onClick={hideAllColumns}>Hide All</ColumnControlButton2>
+                  <ColumnControlButton2 primary onClick={resetColumns}>Reset</ColumnControlButton2>
+                </ColumnControlActions>
+              </ColumnControlDropdown>
+            )}
+          </ColumnControlContainer>
+        </div>
+        
         <ExportButton onClick={exportUsersToExcel}>
           <DownloadSimple size={20} />
           Export Users
@@ -916,88 +1128,173 @@ function UserManagementView({ isSuperAdmin }) {
       {loading ? (
         <p>Loading users...</p>
       ) : (
-        <UserTable>
-          <TableHead>
-            <TableRow>
-              <TableHeader>Name</TableHeader>
-              <TableHeader>Email</TableHeader>
-              <TableHeader>Employment Status</TableHeader>
-              <TableHeader>Position</TableHeader>
-              <TableHeader>Role</TableHeader>
-              <TableHeader>Status</TableHeader>
-              <TableHeader>Shifts</TableHeader>
-              <TableHeader>Actions</TableHeader>
-            </TableRow>
-          </TableHead>
-          <tbody>
-            {filteredUsers.length > 0 ? (
-              filteredUsers.map(user => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.name || 'N/A'}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.employmentStatus || user.position || 'N/A'}</TableCell>
-                  <TableCell>{user.position || 'N/A'}</TableCell>
-                  <TableCell>
-                    <RoleTag role={user.role}>{user.role || 'member'}</RoleTag>
-                  </TableCell>
-                  <TableCell>
-                    <StatusTag status={user.status || 'active'}>
-                      {user.status || 'active'}
-                    </StatusTag>
-                  </TableCell>
-                  <TableCell>
-                    {user.schedule && Array.isArray(user.schedule) ? (
-                      <div>
-                        <div><strong>{user.schedule.length}</strong> shifts</div>
-                        <div style={{ fontSize: '0.8rem', color: '#666' }}>
-                          {calculateTotalHours(user.schedule)} total hours
-                        </div>
-                      </div>
-                    ) : (
-                      'No shifts'  
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <ActionButton 
-                      color="#000000"
-                      onClick={() => handleScheduleClick(user)}
-                      title="Manage Schedule"
-                    >
-                      <Calendar size={20} />
-                    </ActionButton>
-                    <ActionButton 
-                      color="#1a73e8"
-                      onClick={() => handleEditClick(user)}
-                      title="Edit User"
-                    >
-                      <Pencil size={20} />
-                    </ActionButton>
-                    <ActionButton 
-                      color={user.status === 'active' ? '#f44336' : '#4caf50'}
-                      onClick={() => toggleUserStatus(user, user.status || 'active')}
-                      title={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
-                    >
-                      {user.status === 'active' ? <X size={20} /> : <Check size={20} />}
-                    </ActionButton>
-                    <ActionButton 
-                      color="#f44336" 
-                      onClick={() => handleDeleteClick(user)}
-                      title="Delete user"
-                    >
-                      <Trash size={20} />
-                    </ActionButton>
+        <TableContainer>
+          <UserTable>
+            <TableHead>
+              <TableRow>
+                {visibleColumns.map(column => (
+                  <TableHeader 
+                    key={column.id}
+                    className={column.id === 'name' ? 'sticky-left' : column.id === 'actions' ? 'sticky-right' : ''}
+                  >
+                    {column.label}
+                  </TableHeader>
+                ))}
+              </TableRow>
+            </TableHead>
+            <tbody>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map(user => (
+                  <TableRow key={user.id}>
+                    {visibleColumns.map(column => {
+                      if (column.id === 'name') {
+                        return (
+                          <TableCell key={column.id} className="sticky-left">
+                            {user.name || 'N/A'}
+                          </TableCell>
+                        );
+                      }
+                      
+                      if (column.id === 'email') {
+                        return <TableCell key={column.id}>{user.email}</TableCell>;
+                      }
+                      
+                      if (column.id === 'employmentStatus') {
+                        return <TableCell key={column.id}>{user.employmentStatus || user.position || 'N/A'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'position') {
+                        return <TableCell key={column.id}>{user.position || 'N/A'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'role') {
+                        return (
+                          <TableCell key={column.id}>
+                            <RoleTag role={user.role}>{user.role || 'member'}</RoleTag>
+                          </TableCell>
+                        );
+                      }
+                      
+                      if (column.id === 'status') {
+                        return (
+                          <TableCell key={column.id}>
+                            <StatusTag status={user.status || 'active'}>
+                              {user.status || 'active'}
+                            </StatusTag>
+                          </TableCell>
+                        );
+                      }
+                      
+                      if (column.id === 'shifts') {
+                        return (
+                          <TableCell key={column.id}>
+                            {user.schedule && Array.isArray(user.schedule) ? (
+                              <div>
+                                <div><strong>{user.schedule.length}</strong> shifts</div>
+                                <div style={{ fontSize: '0.8rem', color: '#666' }}>
+                                  {calculateTotalHours(user.schedule)} total hours
+                                </div>
+                              </div>
+                            ) : (
+                              'No shifts'  
+                            )}
+                          </TableCell>
+                        );
+                      }
+                      
+                      if (column.id === 'dateHired') {
+                        return (
+                          <TableCell key={column.id}>
+                            {user.dateHired ? (
+                              user.dateHired.seconds ? 
+                                new Date(user.dateHired.seconds * 1000).toLocaleDateString() : 
+                                user.dateHired.toString()
+                            ) : 'Not specified'}
+                          </TableCell>
+                        );
+                      }
+                      
+                      if (column.id === 'dateOfBirth') {
+                        return (
+                          <TableCell key={column.id}>
+                            {user.dateOfBirth ? (
+                              user.dateOfBirth.seconds ? 
+                                new Date(user.dateOfBirth.seconds * 1000).toLocaleDateString() : 
+                                user.dateOfBirth.toString()
+                            ) : 'Not specified'}
+                          </TableCell>
+                        );
+                      }
+                      
+                      if (column.id === 'phoneNumber') {
+                        return <TableCell key={column.id}>{user.phoneNumber || user.contactNumber || 'Not specified'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'address') {
+                        return <TableCell key={column.id}>{user.address || 'Not specified'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'emergencyContactName') {
+                        return <TableCell key={column.id}>{user.emergencyContactName || 'Not specified'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'emergencyContactPhone') {
+                        return <TableCell key={column.id}>{user.emergencyContactPhone || 'Not specified'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'emergencyContactRelationship') {
+                        return <TableCell key={column.id}>{user.emergencyContactRelationship || 'Not specified'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'actions') {
+                        return (
+                          <TableCell key={column.id} className="sticky-right">
+                            <ActionButton 
+                              color="#000000"
+                              onClick={() => handleScheduleClick(user)}
+                              title="Manage Schedule"
+                            >
+                              <Calendar size={20} />
+                            </ActionButton>
+                            <ActionButton 
+                              color="#1a73e8"
+                              onClick={() => handleEditClick(user)}
+                              title="Edit User"
+                            >
+                              <Pencil size={20} />
+                            </ActionButton>
+                            <ActionButton 
+                              color={user.status === 'active' ? '#f44336' : '#4caf50'}
+                              onClick={() => toggleUserStatus(user, user.status || 'active')}
+                              title={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
+                            >
+                              {user.status === 'active' ? <X size={20} /> : <Check size={20} />}
+                            </ActionButton>
+                            <ActionButton 
+                              color="#f44336" 
+                              onClick={() => handleDeleteClick(user)}
+                              title="Delete user"
+                            >
+                              <Trash size={20} />
+                            </ActionButton>
+                          </TableCell>
+                        );
+                      }
+                      
+                      return null;
+                    })}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={visibleColumns.length} style={{ textAlign: 'center' }}>
+                    No users found
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={6} style={{ textAlign: 'center' }}>
-                  No users found
-                </TableCell>
-              </TableRow>
-            )}
-          </tbody>
-        </UserTable>
+              )}
+            </tbody>
+          </UserTable>
+        </TableContainer>
       )}
       
       {showDeleteModal && (
