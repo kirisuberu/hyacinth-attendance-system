@@ -362,11 +362,23 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
         return 'Not specified';
       }
       
+      // Fix for date offset issues with birthdays and other dates
+      // Create a new date string in ISO format but only take the date part (YYYY-MM-DD)
+      // This prevents timezone issues from affecting the displayed date
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}T12:00:00`; // Use noon to avoid any timezone issues
+      
+      // Create a new date object from this string
+      const adjustedDate = new Date(dateString);
+      
       // Format date as "Month Day, Year"
-      return date.toLocaleDateString('en-US', {
+      return adjustedDate.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: 'UTC' // Use UTC to avoid timezone shifts
       });
     } catch (error) {
       console.error('Error formatting timestamp:', error);
