@@ -310,23 +310,65 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
             Today's Schedule
           </CardTitle>
           <CardContent>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>Morning Shift</div>
-                  <div style={{ fontSize: '0.85rem', color: '#555' }}>8:00 AM - 12:00 PM</div>
-                </div>
-                <StatusBadge status="In">Active</StatusBadge>
-              </div>
+            {(() => {
+              // Calculate shift progress
+              const now = new Date();
+              const shiftStart = new Date();
+              shiftStart.setHours(8, 0, 0, 0); // 8:00 AM
+              const shiftEnd = new Date();
+              shiftEnd.setHours(17, 0, 0, 0); // 5:00 PM
               
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
-                <div>
-                  <div style={{ fontWeight: 'bold' }}>Afternoon Shift</div>
-                  <div style={{ fontSize: '0.85rem', color: '#555' }}>1:00 PM - 5:00 PM</div>
+              const totalShiftDuration = shiftEnd - shiftStart;
+              const elapsedTime = now - shiftStart;
+              
+              // Calculate progress percentage
+              let progressPercentage = 0;
+              let statusText = "";
+              
+              if (now < shiftStart) {
+                progressPercentage = 0;
+                statusText = "Upcoming";
+              } else if (now > shiftEnd) {
+                progressPercentage = 100;
+                statusText = "Completed";
+              } else {
+                progressPercentage = Math.min(100, Math.max(0, (elapsedTime / totalShiftDuration) * 100));
+                statusText = "In Progress";
+              }
+              
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>Today's Shift</div>
+                      <div style={{ fontSize: '0.85rem', color: '#555' }}>8:00 AM - 5:00 PM</div>
+                    </div>
+                    <StatusBadge status={statusText === "In Progress" ? "In" : statusText === "Completed" ? "Out" : "Pending"}>
+                      {statusText}
+                    </StatusBadge>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#666' }}>
+                      <span>Shift Progress</span>
+                      <span>{Math.round(progressPercentage)}%</span>
+                    </div>
+                    <div style={{ height: '8px', backgroundColor: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div 
+                        style={{ 
+                          height: '100%', 
+                          width: `${progressPercentage}%`, 
+                          backgroundColor: progressPercentage < 30 ? '#42a5f5' : progressPercentage < 70 ? '#66bb6a' : '#8d6e63',
+                          borderRadius: '4px',
+                          transition: 'width 0.5s ease-in-out'
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <StatusBadge status="Out">Upcoming</StatusBadge>
-              </div>
-            </div>
+              );
+            })()} 
           </CardContent>
         </Card>
         
