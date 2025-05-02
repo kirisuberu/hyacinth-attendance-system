@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Card, CardTitle, CardContent } from '../dashboard/DashboardComponents';
-import { Gear, FloppyDisk, ClockClockwise, ArrowClockwise } from 'phosphor-react';
+import { Gear, FloppyDisk, ClockClockwise, ArrowClockwise, GlobeHemisphereWest, LockSimple, LockSimpleOpen } from 'phosphor-react';
 import { getAttendanceRules, updateAttendanceRules } from '../../services/systemSettingsService';
 import { toast } from 'react-toastify';
 
@@ -148,6 +148,9 @@ const RulesView = () => {
     timeOut: {
       incompleteThreshold: 30,
       overtimeThreshold: 30
+    },
+    timeRegion: {
+      lockToDeviceRegion: false
     }
   });
   
@@ -176,6 +179,18 @@ const RulesView = () => {
   
   // Handle input change
   const handleInputChange = (section, field, value) => {
+    if (typeof value === 'boolean') {
+      // Handle boolean values (like toggles)
+      setRules(prev => ({
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: value
+        }
+      }));
+      return;
+    }
+    
     // Ensure value is a positive number
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue < 0) return;
@@ -221,7 +236,8 @@ const RulesView = () => {
       rules.timeIn.earlyThreshold !== originalRules.timeIn.earlyThreshold ||
       rules.timeIn.onTimeThreshold !== originalRules.timeIn.onTimeThreshold ||
       rules.timeOut.incompleteThreshold !== originalRules.timeOut.incompleteThreshold ||
-      rules.timeOut.overtimeThreshold !== originalRules.timeOut.overtimeThreshold
+      rules.timeOut.overtimeThreshold !== originalRules.timeOut.overtimeThreshold ||
+      rules.timeRegion?.lockToDeviceRegion !== originalRules.timeRegion?.lockToDeviceRegion
     );
   };
   
@@ -310,6 +326,93 @@ const RulesView = () => {
                   </Description>
                 </FormGroup>
               </FormRow>
+            </RulesSection>
+            
+            <RulesSection>
+              <SectionTitle>
+                <GlobeHemisphereWest size={20} weight="bold" />
+                Time Region Settings
+              </SectionTitle>
+              
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                padding: '1rem',
+                background: rules.timeRegion?.lockToDeviceRegion ? '#f9f9f9' : 'white',
+                borderRadius: '8px',
+                border: '1px solid #eee',
+                transition: 'all 0.2s ease'
+              }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    marginBottom: '0.5rem',
+                    fontWeight: '600',
+                    color: '#444'
+                  }}>
+                    {rules.timeRegion?.lockToDeviceRegion ? 
+                      <LockSimple size={18} style={{ marginRight: '0.5rem' }} /> : 
+                      <LockSimpleOpen size={18} style={{ marginRight: '0.5rem' }} />
+                    }
+                    Lock User Time Region to Device
+                  </div>
+                  <Description>
+                    {rules.timeRegion?.lockToDeviceRegion ? 
+                      "Users' time region will be automatically set to match their device's detected time region and they won't be able to change it." : 
+                      "Users can manually select their preferred time region regardless of their device's detected time region."}
+                  </Description>
+                </div>
+                <label className="switch" style={{ 
+                  position: 'relative',
+                  display: 'inline-block',
+                  width: '60px',
+                  height: '34px',
+                  marginLeft: '1rem'
+                }}>
+                  <input 
+                    type="checkbox" 
+                    checked={rules.timeRegion?.lockToDeviceRegion || false}
+                    onChange={(e) => handleInputChange('timeRegion', 'lockToDeviceRegion', e.target.checked)}
+                    style={{ opacity: 0, width: 0, height: 0 }}
+                  />
+                  <span style={{
+                    position: 'absolute',
+                    cursor: 'pointer',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: rules.timeRegion?.lockToDeviceRegion ? '#800000' : '#ccc',
+                    transition: '.4s',
+                    borderRadius: '34px',
+                    '&:before': {
+                      position: 'absolute',
+                      content: '""',
+                      height: '26px',
+                      width: '26px',
+                      left: '4px',
+                      bottom: '4px',
+                      backgroundColor: 'white',
+                      transition: '.4s',
+                      borderRadius: '50%',
+                      transform: rules.timeRegion?.lockToDeviceRegion ? 'translateX(26px)' : 'translateX(0)'
+                    }
+                  }}>
+                    <div style={{
+                      position: 'absolute',
+                      height: '26px',
+                      width: '26px',
+                      left: '4px',
+                      bottom: '4px',
+                      backgroundColor: 'white',
+                      transition: '.4s',
+                      borderRadius: '50%',
+                      transform: rules.timeRegion?.lockToDeviceRegion ? 'translateX(26px)' : 'translateX(0)'
+                    }} />
+                  </span>
+                </label>
+              </div>
             </RulesSection>
             
             <ButtonContainer>

@@ -27,6 +27,7 @@ import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
+import { getAttendanceRules } from '../../services/systemSettingsService';
 
 // Styled components for layout
 const DashboardContainer = styled.div`
@@ -341,6 +342,7 @@ const DashboardLayout = ({
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
   const [updatingTimeFormat, setUpdatingTimeFormat] = useState(false);
+  const [timeRegionLocked, setTimeRegionLocked] = useState(false);
   
   // Function to get UTC offset for a time zone
   const getUTCOffset = (timeZone) => {
@@ -373,17 +375,50 @@ const DashboardLayout = ({
     }
   };
 
-  // Detect user's device time zone
+  // Detect user's device time zone and check time region lock setting
   useEffect(() => {
     try {
       const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setDetectedTimeZone(deviceTimeZone);
       console.log('Detected device time zone:', deviceTimeZone);
+      
+      // Check if time region is locked in system settings
+      const checkTimeRegionLock = async () => {
+        try {
+          const rules = await getAttendanceRules();
+          const isLocked = rules.timeRegion?.lockToDeviceRegion || false;
+          setTimeRegionLocked(isLocked);
+          
+          // If time region is locked and we have a detected time zone,
+          // automatically update the user's time region if it doesn't match
+          if (isLocked && deviceTimeZone && user?.uid && userData && 
+              userData.timeRegion !== deviceTimeZone) {
+            // Update the user document in Firestore
+            const userDocRef = doc(db, 'users', user.uid);
+            await updateDoc(userDocRef, {
+              timeRegion: deviceTimeZone
+            });
+            
+            // Update local state
+            setUserData(prev => ({
+              ...prev,
+              timeRegion: deviceTimeZone
+            }));
+            
+            setSelectedTimeRegion(deviceTimeZone);
+            toast.info('Your time region has been automatically set to match your device.');
+          }
+        } catch (error) {
+          console.error('Error checking time region lock setting:', error);
+        }
+      };
+      
+      checkTimeRegionLock();
     } catch (error) {
       console.error('Error detecting time zone:', error);
       setDetectedTimeZone('Unable to detect');
     }
-  }, []);
+  }, [user?.uid, userData]);
 
 
 
@@ -627,9 +662,23 @@ const DashboardLayout = ({
           <div style={{ marginBottom: '1.5rem' }}>
             <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>User Settings</p>
             
-            <NavItem onClick={() => setShowTimeRegionModal(true)}>
+            <NavItem 
+              onClick={() => {
+                if (timeRegionLocked) {
+                  toast.warning("Time region is locked by administrator. It's automatically set to match your device.");
+                } else {
+                  setShowTimeRegionModal(true);
+                }
+              }}
+              style={{ opacity: timeRegionLocked ? 0.7 : 1 }}
+            >
               <Icon><GlobeHemisphereWest size={16} /></Icon>
               Change Time Region
+              {timeRegionLocked && (
+                <Icon style={{ marginLeft: '4px', marginRight: '4px' }}>
+                  <LockSimple size={14} />
+                </Icon>
+              )}
               <div style={{ fontSize: '0.75rem', marginLeft: 'auto', opacity: 0.7 }}>
                 {userData?.timeRegion?.replace('_', ' ') || 'Asia/Manila'}
               </div>
@@ -697,12 +746,19 @@ const DashboardLayout = ({
       </Content>
       
       {/* Time Region Modal */}
-      {showTimeRegionModal && (
+      {showTimeRegionModal && !timeRegionLocked && (
         <ModalOverlay>
           <ModalContent>
             <ModalHeader>
               <h3>Change Time Region</h3>
-              <CloseButton onClick={() => setShowTimeRegionModal(false)}>&times;</CloseButton>
+              {timeRegionLocked ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <LockSimple size={16} />
+                  <span style={{ fontSize: '0.9rem', color: '#666' }}>Locked by admin</span>
+                </div>
+              ) : (
+                <CloseButton onClick={() => setShowTimeRegionModal(false)}>&times;</CloseButton>
+              )}
             </ModalHeader>
             <ModalBody>
               <p style={{ marginBottom: '1rem' }}>

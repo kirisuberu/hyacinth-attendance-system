@@ -24,6 +24,9 @@ export const getAttendanceRules = async () => {
         timeOut: {
           incompleteThreshold: 30,  // Minutes before scheduled end time to be considered "Incomplete"
           overtimeThreshold: 30     // Minutes after scheduled end time to be considered "Overtime"
+        },
+        timeRegion: {
+          lockToDeviceRegion: false  // Whether to lock users' time region to their device's detected region
         }
       };
     }
