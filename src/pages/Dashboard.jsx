@@ -10,7 +10,7 @@ import { Check, X } from 'phosphor-react';
 // Import dashboard components
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import DashboardHome from '../components/dashboard/DashboardHome';
-import AttendanceView from '../components/dashboard/AttendanceView';
+import AttendanceLogsView from '../components/dashboard/AttendanceLogsView';
 import ScheduleView from '../components/dashboard/ScheduleView';
 import ProfileView from '../components/dashboard/ProfileView';
 import RegistrationRequestsView from '../components/dashboard/RegistrationRequestsView';
@@ -720,7 +720,7 @@ function Dashboard() {
         )}
 
         {activeTab === 'attendance' && (
-          <AttendanceView user={user} />
+          <AttendanceLogsView user={user} />
         )}
         
         {activeTab === 'schedule' && (
