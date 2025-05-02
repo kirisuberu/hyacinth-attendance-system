@@ -395,20 +395,31 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                   shiftEnd.setDate(shiftEnd.getDate() + 1);
                 }
                 
+                // Calculate shift duration in milliseconds
                 const totalShiftDuration = shiftEnd - shiftStart;
-                const elapsedTime = now - shiftStart;
                 
-                // Calculate progress percentage
+                // Calculate progress percentage based on scheduled time and duration
                 let progressPercentage = 0;
                 let statusText = "";
+                let elapsedTime = 0;
                 
                 if (now < shiftStart) {
+                  // Shift hasn't started yet
                   progressPercentage = 0;
                   statusText = "Upcoming";
-                } else if (now > shiftEnd) {
+                  elapsedTime = 0;
+                } else if (now >= shiftEnd) {
+                  // Shift is over
                   progressPercentage = 100;
                   statusText = "Completed";
+                  elapsedTime = totalShiftDuration;
                 } else {
+                  // Shift is in progress
+                  // Calculate elapsed time since shift start
+                  elapsedTime = now - shiftStart;
+                  
+                  // Calculate progress as a percentage of the total shift duration
+                  // Make sure it doesn't exceed 100% or go below 0%
                   progressPercentage = Math.min(100, Math.max(0, (elapsedTime / totalShiftDuration) * 100));
                   statusText = "In Progress";
                 }
