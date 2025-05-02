@@ -1057,6 +1057,26 @@ function UserManagementView({ isSuperAdmin }) {
     }));
   };
   
+  const resetColumns = () => {
+    setAllColumns([
+      { id: 'name', label: 'Name', visible: true, required: true },
+      { id: 'email', label: 'Email', visible: true },
+      { id: 'employmentStatus', label: 'Employment Status', visible: true },
+      { id: 'position', label: 'Position', visible: true },
+      { id: 'role', label: 'Role', visible: true },
+      { id: 'status', label: 'Status', visible: true },
+      { id: 'shifts', label: 'Shifts', visible: true },
+      { id: 'dateHired', label: 'Date Hired', visible: false },
+      { id: 'dateOfBirth', label: 'Date of Birth', visible: false },
+      { id: 'phoneNumber', label: 'Phone Number', visible: false },
+      { id: 'address', label: 'Address', visible: false },
+      { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false },
+      { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false },
+      { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false },
+      { id: 'actions', label: 'Actions', visible: true, required: true }
+    ]);
+  };
+  
   // Get visible columns
   const visibleColumns = allColumns.filter(col => col.visible);
   
