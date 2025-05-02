@@ -385,13 +385,42 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                   }
                 };
                 
-                // Calculate shift progress
+                // Log the actual schedule times for debugging
+                console.log('Today\'s schedule:', todaySchedule);
+                console.log('Time In:', todaySchedule?.timeIn);
+                console.log('Time Out:', todaySchedule?.timeOut);
+                
+                // Get today's date for the base of our time calculations
+                const today = new Date();
                 const now = new Date();
-                const shiftStart = parseTimeString(todaySchedule?.timeIn);
-                const shiftEnd = parseTimeString(todaySchedule?.timeOut);
+                
+                // Create proper Date objects for shift start and end times
+                const createTimeDate = (timeStr) => {
+                  if (!timeStr) return null;
+                  
+                  const [hours, minutes] = timeStr.split(':').map(Number);
+                  const timeDate = new Date(today);
+                  timeDate.setHours(hours || 0, minutes || 0, 0, 0);
+                  return timeDate;
+                };
+                
+                // Create proper Date objects for shift start and end
+                const shiftStart = createTimeDate(todaySchedule?.timeIn);
+                const shiftEnd = createTimeDate(todaySchedule?.timeOut);
+                
+                // Handle case where schedule data is missing
+                if (!shiftStart || !shiftEnd) {
+                  console.error('Missing shift start or end time');
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px' }}>
+                      <Warning size={20} style={{ marginRight: '10px', color: '#f57f17' }} />
+                      <span>Invalid schedule data</span>
+                    </div>
+                  );
+                }
                 
                 // Handle overnight shifts
-                if (shiftEnd < shiftStart) {
+                if (shiftEnd <= shiftStart) {
                   shiftEnd.setDate(shiftEnd.getDate() + 1);
                 }
                 
@@ -424,9 +453,19 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                   statusText = "In Progress";
                 }
                 
-                // Format times for display
-                const formatTimeDisplay = (date) => {
-                  return format(date, 'h:mm a');
+                // Format times for display directly from the schedule strings
+                const formatTimeDisplay = (timeStr) => {
+                  if (!timeStr) return 'N/A';
+                  
+                  try {
+                    const [hours, minutes] = timeStr.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(hours || 0, minutes || 0, 0, 0);
+                    return format(date, 'h:mm a');
+                  } catch (error) {
+                    console.error('Error formatting time for display:', error);
+                    return timeStr; // Fall back to the original string
+                  }
                 };
                 
                 return (
@@ -435,7 +474,7 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                       <div>
                         <div style={{ fontWeight: 'bold' }}>{todaySchedule?.dayOfWeek || 'Today'}'s Shift</div>
                         <div style={{ fontSize: '0.85rem', color: '#555' }}>
-                          {formatTimeDisplay(shiftStart)} - {formatTimeDisplay(shiftEnd)}
+                          {formatTimeDisplay(todaySchedule?.timeIn)} - {formatTimeDisplay(todaySchedule?.timeOut)}
                         </div>
                       </div>
                       <StatusBadge status={statusText === "In Progress" ? "In" : statusText === "Completed" ? "Out" : "Pending"}>
