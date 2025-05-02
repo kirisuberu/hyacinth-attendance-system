@@ -66,6 +66,23 @@ const FieldLabel = styled.strong`
   margin-right: 15px;
 `;
 
+const EditButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #800000;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(128, 0, 0, 0.1);
+  }
+`;
+
 const SectionTitle = styled.h3`
   font-size: 1.1rem;
   color: #333;
@@ -90,23 +107,6 @@ const FieldValue = styled.span`
   word-break: break-word;
   font-weight: 400;
   flex: 1;
-`;
-
-const EditButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #800000;
-  display: flex;
-  align-items: center;
-  font-size: 0.85rem;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: rgba(128, 0, 0, 0.1);
-  }
 `;
 
 const Modal = styled.div`

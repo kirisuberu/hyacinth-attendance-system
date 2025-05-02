@@ -4708,6 +4708,21 @@ ${this.customData.serverResponse}`:this.message=this._baseMessage}}var Xi;(funct
   color: #444;
   font-weight: 500;
   margin-right: 15px;
+`,qy=V.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #800000;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(128, 0, 0, 0.1);
+  }
 `,c2=V.h3`
   font-size: 1.1rem;
   color: #333;
@@ -4730,21 +4745,6 @@ ${this.customData.serverResponse}`:this.message=this._baseMessage}}var Xi;(funct
   word-break: break-word;
   font-weight: 400;
   flex: 1;
-`,qy=V.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #800000;
-  display: flex;
-  align-items: center;
-  font-size: 0.85rem;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: rgba(128, 0, 0, 0.1);
-  }
 `,zT=V.div`
   position: fixed;
   top: 0;
