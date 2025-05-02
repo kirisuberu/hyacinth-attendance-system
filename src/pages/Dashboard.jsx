@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, query, where, orderBy, limit, getDocs, Timestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { toast } from 'react-toastify';
+import { preventMultiSubmit } from '../utils/debounce';
 import styled from 'styled-components';
 import { Check, X } from 'phosphor-react';
 
@@ -90,9 +91,38 @@ const ConfirmButton = styled(Button)`
   background-color: #4caf50;
   color: white;
   border: 1px solid #43a047;
+  position: relative;
+  overflow: hidden;
   
   &:hover {
     background-color: #43a047;
+  }
+  
+  &:disabled {
+    background-color: #a5d6a7;
+    border-color: #a5d6a7;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+  
+  &:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: ${props => props.processing ? 'shimmer 1.5s infinite' : 'none'};
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
   }
 `;
 
@@ -484,10 +514,15 @@ function Dashboard() {
     }
   };
   
-  const handleConfirmTimeInOut = async () => {
+  // Implementation of the confirmation function
+  const handleConfirmTimeInOutImpl = async () => {
     if (!pendingAttendance) return;
     
+    // Set loading state to provide visual feedback
     setLoading(true);
+    
+    // Create a local variable to track processing state for the UI
+    const processingState = { current: true };
     
     try {
       // Calculate time difference for the record
@@ -647,10 +682,14 @@ function Dashboard() {
     }
   };
   
+  // Wrap the implementation with preventMultiSubmit to avoid duplicate submissions when double-clicking
+  const handleConfirmTimeInOut = preventMultiSubmit(handleConfirmTimeInOutImpl, 2000);
+  
   const handleCancelTimeInOut = () => {
     setShowConfirmModal(false);
     setPendingAttendance(null);
     setAttendanceNotes('');
+  
   };
   
   // Legacy function for backward compatibility
@@ -753,13 +792,17 @@ function Dashboard() {
               </div>
             </ModalBody>
             <ModalButtons>
-              <CancelButton onClick={handleCancelTimeInOut}>
-                <X size={16} style={{ marginRight: '4px' }} />
+              <CancelButton onClick={handleCancelTimeInOut} disabled={loading}>
+                <X weight="bold" style={{ marginRight: '0.25rem' }} />
                 Cancel
               </CancelButton>
-              <ConfirmButton onClick={handleConfirmTimeInOut}>
-                <Check size={16} style={{ marginRight: '4px' }} />
-                Confirm
+              <ConfirmButton 
+                onClick={handleConfirmTimeInOut} 
+                disabled={loading}
+                processing={loading}
+              >
+                <Check weight="bold" style={{ marginRight: '0.25rem' }} />
+                {loading ? 'Processing...' : 'Confirm'}
               </ConfirmButton>
             </ModalButtons>
           </ModalContent>
