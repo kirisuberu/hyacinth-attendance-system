@@ -365,59 +365,74 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
               </div>
             ) : (
               (() => {
-                // Parse time strings
-                const parseTimeString = (timeStr) => {
-                  if (!timeStr) {
-                    // Default to current time if timeStr is undefined
-                    const date = new Date();
-                    return date;
-                  }
-                  
-                  try {
-                    const [hours, minutes] = timeStr.split(':').map(Number);
-                    const date = new Date();
-                    date.setHours(hours || 0, minutes || 0, 0, 0);
-                    return date;
-                  } catch (error) {
-                    console.error('Error parsing time string:', error);
-                    // Return current time as fallback
-                    return new Date();
-                  }
-                };
-                
-                // Log the actual schedule times for debugging
-                console.log('Today\'s schedule:', todaySchedule);
-                console.log('Time In:', todaySchedule?.timeIn);
-                console.log('Time Out:', todaySchedule?.timeOut);
-                
                 // Get today's date for the base of our time calculations
                 const today = new Date();
                 const now = new Date();
                 
+                // Check if we have valid schedule data
+                if (!todaySchedule) {
+                  console.log('No schedule found for today');
+                  // Create default schedule (9 AM - 5 PM)
+                  const defaultTimeIn = '09:00';
+                  const defaultTimeOut = '17:00';
+                  
+                  // Format times for display
+                  const formatDefaultTime = (timeStr) => {
+                    const [hours, minutes] = timeStr.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(hours, minutes, 0, 0);
+                    return format(date, 'h:mm a');
+                  };
+                  
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold' }}>Default Shift</div>
+                          <div style={{ fontSize: '0.85rem', color: '#555' }}>
+                            {formatDefaultTime(defaultTimeIn)} - {formatDefaultTime(defaultTimeOut)}
+                          </div>
+                        </div>
+                        <StatusBadge status="Pending">
+                          No Schedule
+                        </StatusBadge>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px' }}>
+                        <Warning size={20} style={{ marginRight: '10px', color: '#f57f17' }} />
+                        <span>No schedule found for today. Using default values.</span>
+                      </div>
+                    </div>
+                  );
+                }
+                
                 // Create proper Date objects for shift start and end times
                 const createTimeDate = (timeStr) => {
-                  if (!timeStr) return null;
+                  if (!timeStr) {
+                    // Use a default time if timeStr is undefined
+                    console.log('Missing time string, using default');
+                    return timeStr === todaySchedule?.timeIn ? 
+                      (() => { const d = new Date(today); d.setHours(9, 0, 0, 0); return d; })() : 
+                      (() => { const d = new Date(today); d.setHours(17, 0, 0, 0); return d; })();
+                  }
                   
-                  const [hours, minutes] = timeStr.split(':').map(Number);
-                  const timeDate = new Date(today);
-                  timeDate.setHours(hours || 0, minutes || 0, 0, 0);
-                  return timeDate;
+                  try {
+                    const [hours, minutes] = timeStr.split(':').map(Number);
+                    const timeDate = new Date(today);
+                    timeDate.setHours(hours || 0, minutes || 0, 0, 0);
+                    return timeDate;
+                  } catch (error) {
+                    console.error('Error creating time date:', error);
+                    // Use default times as fallback
+                    return timeStr === todaySchedule?.timeIn ? 
+                      (() => { const d = new Date(today); d.setHours(9, 0, 0, 0); return d; })() : 
+                      (() => { const d = new Date(today); d.setHours(17, 0, 0, 0); return d; })();
+                  }
                 };
                 
                 // Create proper Date objects for shift start and end
                 const shiftStart = createTimeDate(todaySchedule?.timeIn);
                 const shiftEnd = createTimeDate(todaySchedule?.timeOut);
-                
-                // Handle case where schedule data is missing
-                if (!shiftStart || !shiftEnd) {
-                  console.error('Missing shift start or end time');
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px' }}>
-                      <Warning size={20} style={{ marginRight: '10px', color: '#f57f17' }} />
-                      <span>Invalid schedule data</span>
-                    </div>
-                  );
-                }
                 
                 // Handle overnight shifts
                 if (shiftEnd <= shiftStart) {
