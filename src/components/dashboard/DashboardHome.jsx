@@ -430,9 +430,21 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                   }
                 };
                 
-                // Create proper Date objects for shift start and end
+                // Create proper Date object for shift start
                 const shiftStart = createTimeDate(todaySchedule?.timeIn);
-                const shiftEnd = createTimeDate(todaySchedule?.timeOut);
+                
+                // Calculate shift end time based on start time and duration
+                let shiftEnd;
+                if (todaySchedule?.timeOut) {
+                  // Use the provided time out if available
+                  shiftEnd = createTimeDate(todaySchedule.timeOut);
+                } else {
+                  // Calculate time out by adding shift duration to time in
+                  const shiftDuration = todaySchedule?.shiftDuration || 8; // Default to 8 hours if not specified
+                  shiftEnd = new Date(shiftStart.getTime());
+                  shiftEnd.setHours(shiftEnd.getHours() + shiftDuration);
+                  console.log(`Calculated time out: ${shiftEnd.toLocaleTimeString()} (${shiftDuration} hours shift)`);
+                }
                 
                 // Handle overnight shifts
                 if (shiftEnd <= shiftStart) {
@@ -468,11 +480,17 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                   statusText = "In Progress";
                 }
                 
-                // Format times for display directly from the schedule strings
-                const formatTimeDisplay = (timeStr) => {
+                // Format times for display
+                const formatTimeDisplay = (timeStr, isTimeOut = false) => {
+                  // For time out, if we don't have the string but have calculated the end time
+                  if (isTimeOut && !timeStr && shiftEnd) {
+                    // Use the calculated shift end time
+                    return format(shiftEnd, 'h:mm a') + ' (calculated)';
+                  }
+                  
                   if (!timeStr) {
                     // Use default times instead of showing N/A
-                    const defaultTime = timeStr === todaySchedule?.timeIn ? '09:00' : '17:00';
+                    const defaultTime = !isTimeOut ? '09:00' : '17:00';
                     const [hours, minutes] = defaultTime.split(':').map(Number);
                     const date = new Date();
                     date.setHours(hours, minutes, 0, 0);
@@ -487,7 +505,7 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                   } catch (error) {
                     console.error('Error formatting time for display:', error);
                     // Use default times as fallback
-                    const defaultTime = timeStr === todaySchedule?.timeIn ? '09:00' : '17:00';
+                    const defaultTime = !isTimeOut ? '09:00' : '17:00';
                     const [hours, minutes] = defaultTime.split(':').map(Number);
                     const date = new Date();
                     date.setHours(hours, minutes, 0, 0);
@@ -501,7 +519,7 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                       <div>
                         <div style={{ fontWeight: 'bold' }}>{todaySchedule?.dayOfWeek || 'Today'}'s Shift</div>
                         <div style={{ fontSize: '0.85rem', color: '#555' }}>
-                          {formatTimeDisplay(todaySchedule?.timeIn)} - {formatTimeDisplay(todaySchedule?.timeOut)}
+                          {formatTimeDisplay(todaySchedule?.timeIn, false)} - {formatTimeDisplay(todaySchedule?.timeOut, true)}
                         </div>
                       </div>
                       <StatusBadge status={statusText === "In Progress" ? "In" : statusText === "Completed" ? "Out" : "Pending"}>
