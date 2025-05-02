@@ -7,7 +7,6 @@ import { format, addHours, parse, isToday as isDateToday } from 'date-fns';
 import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { Clock, Calendar, ArrowRight } from 'phosphor-react';
-import OvertimeRequestForm from './OvertimeRequestForm';
 
 const ScheduleTable = styled.table`
   width: 100%;
@@ -494,12 +493,8 @@ const ScheduleView = ({ user, userData }) => {
         )}
       </CardContent>
     </Card>
-    
-    {/* Add the OvertimeRequestForm below the schedule */}
-    <div style={{ marginTop: '2rem' }}>
-      <OvertimeRequestForm user={user} />
-    </div>
-  </>);
+  </>
+  );
 };
 
 export default ScheduleView;
