@@ -21,7 +21,8 @@ import {
   ListChecks,
   CaretDown,
   CaretRight,
-  Ruler
+  Ruler,
+  LockSimple
 } from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
