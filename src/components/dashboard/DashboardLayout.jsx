@@ -20,7 +20,8 @@ import {
   Gear,
   ListChecks,
   CaretDown,
-  CaretRight
+  CaretRight,
+  Ruler
 } from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
@@ -610,6 +611,13 @@ const DashboardLayout = ({
                   <Icon><Shield size={16} /></Icon>
                   Admin Privileges
                 </NavItem>
+                <NavItem 
+                  className={activeTab === 'rules' ? 'active' : ''} 
+                  onClick={() => setActiveTab('rules')}
+                >
+                  <Icon><Ruler size={16} /></Icon>
+                  Rules
+                </NavItem>
               </div>
             )}
           </div>
@@ -671,6 +679,7 @@ const DashboardLayout = ({
             {activeTab === 'registration_requests' && 'Registration Requests'}
             {activeTab === 'user_management' && 'User Management'}
             {activeTab === 'admin_privileges' && 'Admin Privileges'}
+            {activeTab === 'rules' && 'Attendance Rules'}
           </Title>
           
           <UserInfo>

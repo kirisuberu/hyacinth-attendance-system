@@ -1,5 +1,6 @@
 import { collection, query, where, getDocs, addDoc, Timestamp, doc, getDoc, updateDoc, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getAttendanceRules } from './systemSettingsService';
 
 /**
  * Records an attendance entry (time in/out) for a user
@@ -92,12 +93,17 @@ export const determineTimeInStatus = async (userId) => {
     // Calculate time difference in minutes
     const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
     
+    // Get attendance rules from system settings
+    const rules = await getAttendanceRules();
+    const earlyThreshold = rules.timeIn?.earlyThreshold || 15;
+    const onTimeThreshold = rules.timeIn?.onTimeThreshold || 5;
+    
     // Determine status based on time difference
-    if (diffMinutes < -15) { // More than 15 minutes early
+    if (diffMinutes < -earlyThreshold) { // More than earlyThreshold minutes early
       return 'Early';
-    } else if (diffMinutes <= 15) { // Within 15 minutes of scheduled time
+    } else if (diffMinutes <= onTimeThreshold) { // Within onTimeThreshold minutes of scheduled time
       return 'On Time';
-    } else { // More than 15 minutes late
+    } else { // More than onTimeThreshold minutes late
       return 'Late';
     }
   } catch (error) {
@@ -214,6 +220,11 @@ export const determineTimeOutStatus = async (userId) => {
       if (daySchedule && daySchedule.shiftDuration) {
         const scheduledMinutes = daySchedule.shiftDuration * 60;
         
+        // Get attendance rules from system settings
+        const rules = await getAttendanceRules();
+        const incompleteThreshold = rules.timeOut?.incompleteThreshold || 30;
+        const overtimeThreshold = rules.timeOut?.overtimeThreshold || 30;
+        
         // For multi-day shifts, handle the calculation differently
         if (isMultiDayShift) {
           // Calculate the expected end time based on the start time and shift duration
@@ -223,18 +234,18 @@ export const determineTimeOutStatus = async (userId) => {
           // Calculate the difference between the actual end time and expected end time
           const endTimeDiff = Math.round((now - expectedEndTime) / (1000 * 60));
           
-          if (endTimeDiff < -30) { // More than 30 minutes early
+          if (endTimeDiff < -incompleteThreshold) { // More than incompleteThreshold minutes early
             status = 'Incomplete';
-          } else if (endTimeDiff > 30) { // More than 30 minutes overtime
+          } else if (endTimeDiff > overtimeThreshold) { // More than overtimeThreshold minutes overtime
             status = 'Overtime';
-          } else { // Within 30 minutes of expected end time
+          } else { // Within thresholds of expected end time
             status = 'Complete';
           }
         } else {
           // For same-day shifts, use the original logic
-          if (timeDiff < scheduledMinutes - 30) { // 30 minutes early
+          if (timeDiff < scheduledMinutes - incompleteThreshold) { // incompleteThreshold minutes early
             status = 'Incomplete';
-          } else if (timeDiff > scheduledMinutes + 30) { // 30 minutes overtime
+          } else if (timeDiff > scheduledMinutes + overtimeThreshold) { // overtimeThreshold minutes overtime
             status = 'Overtime';
           } else {
             status = 'Complete';
