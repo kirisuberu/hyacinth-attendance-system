@@ -62,7 +62,26 @@ const TableHeader = styled.th`
   border-bottom: 1px solid #ddd;
   background-color: #f5f5f5;
   white-space: nowrap;
-  min-width: 150px;
+  
+  /* Default minimum width for all columns */
+  min-width: 180px;
+  
+  /* Specific column widths */
+  &.col-name { min-width: 200px; }
+  &.col-email { min-width: 250px; }
+  &.col-employmentStatus { min-width: 180px; }
+  &.col-position { min-width: 200px; }
+  &.col-role { min-width: 120px; }
+  &.col-status { min-width: 120px; }
+  &.col-shifts { min-width: 150px; }
+  &.col-dateHired { min-width: 180px; }
+  &.col-dateOfBirth { min-width: 180px; }
+  &.col-phoneNumber { min-width: 180px; }
+  &.col-address { min-width: 250px; max-width: 300px; }
+  &.col-emergencyContactName { min-width: 220px; }
+  &.col-emergencyContactPhone { min-width: 220px; }
+  &.col-emergencyContactRelationship { min-width: 220px; }
+  &.col-actions { min-width: 180px; }
   
   &.sticky-left {
     position: sticky;
@@ -86,6 +105,28 @@ const TableCell = styled.td`
   overflow: hidden;
   text-overflow: ellipsis;
   background-color: inherit;
+  
+  /* Match the widths from TableHeader */
+  &.col-name { min-width: 200px; }
+  &.col-email { min-width: 250px; }
+  &.col-employmentStatus { min-width: 180px; }
+  &.col-position { min-width: 200px; }
+  &.col-role { min-width: 120px; }
+  &.col-status { min-width: 120px; }
+  &.col-shifts { min-width: 150px; }
+  &.col-dateHired { min-width: 180px; }
+  &.col-dateOfBirth { min-width: 180px; }
+  &.col-phoneNumber { min-width: 180px; }
+  &.col-address { 
+    min-width: 250px; 
+    max-width: 300px; 
+    white-space: normal; /* Allow text wrapping for address */
+    word-break: break-word;
+  }
+  &.col-emergencyContactName { min-width: 220px; }
+  &.col-emergencyContactPhone { min-width: 220px; }
+  &.col-emergencyContactRelationship { min-width: 220px; }
+  &.col-actions { min-width: 180px; }
   
   &.sticky-left {
     position: sticky;
@@ -1155,7 +1196,7 @@ function UserManagementView({ isSuperAdmin }) {
                 {visibleColumns.map(column => (
                   <TableHeader 
                     key={column.id}
-                    className={column.id === 'name' ? 'sticky-left' : column.id === 'actions' ? 'sticky-right' : ''}
+                    className={`col-${column.id} ${column.id === 'name' ? 'sticky-left' : column.id === 'actions' ? 'sticky-right' : ''}`}
                   >
                     {column.label}
                   </TableHeader>
@@ -1169,27 +1210,27 @@ function UserManagementView({ isSuperAdmin }) {
                     {visibleColumns.map(column => {
                       if (column.id === 'name') {
                         return (
-                          <TableCell key={column.id} className="sticky-left">
+                          <TableCell key={column.id} className="col-name sticky-left">
                             {user.name || 'N/A'}
                           </TableCell>
                         );
                       }
                       
                       if (column.id === 'email') {
-                        return <TableCell key={column.id}>{user.email}</TableCell>;
+                        return <TableCell key={column.id} className="col-email">{user.email}</TableCell>;
                       }
                       
                       if (column.id === 'employmentStatus') {
-                        return <TableCell key={column.id}>{user.employmentStatus || user.position || 'N/A'}</TableCell>;
+                        return <TableCell key={column.id} className="col-employmentStatus">{user.employmentStatus || user.position || 'N/A'}</TableCell>;
                       }
                       
                       if (column.id === 'position') {
-                        return <TableCell key={column.id}>{user.position || 'N/A'}</TableCell>;
+                        return <TableCell key={column.id} className="col-position">{user.position || 'N/A'}</TableCell>;
                       }
                       
                       if (column.id === 'role') {
                         return (
-                          <TableCell key={column.id}>
+                          <TableCell key={column.id} className="col-role">
                             <RoleTag role={user.role}>{user.role || 'member'}</RoleTag>
                           </TableCell>
                         );
@@ -1197,7 +1238,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'status') {
                         return (
-                          <TableCell key={column.id}>
+                          <TableCell key={column.id} className="col-status">
                             <StatusTag status={user.status || 'active'}>
                               {user.status || 'active'}
                             </StatusTag>
@@ -1207,7 +1248,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'shifts') {
                         return (
-                          <TableCell key={column.id}>
+                          <TableCell key={column.id} className="col-shifts">
                             {user.schedule && Array.isArray(user.schedule) ? (
                               <div>
                                 <div><strong>{user.schedule.length}</strong> shifts</div>
@@ -1224,7 +1265,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'dateHired') {
                         return (
-                          <TableCell key={column.id}>
+                          <TableCell key={column.id} className="col-dateHired">
                             {user.dateHired ? (
                               user.dateHired.seconds ? 
                                 new Date(user.dateHired.seconds * 1000).toLocaleDateString() : 
@@ -1236,7 +1277,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'dateOfBirth') {
                         return (
-                          <TableCell key={column.id}>
+                          <TableCell key={column.id} className="col-dateOfBirth">
                             {user.dateOfBirth ? (
                               user.dateOfBirth.seconds ? 
                                 new Date(user.dateOfBirth.seconds * 1000).toLocaleDateString() : 
@@ -1247,28 +1288,28 @@ function UserManagementView({ isSuperAdmin }) {
                       }
                       
                       if (column.id === 'phoneNumber') {
-                        return <TableCell key={column.id}>{user.phoneNumber || user.contactNumber || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-phoneNumber">{user.phoneNumber || user.contactNumber || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'address') {
-                        return <TableCell key={column.id}>{user.address || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-address">{user.address || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'emergencyContactName') {
-                        return <TableCell key={column.id}>{user.emergencyContactName || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-emergencyContactName">{user.emergencyContactName || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'emergencyContactPhone') {
-                        return <TableCell key={column.id}>{user.emergencyContactPhone || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-emergencyContactPhone">{user.emergencyContactPhone || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'emergencyContactRelationship') {
-                        return <TableCell key={column.id}>{user.emergencyContactRelationship || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-emergencyContactRelationship">{user.emergencyContactRelationship || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'actions') {
                         return (
-                          <TableCell key={column.id} className="sticky-right">
+                          <TableCell key={column.id} className="col-actions sticky-right">
                             <ActionButton 
                               color="#000000"
                               onClick={() => handleScheduleClick(user)}
