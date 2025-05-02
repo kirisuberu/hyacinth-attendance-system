@@ -343,45 +343,50 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
   // Helper function to format timestamps in a more readable format (e.g., "May 8, 2000")
   const formatTimestamp = (timestamp) => {
     try {
-      let date;
+      // If timestamp is missing or invalid, return 'Not specified'
+      if (!timestamp) return 'Not specified';
       
-      // Check for different timestamp formats
+      let seconds;
+      
+      // Extract the timestamp seconds based on the format
       if (timestamp?.seconds) {
         // Firebase Timestamp object
-        date = new Date(timestamp.seconds * 1000);
+        seconds = timestamp.seconds;
       } else if (timestamp?.toDate) {
         // Firebase Timestamp with toDate method
-        date = timestamp.toDate();
+        seconds = Math.floor(timestamp.toDate().getTime() / 1000);
       } else if (timestamp instanceof Date) {
         // JavaScript Date object
-        date = timestamp;
+        seconds = Math.floor(timestamp.getTime() / 1000);
       } else if (typeof timestamp === 'string') {
         // ISO string or other string format
-        date = new Date(timestamp);
+        seconds = Math.floor(new Date(timestamp).getTime() / 1000);
       } else {
         return 'Not specified';
       }
       
-      // Fix for date offset issues with birthdays and other dates
-      // Create a new date string in ISO format but only take the date part (YYYY-MM-DD)
-      // This prevents timezone issues from affecting the displayed date
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-      const day = String(date.getDate()).padStart(2, '0');
-      const dateString = `${year}-${month}-${day}T12:00:00`; // Use noon to avoid any timezone issues
+      // Create a UTC date from the seconds timestamp
+      // This ensures we're working with the exact date stored in Firestore
+      const utcDate = new Date(0); // 0 = Unix epoch (1970-01-01T00:00:00Z)
+      utcDate.setUTCSeconds(seconds);
       
-      // Create a new date object from this string
-      const adjustedDate = new Date(dateString);
+      // Extract date components in UTC to avoid any timezone shifts
+      const year = utcDate.getUTCFullYear();
+      const month = utcDate.getUTCMonth(); // 0-indexed month
+      const day = utcDate.getUTCDate();
       
-      // Format date as "Month Day, Year"
-      return adjustedDate.toLocaleDateString('en-US', {
+      // Create a formatter with explicit options to ensure consistent display
+      const formatter = new Intl.DateTimeFormat('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        timeZone: 'UTC' // Use UTC to avoid timezone shifts
+        timeZone: 'UTC' // Force UTC to avoid any timezone adjustments
       });
+      
+      // Format the date using the formatter
+      return formatter.format(utcDate);
     } catch (error) {
-      console.error('Error formatting timestamp:', error);
+      console.error('Error formatting timestamp:', error, timestamp);
       return 'Not specified';
     }
   };
