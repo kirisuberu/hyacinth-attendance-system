@@ -62,6 +62,7 @@ const TableHeader = styled.th`
   border-bottom: 1px solid #ddd;
   background-color: #f5f5f5;
   white-space: nowrap;
+  position: relative;
   
   /* Default minimum width for all columns */
   min-width: 180px;
@@ -95,6 +96,34 @@ const TableHeader = styled.th`
     right: 0;
     z-index: 20;
     box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
+  }
+  
+  /* Resizer handle */
+  .resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 5px;
+    background: rgba(0, 0, 0, 0.1);
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  
+  &:hover .resizer {
+    opacity: 1;
+  }
+  
+  &.resizing {
+    cursor: col-resize;
+    
+    .resizer {
+      opacity: 1;
+      background: rgba(128, 0, 0, 0.5);
+    }
   }
 `;
 
@@ -517,24 +546,29 @@ function UserManagementView({ isSuperAdmin }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showColumnControl, setShowColumnControl] = useState(false);
   
-  // Define all possible columns
+  // Define all possible columns with initial widths
   const [allColumns, setAllColumns] = useState([
-    { id: 'name', label: 'Name', visible: true, required: true },
-    { id: 'email', label: 'Email', visible: true },
-    { id: 'employmentStatus', label: 'Employment Status', visible: true },
-    { id: 'position', label: 'Position', visible: true },
-    { id: 'role', label: 'Role', visible: true },
-    { id: 'status', label: 'Status', visible: true },
-    { id: 'shifts', label: 'Shifts', visible: true },
-    { id: 'dateHired', label: 'Date Hired', visible: false },
-    { id: 'dateOfBirth', label: 'Date of Birth', visible: false },
-    { id: 'phoneNumber', label: 'Phone Number', visible: false },
-    { id: 'address', label: 'Address', visible: false },
-    { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false },
-    { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false },
-    { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false },
-    { id: 'actions', label: 'Actions', visible: true, required: true }
+    { id: 'name', label: 'Name', visible: true, required: true, width: 200 },
+    { id: 'email', label: 'Email', visible: true, width: 250 },
+    { id: 'employmentStatus', label: 'Employment Status', visible: true, width: 180 },
+    { id: 'position', label: 'Position', visible: true, width: 200 },
+    { id: 'role', label: 'Role', visible: true, width: 120 },
+    { id: 'status', label: 'Status', visible: true, width: 120 },
+    { id: 'shifts', label: 'Shifts', visible: true, width: 150 },
+    { id: 'dateHired', label: 'Date Hired', visible: false, width: 180 },
+    { id: 'dateOfBirth', label: 'Date of Birth', visible: false, width: 180 },
+    { id: 'phoneNumber', label: 'Phone Number', visible: false, width: 180 },
+    { id: 'address', label: 'Address', visible: false, width: 250 },
+    { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false, width: 220 },
+    { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false, width: 220 },
+    { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false, width: 220 },
+    { id: 'actions', label: 'Actions', visible: true, required: true, width: 180 }
   ]);
+  
+  // State for tracking column resizing
+  const [resizingColumnId, setResizingColumnId] = useState(null);
+  const [startX, setStartX] = useState(0);
+  const [startWidth, setStartWidth] = useState(0);
   const [editUserData, setEditUserData] = useState({
     firstName: '',
     lastName: '',
@@ -1100,23 +1134,74 @@ function UserManagementView({ isSuperAdmin }) {
   
   const resetColumns = () => {
     setAllColumns([
-      { id: 'name', label: 'Name', visible: true, required: true },
-      { id: 'email', label: 'Email', visible: true },
-      { id: 'employmentStatus', label: 'Employment Status', visible: true },
-      { id: 'position', label: 'Position', visible: true },
-      { id: 'role', label: 'Role', visible: true },
-      { id: 'status', label: 'Status', visible: true },
-      { id: 'shifts', label: 'Shifts', visible: true },
-      { id: 'dateHired', label: 'Date Hired', visible: false },
-      { id: 'dateOfBirth', label: 'Date of Birth', visible: false },
-      { id: 'phoneNumber', label: 'Phone Number', visible: false },
-      { id: 'address', label: 'Address', visible: false },
-      { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false },
-      { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false },
-      { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false },
-      { id: 'actions', label: 'Actions', visible: true, required: true }
+      { id: 'name', label: 'Name', visible: true, required: true, width: 200 },
+      { id: 'email', label: 'Email', visible: true, width: 250 },
+      { id: 'employmentStatus', label: 'Employment Status', visible: true, width: 180 },
+      { id: 'position', label: 'Position', visible: true, width: 200 },
+      { id: 'role', label: 'Role', visible: true, width: 120 },
+      { id: 'status', label: 'Status', visible: true, width: 120 },
+      { id: 'shifts', label: 'Shifts', visible: true, width: 150 },
+      { id: 'dateHired', label: 'Date Hired', visible: false, width: 180 },
+      { id: 'dateOfBirth', label: 'Date of Birth', visible: false, width: 180 },
+      { id: 'phoneNumber', label: 'Phone Number', visible: false, width: 180 },
+      { id: 'address', label: 'Address', visible: false, width: 250 },
+      { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false, width: 220 },
+      { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false, width: 220 },
+      { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false, width: 220 },
+      { id: 'actions', label: 'Actions', visible: true, required: true, width: 180 }
     ]);
   };
+  
+  // Column resize handlers
+  const handleResizeStart = (e, columnId) => {
+    // Prevent default to avoid text selection during resize
+    e.preventDefault();
+    
+    // Find the column being resized
+    const column = allColumns.find(col => col.id === columnId);
+    if (!column) return;
+    
+    // Set resizing state
+    setResizingColumnId(columnId);
+    setStartX(e.clientX);
+    setStartWidth(column.width);
+    
+    // Add event listeners for mouse move and mouse up
+    document.addEventListener('mousemove', handleResizeMove);
+    document.addEventListener('mouseup', handleResizeEnd);
+  };
+  
+  const handleResizeMove = (e) => {
+    if (!resizingColumnId) return;
+    
+    // Calculate the new width based on mouse movement
+    const deltaX = e.clientX - startX;
+    const newWidth = Math.max(100, startWidth + deltaX); // Minimum width of 100px
+    
+    // Update the column width
+    setAllColumns(prevColumns => 
+      prevColumns.map(col => 
+        col.id === resizingColumnId ? { ...col, width: newWidth } : col
+      )
+    );
+  };
+  
+  const handleResizeEnd = () => {
+    // Clear resizing state
+    setResizingColumnId(null);
+    
+    // Remove event listeners
+    document.removeEventListener('mousemove', handleResizeMove);
+    document.removeEventListener('mouseup', handleResizeEnd);
+  };
+  
+  // Clean up event listeners when component unmounts
+  useEffect(() => {
+    return () => {
+      document.removeEventListener('mousemove', handleResizeMove);
+      document.removeEventListener('mouseup', handleResizeEnd);
+    };
+  }, []);
   
   // Get visible columns
   const visibleColumns = allColumns.filter(col => col.visible);
@@ -1196,9 +1281,16 @@ function UserManagementView({ isSuperAdmin }) {
                 {visibleColumns.map(column => (
                   <TableHeader 
                     key={column.id}
-                    className={`col-${column.id} ${column.id === 'name' ? 'sticky-left' : column.id === 'actions' ? 'sticky-right' : ''}`}
+                    className={`col-${column.id} ${column.id === 'name' ? 'sticky-left' : column.id === 'actions' ? 'sticky-right' : ''} ${resizingColumnId === column.id ? 'resizing' : ''}`}
+                    style={{ width: `${column.width}px` }}
                   >
                     {column.label}
+                    {column.id !== 'actions' && (
+                      <div 
+                        className="resizer" 
+                        onMouseDown={(e) => handleResizeStart(e, column.id)}
+                      />
+                    )}
                   </TableHeader>
                 ))}
               </TableRow>
@@ -1210,27 +1302,27 @@ function UserManagementView({ isSuperAdmin }) {
                     {visibleColumns.map(column => {
                       if (column.id === 'name') {
                         return (
-                          <TableCell key={column.id} className="col-name sticky-left">
+                          <TableCell key={column.id} className="col-name sticky-left" style={{ width: `${column.width}px` }}>
                             {user.name || 'N/A'}
                           </TableCell>
                         );
                       }
                       
                       if (column.id === 'email') {
-                        return <TableCell key={column.id} className="col-email">{user.email}</TableCell>;
+                        return <TableCell key={column.id} className="col-email" style={{ width: `${column.width}px` }}>{user.email}</TableCell>;
                       }
                       
                       if (column.id === 'employmentStatus') {
-                        return <TableCell key={column.id} className="col-employmentStatus">{user.employmentStatus || user.position || 'N/A'}</TableCell>;
+                        return <TableCell key={column.id} className="col-employmentStatus" style={{ width: `${column.width}px` }}>{user.employmentStatus || user.position || 'N/A'}</TableCell>;
                       }
                       
                       if (column.id === 'position') {
-                        return <TableCell key={column.id} className="col-position">{user.position || 'N/A'}</TableCell>;
+                        return <TableCell key={column.id} className="col-position" style={{ width: `${column.width}px` }}>{user.position || 'N/A'}</TableCell>;
                       }
                       
                       if (column.id === 'role') {
                         return (
-                          <TableCell key={column.id} className="col-role">
+                          <TableCell key={column.id} className="col-role" style={{ width: `${column.width}px` }}>
                             <RoleTag role={user.role}>{user.role || 'member'}</RoleTag>
                           </TableCell>
                         );
@@ -1238,7 +1330,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'status') {
                         return (
-                          <TableCell key={column.id} className="col-status">
+                          <TableCell key={column.id} className="col-status" style={{ width: `${column.width}px` }}>
                             <StatusTag status={user.status || 'active'}>
                               {user.status || 'active'}
                             </StatusTag>
@@ -1248,7 +1340,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'shifts') {
                         return (
-                          <TableCell key={column.id} className="col-shifts">
+                          <TableCell key={column.id} className="col-shifts" style={{ width: `${column.width}px` }}>
                             {user.schedule && Array.isArray(user.schedule) ? (
                               <div>
                                 <div><strong>{user.schedule.length}</strong> shifts</div>
@@ -1265,7 +1357,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'dateHired') {
                         return (
-                          <TableCell key={column.id} className="col-dateHired">
+                          <TableCell key={column.id} className="col-dateHired" style={{ width: `${column.width}px` }}>
                             {user.dateHired ? (
                               user.dateHired.seconds ? 
                                 new Date(user.dateHired.seconds * 1000).toLocaleDateString() : 
@@ -1277,7 +1369,7 @@ function UserManagementView({ isSuperAdmin }) {
                       
                       if (column.id === 'dateOfBirth') {
                         return (
-                          <TableCell key={column.id} className="col-dateOfBirth">
+                          <TableCell key={column.id} className="col-dateOfBirth" style={{ width: `${column.width}px` }}>
                             {user.dateOfBirth ? (
                               user.dateOfBirth.seconds ? 
                                 new Date(user.dateOfBirth.seconds * 1000).toLocaleDateString() : 
@@ -1288,28 +1380,28 @@ function UserManagementView({ isSuperAdmin }) {
                       }
                       
                       if (column.id === 'phoneNumber') {
-                        return <TableCell key={column.id} className="col-phoneNumber">{user.phoneNumber || user.contactNumber || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-phoneNumber" style={{ width: `${column.width}px` }}>{user.phoneNumber || user.contactNumber || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'address') {
-                        return <TableCell key={column.id} className="col-address">{user.address || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-address" style={{ width: `${column.width}px` }}>{user.address || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'emergencyContactName') {
-                        return <TableCell key={column.id} className="col-emergencyContactName">{user.emergencyContactName || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-emergencyContactName" style={{ width: `${column.width}px` }}>{user.emergencyContactName || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'emergencyContactPhone') {
-                        return <TableCell key={column.id} className="col-emergencyContactPhone">{user.emergencyContactPhone || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-emergencyContactPhone" style={{ width: `${column.width}px` }}>{user.emergencyContactPhone || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'emergencyContactRelationship') {
-                        return <TableCell key={column.id} className="col-emergencyContactRelationship">{user.emergencyContactRelationship || 'Not specified'}</TableCell>;
+                        return <TableCell key={column.id} className="col-emergencyContactRelationship" style={{ width: `${column.width}px` }}>{user.emergencyContactRelationship || 'Not specified'}</TableCell>;
                       }
                       
                       if (column.id === 'actions') {
                         return (
-                          <TableCell key={column.id} className="col-actions sticky-right">
+                          <TableCell key={column.id} className="col-actions sticky-right" style={{ width: `${column.width}px` }}>
                             <ActionButton 
                               color="#000000"
                               onClick={() => handleScheduleClick(user)}
