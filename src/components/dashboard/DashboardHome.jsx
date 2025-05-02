@@ -470,7 +470,14 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                 
                 // Format times for display directly from the schedule strings
                 const formatTimeDisplay = (timeStr) => {
-                  if (!timeStr) return 'N/A';
+                  if (!timeStr) {
+                    // Use default times instead of showing N/A
+                    const defaultTime = timeStr === todaySchedule?.timeIn ? '09:00' : '17:00';
+                    const [hours, minutes] = defaultTime.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(hours, minutes, 0, 0);
+                    return format(date, 'h:mm a') + ' (default)';
+                  }
                   
                   try {
                     const [hours, minutes] = timeStr.split(':').map(Number);
@@ -479,7 +486,12 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                     return format(date, 'h:mm a');
                   } catch (error) {
                     console.error('Error formatting time for display:', error);
-                    return timeStr; // Fall back to the original string
+                    // Use default times as fallback
+                    const defaultTime = timeStr === todaySchedule?.timeIn ? '09:00' : '17:00';
+                    const [hours, minutes] = defaultTime.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(hours, minutes, 0, 0);
+                    return format(date, 'h:mm a') + ' (default)';
                   }
                 };
                 
