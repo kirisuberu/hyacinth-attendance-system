@@ -367,16 +367,28 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
               (() => {
                 // Parse time strings
                 const parseTimeString = (timeStr) => {
-                  const [hours, minutes] = timeStr.split(':').map(Number);
-                  const date = new Date();
-                  date.setHours(hours, minutes, 0, 0);
-                  return date;
+                  if (!timeStr) {
+                    // Default to current time if timeStr is undefined
+                    const date = new Date();
+                    return date;
+                  }
+                  
+                  try {
+                    const [hours, minutes] = timeStr.split(':').map(Number);
+                    const date = new Date();
+                    date.setHours(hours || 0, minutes || 0, 0, 0);
+                    return date;
+                  } catch (error) {
+                    console.error('Error parsing time string:', error);
+                    // Return current time as fallback
+                    return new Date();
+                  }
                 };
                 
                 // Calculate shift progress
                 const now = new Date();
-                const shiftStart = parseTimeString(todaySchedule.timeIn);
-                const shiftEnd = parseTimeString(todaySchedule.timeOut);
+                const shiftStart = parseTimeString(todaySchedule?.timeIn);
+                const shiftEnd = parseTimeString(todaySchedule?.timeOut);
                 
                 // Handle overnight shifts
                 if (shiftEnd < shiftStart) {
@@ -410,7 +422,7 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
                       <div>
-                        <div style={{ fontWeight: 'bold' }}>{todaySchedule.dayOfWeek}'s Shift</div>
+                        <div style={{ fontWeight: 'bold' }}>{todaySchedule?.dayOfWeek || 'Today'}'s Shift</div>
                         <div style={{ fontSize: '0.85rem', color: '#555' }}>
                           {formatTimeDisplay(shiftStart)} - {formatTimeDisplay(shiftEnd)}
                         </div>
