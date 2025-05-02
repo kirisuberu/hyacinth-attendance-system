@@ -22,9 +22,9 @@ const TableContainer = styled.div`
   width: 100%;
   overflow-x: auto;
   margin-top: 1rem;
-  background-color: white;
+  border: 1px solid #ddd;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   position: relative;
   max-height: calc(100vh - 250px);
   overflow-y: auto;
@@ -89,7 +89,7 @@ const TableHeader = styled.th`
     left: 0;
     z-index: 20;
     box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-    background-color: #f5f5f5;
+    background-color: #f5f5f5 !important;
   }
   
   &.sticky-right {
@@ -97,7 +97,7 @@ const TableHeader = styled.th`
     right: 0;
     z-index: 20;
     box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
-    background-color: #f5f5f5;
+    background-color: #f5f5f5 !important;
   }
   
   /* Resizer handle */
@@ -160,16 +160,16 @@ const TableCell = styled.td`
   &.sticky-left {
     position: sticky;
     left: 0;
-    z-index: 5;
-    background-color: inherit;
+    z-index: 10;
+    background-color: white !important;
     box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
   }
   
   &.sticky-right {
     position: sticky;
     right: 0;
-    z-index: 5;
-    background-color: inherit;
+    z-index: 10;
+    background-color: white !important;
     box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
   }
 `;
