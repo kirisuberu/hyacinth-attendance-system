@@ -139,7 +139,6 @@ const OvertimeRequestForm = ({ user }) => {
               id="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              min={today}
               required
             />
           </FormGroup>
