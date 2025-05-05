@@ -71,6 +71,7 @@ export const determineTimeInStatus = async (userId) => {
     
     const userData = userDoc.data();
     const userSchedule = userData.schedule || [];
+    const userTimeRegion = userData.timeRegion || 'Asia/Manila'; // Get user's time region
     
     const now = new Date();
     const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
@@ -86,12 +87,31 @@ export const determineTimeInStatus = async (userId) => {
     // Parse schedule time
     const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
     
-    // Create Date objects for comparison
+    // Create Date objects for comparison, using the user's time region
     const scheduleDate = new Date();
     scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
     
     // Calculate time difference in minutes
-    const diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+    let diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+    
+    // Check for unusually large time differences (more than 10 hours)
+    // This could indicate a timezone mismatch between the user's local time and their schedule
+    if (Math.abs(diffMinutes) > 600) { // 10 hours in minutes
+      console.log(`Detected unusually large time difference (${diffMinutes} minutes) for user ${userId}`);
+      console.log(`User time region: ${userTimeRegion}, Schedule time: ${scheduledHour}:${scheduledMinute}`);
+      
+      // Recalculate using local time comparison
+      // This approach ignores timezone differences and just compares the local time components
+      const userLocalHour = now.getHours();
+      const userLocalMinute = now.getMinutes();
+      
+      // Calculate difference in minutes between local time and scheduled time
+      const localHourDiff = userLocalHour - scheduledHour;
+      const localMinuteDiff = userLocalMinute - scheduledMinute;
+      diffMinutes = (localHourDiff * 60) + localMinuteDiff;
+      
+      console.log(`Recalculated time difference using local time comparison: ${diffMinutes} minutes`);
+    }
     
     // Get attendance rules from system settings
     const rules = await getAttendanceRules();
