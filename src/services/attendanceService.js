@@ -679,24 +679,21 @@ export const getAllOverrideHistory = async (options = {}) => {
  */
 export const deleteAttendanceRecord = async (recordId, adminId, adminName, reason) => {
   try {
-    // Get the current record to track in history before deletion
+    // Get the record to delete
     const recordRef = doc(db, 'attendance', recordId);
-    const recordSnapshot = await getDoc(recordRef);
+    const recordDoc = await getDoc(recordRef);
     
-    if (!recordSnapshot.exists()) {
+    if (!recordDoc.exists()) {
       throw new Error('Attendance record not found');
     }
     
-    const currentData = recordSnapshot.data();
+    const recordData = recordDoc.data();
     
-    // Create a history entry to track the deletion
+    // Create a history record of the deletion
     const historyData = {
-      attendanceId: recordId,
-      userId: currentData.userId,
-      userName: currentData.name,
-      previousData: currentData,
-      newData: null, // null indicates deletion
-      overriddenBy: {
+      recordId,
+      originalData: recordData,
+      admin: {
         id: adminId,
         name: adminName
       },
@@ -706,7 +703,7 @@ export const deleteAttendanceRecord = async (recordId, adminId, adminName, reaso
     };
     
     // Add the history record
-    const historyRef = await addDoc(collection(db, 'attendance_history'), historyData);
+    await addDoc(collection(db, 'attendance_history'), historyData);
     
     // Delete the attendance record
     await deleteDoc(recordRef);
@@ -715,5 +712,91 @@ export const deleteAttendanceRecord = async (recordId, adminId, adminName, reaso
   } catch (error) {
     console.error('Error deleting attendance record:', error);
     throw error;
+  }
+};
+
+/**
+ * Checks if a user has failed to time out after 10 hours past their expected time out,
+ * and if so, automatically times them out with the note "FAILED TO TIME OUT"
+ * @param {string} userId - The user ID
+ * @returns {Promise<boolean>} - True if the user can time in (either there's no pending time out or it was handled)
+ */
+export const checkAndHandleFailedTimeOut = async (userId) => {
+  try {
+    // Query the most recent attendance record for this user
+    const attendanceRef = collection(db, 'attendance');
+    const q = query(
+      attendanceRef,
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    // If no records found or the latest record is already a time-out, user can time in
+    if (querySnapshot.empty) {
+      return true;
+    }
+    
+    const latestRecord = querySnapshot.docs[0].data();
+    
+    // If the latest record is already a time-out, user can time in
+    if (latestRecord.type !== 'In') {
+      return true;
+    }
+    
+    // Get the time-in timestamp
+    const timeInDate = latestRecord.timestamp.toDate();
+    const now = new Date();
+    
+    // Get user's schedule to determine expected time out
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      // If user not found, allow time in (something is wrong with the data)
+      console.warn('User document not found when checking failed time out');
+      return true;
+    }
+    
+    const userData = userDoc.data();
+    const userSchedule = userData.schedule || [];
+    
+    // Get the day of the time-in
+    const timeInDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][timeInDate.getDay()];
+    
+    // Find the schedule for the day of the time-in
+    const daySchedule = userSchedule && Array.isArray(userSchedule) ?
+      userSchedule.find(s => s.dayOfWeek === timeInDay) : null;
+    
+    if (!daySchedule || !daySchedule.shiftDuration) {
+      // If no schedule or shift duration found, allow time in
+      console.warn('No schedule or shift duration found when checking failed time out');
+      return true;
+    }
+    
+    // Calculate expected time out (time in + shift duration)
+    const scheduledMinutes = daySchedule.shiftDuration * 60;
+    const expectedTimeOut = new Date(timeInDate);
+    expectedTimeOut.setMinutes(expectedTimeOut.getMinutes() + scheduledMinutes);
+    
+    // Calculate hours since expected time out
+    const hoursSinceExpectedTimeOut = (now - expectedTimeOut) / (1000 * 60 * 60);
+    
+    // If it's been more than 10 hours since expected time out, automatically time out the user
+    if (hoursSinceExpectedTimeOut > 10) {
+      console.log(`User ${userId} failed to time out. Auto timing out after ${hoursSinceExpectedTimeOut.toFixed(2)} hours past expected time out.`);
+      
+      // Create an automatic time-out record
+      await recordAttendance(userId, 'Out', 'FAILED TO TIME OUT');
+      
+      return true; // User can now time in again
+    }
+    
+    // If it hasn't been 10 hours since expected time out, user needs to time out first
+    return false;
+  } catch (error) {
+    console.error('Error checking for failed time out:', error);
+    // In case of error, allow time in to avoid blocking the user
+    return true;
   }
 };

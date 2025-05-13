@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { preventMultiSubmit } from '../utils/debounce';
 import styled from 'styled-components';
 import { Check, X } from 'phosphor-react';
+import { checkAndHandleFailedTimeOut } from '../services/attendanceService';
 
 // Import dashboard components
 import DashboardLayout from '../components/dashboard/DashboardLayout';
@@ -453,6 +454,18 @@ function Dashboard() {
     setLoading(true);
     
     try {
+      // If this is a time-in, check if the user failed to time out from their previous shift
+      if (type === 'In') {
+        // Check if the user can time in (this will automatically time them out if needed)
+        const canTimeIn = await checkAndHandleFailedTimeOut(user.uid);
+        
+        if (!canTimeIn) {
+          toast.error('You need to time out from your previous shift first.');
+          setLoading(false);
+          return;
+        }
+      }
+      
       const timestamp = Timestamp.now();
       const status = await determineStatus(type, user.uid);
       let timeDiff = null;

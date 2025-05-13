@@ -449,7 +449,8 @@ const AttendanceRequestsView = () => {
     userId: '',
     startDate: '',
     endDate: '',
-    type: ''
+    type: '',
+    nameFilter: ''
   });
   const [overrideHistory, setOverrideHistory] = useState([]);
   const [expandedHistoryItems, setExpandedHistoryItems] = useState({});
@@ -483,11 +484,23 @@ const AttendanceRequestsView = () => {
   const fetchAttendanceRecords = async () => {
     try {
       setLoading(true);
+      // Remove nameFilter from the API call since it's handled client-side
+      const { nameFilter, ...apiFilters } = attendanceFilters;
       const records = await getAllAttendanceRecords({
-        ...attendanceFilters,
+        ...apiFilters,
         limit: 50
       });
-      setAttendanceRecords(records);
+      
+      // Apply name filter client-side if specified
+      let filteredRecords = records;
+      if (nameFilter && nameFilter.trim() !== '') {
+        const searchTerm = nameFilter.toLowerCase().trim();
+        filteredRecords = records.filter(record => 
+          record.name && record.name.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      setAttendanceRecords(filteredRecords);
     } catch (error) {
       console.error('Error getting attendance records:', error);
       toast.error('Failed to load attendance records');
@@ -870,6 +883,17 @@ const AttendanceRequestsView = () => {
     return (
       <>
         <FilterContainer>
+          <FilterGroup>
+            <FilterLabel>Employee Name</FilterLabel>
+            <FilterInput 
+              type="text" 
+              name="nameFilter" 
+              value={attendanceFilters.nameFilter} 
+              onChange={handleFilterChange} 
+              placeholder="Filter by name"
+            />
+          </FilterGroup>
+          
           <FilterGroup>
             <FilterLabel>Employee ID</FilterLabel>
             <FilterInput 
