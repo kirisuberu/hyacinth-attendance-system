@@ -27,6 +27,9 @@ export const getAttendanceRules = async () => {
         },
         timeRegion: {
           lockToDeviceRegion: false  // Whether to lock users' time region to their device's detected region
+        },
+        absent: {
+          threshold: 300 // Minutes (5 hours) after schedule to mark as absent automatically
         }
       };
     }

@@ -151,6 +151,9 @@ const RulesView = () => {
     },
     timeRegion: {
       lockToDeviceRegion: false
+    },
+    absent: {
+      threshold: 300 // 5 hours in minutes
     }
   });
   
@@ -237,7 +240,8 @@ const RulesView = () => {
       rules.timeIn.onTimeThreshold !== originalRules.timeIn.onTimeThreshold ||
       rules.timeOut.incompleteThreshold !== originalRules.timeOut.incompleteThreshold ||
       rules.timeOut.overtimeThreshold !== originalRules.timeOut.overtimeThreshold ||
-      rules.timeRegion?.lockToDeviceRegion !== originalRules.timeRegion?.lockToDeviceRegion
+      rules.timeRegion?.lockToDeviceRegion !== originalRules.timeRegion?.lockToDeviceRegion ||
+      rules.absent?.threshold !== originalRules.absent?.threshold
     );
   };
   
@@ -323,6 +327,28 @@ const RulesView = () => {
                   />
                   <Description>
                     Users who time out more than {rules.timeOut.overtimeThreshold} minutes after their scheduled shift end will be marked as "Overtime".
+                  </Description>
+                </FormGroup>
+              </FormRow>
+            </RulesSection>
+            
+            <RulesSection>
+              <SectionTitle>
+                <ClockClockwise size={20} weight="bold" />
+                Absent Rules
+              </SectionTitle>
+              
+              <FormRow>
+                <FormGroup>
+                  <FormLabel>Absent Threshold (minutes)</FormLabel>
+                  <FormInput
+                    type="number"
+                    min="0"
+                    value={rules.absent?.threshold || 300}
+                    onChange={(e) => handleInputChange('absent', 'threshold', e.target.value)}
+                  />
+                  <Description>
+                    Users who fail to time in after {rules.absent?.threshold || 300} minutes (or {Math.round((rules.absent?.threshold || 300) / 60 * 10) / 10} hours) past their scheduled start time will be automatically marked as "Absent".
                   </Description>
                 </FormGroup>
               </FormRow>

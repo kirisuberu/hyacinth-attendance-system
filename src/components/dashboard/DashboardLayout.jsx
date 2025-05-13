@@ -22,7 +22,8 @@ import {
   CaretDown,
   CaretRight,
   Ruler,
-  LockSimple
+  LockSimple,
+  CalendarX
 } from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
@@ -653,6 +654,13 @@ const DashboardLayout = ({
                 >
                   <Icon><Ruler size={16} /></Icon>
                   Rules
+                </NavItem>
+                <NavItem 
+                  className={activeTab === 'absent_service' ? 'active' : ''} 
+                  onClick={() => setActiveTab('absent_service')}
+                >
+                  <Icon><CalendarX size={16} /></Icon>
+                  Absent Service
                 </NavItem>
               </div>
             )}

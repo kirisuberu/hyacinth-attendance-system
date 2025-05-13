@@ -377,6 +377,55 @@ export const hasAbsentRecordToday = async (userId) => {
 };
 
 /**
+ * Determines if a user should be marked as absent based on their schedule
+ * @param {string} userId - The user ID
+ * @returns {Promise<boolean>} - True if the user should be marked as absent
+ */
+export const shouldMarkUserAbsent = async (userId) => {
+  try {
+    // Get the user's schedule
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    if (!userDoc.exists()) {
+      return false;
+    }
+    
+    const userData = userDoc.data();
+    const userSchedule = userData.schedule || [];
+    
+    const now = new Date();
+    const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+    
+    // Find today's schedule if it exists
+    const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
+      userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+    
+    if (!todaySchedule) {
+      return false; // No schedule today
+    }
+    
+    // Parse schedule time
+    const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
+    
+    // Create scheduled time Date object
+    const scheduledTime = new Date();
+    scheduledTime.setHours(scheduledHour, scheduledMinute, 0, 0);
+    
+    // Get the absent threshold from system settings
+    const rules = await getAttendanceRules();
+    const absentThreshold = rules.absent?.threshold || 300; // Default to 5 hours (300 minutes)
+    
+    // Calculate minutes elapsed since scheduled time
+    const minutesElapsed = Math.floor((now - scheduledTime) / (1000 * 60));
+    
+    // User should be marked absent if more than the threshold minutes have passed
+    return minutesElapsed >= absentThreshold;
+  } catch (error) {
+    console.error('Error checking if user should be marked absent:', error);
+    return false;
+  }
+};
+
+/**
  * Marks a user as absent for the current day
  * @param {string} userId - The user ID
  * @returns {Promise<string|null>} - The ID of the created absent record, or null if not applicable
@@ -401,6 +450,12 @@ export const markUserAbsent = async (userId) => {
       return null; // Already marked as absent
     }
     
+    // Check if enough time has passed to mark as absent
+    const shouldBeAbsent = await shouldMarkUserAbsent(userId);
+    if (!shouldBeAbsent) {
+      return null; // Not enough time has passed
+    }
+    
     // Mark the user as absent
     const notes = 'Automatically marked as absent for missing scheduled shift';
     const absentId = await recordAttendance(userId, 'Absent', notes);
@@ -414,10 +469,16 @@ export const markUserAbsent = async (userId) => {
 
 /**
  * Checks all users with scheduled shifts and marks them as absent if they haven't timed in
+ * after the configured threshold
  * @returns {Promise<number>} - The number of users marked as absent
  */
 export const checkAndMarkAbsentUsers = async () => {
   try {
+    // Get attendance rules to check the threshold
+    const rules = await getAttendanceRules();
+    const absentThreshold = rules.absent?.threshold || 300; // Default to 5 hours (300 minutes)
+    console.log(`Checking for absences with threshold of ${absentThreshold} minutes (${Math.round(absentThreshold/60 * 10) / 10} hours)`);
+    
     // Get all users
     const usersRef = collection(db, 'users');
     const usersSnapshot = await getDocs(usersRef);
@@ -445,13 +506,13 @@ export const checkAndMarkAbsentUsers = async () => {
         // Check if user has already been marked absent today
         const hasAbsentRecord = await hasAbsentRecordToday(user.id);
         
-        // If user has not timed in and has not been marked absent, mark them as absent
+        // If user has not timed in and has not been marked absent, check if they should be marked absent
         if (!hasTimedIn && !hasAbsentRecord) {
           const absentId = await markUserAbsent(user.id);
           
           if (absentId) {
             absentCount++;
-            console.log(`Marked user ${user.id} as absent`);
+            console.log(`Marked user ${user.id} as absent after ${absentThreshold} minutes`);
           }
         }
       }
@@ -460,6 +521,23 @@ export const checkAndMarkAbsentUsers = async () => {
     return absentCount;
   } catch (error) {
     console.error('Error checking and marking absent users:', error);
+    return 0;
+  }
+};
+
+/**
+ * Run a scheduled check to mark absent users
+ * This function can be called by a scheduled Cloud Function or manually triggered
+ * @returns {Promise<number>} - The number of users marked as absent
+ */
+export const runAbsentCheck = async () => {
+  try {
+    console.log('Running absent check at', new Date().toISOString());
+    const markedCount = await checkAndMarkAbsentUsers();
+    console.log(`Marked ${markedCount} users as absent`);
+    return markedCount;
+  } catch (error) {
+    console.error('Error running absent check:', error);
     return 0;
   }
 };

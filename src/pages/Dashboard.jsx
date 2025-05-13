@@ -20,6 +20,7 @@ import AdminPrivilegesView from '../components/dashboard/AdminPrivilegesView';
 import ReportsView from '../components/dashboard/ReportsView';
 import AttendanceRequestsView from '../components/dashboard/AttendanceRequestsView';
 import RulesView from '../components/superadmin/RulesView';
+import AbsentServiceView from '../components/superadmin/AbsentServiceView';
 
 // Styled components for confirmation modal
 const ConfirmationModal = styled.div`
@@ -770,6 +771,10 @@ function Dashboard() {
         
         {activeTab === 'rules' && userData?.role === 'super_admin' && (
           <RulesView />
+        )}
+        
+        {activeTab === 'absent_service' && userData?.role === 'super_admin' && (
+          <AbsentServiceView />
         )}
       </DashboardLayout>
       
