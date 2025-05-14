@@ -562,6 +562,14 @@ export const getAllAttendanceRecords = async (options = {}) => {
       type = null
     } = options;
     
+    // Dynamically adjust the limit based on whether date filters are applied
+    let effectiveLimit = recordLimit;
+    if (startDate && endDate) {
+      // If date range is specified, increase the limit substantially
+      // The larger the date range, the more records we might need
+      effectiveLimit = 500;
+    }
+    
     // Start building the query
     let attendanceRef = collection(db, 'attendance');
     const filters = [];
@@ -588,9 +596,9 @@ export const getAllAttendanceRecords = async (options = {}) => {
     // Build the query with filters and order by timestamp (descending)
     let q;
     if (filters.length > 0) {
-      q = query(attendanceRef, ...filters, orderBy('timestamp', 'desc'), limit(recordLimit));
+      q = query(attendanceRef, ...filters, orderBy('timestamp', 'desc'), limit(effectiveLimit));
     } else {
-      q = query(attendanceRef, orderBy('timestamp', 'desc'), limit(recordLimit));
+      q = query(attendanceRef, orderBy('timestamp', 'desc'), limit(effectiveLimit));
     }
     
     // Execute the query
