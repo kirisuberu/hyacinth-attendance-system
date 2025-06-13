@@ -7,13 +7,13 @@ import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyD7J2eVv6O0M4l39GToo_kVOeQZH8nQW0w",
-  authDomain: "hyacinthattendance.firebaseapp.com",
-  projectId: "hyacinthattendance",
-  storageBucket: "hyacinthattendance.appspot.com",
-  messagingSenderId: "12316915447",
-  appId: "1:12316915447:web:2f8a7daf07918a0c2f45f2",
-  measurementId: "G-040M8BP5NJ"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
