@@ -3,23 +3,30 @@ import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
 import { 
   Envelope, 
-  Phone, 
-  MapPin, 
-  Calendar, 
+  IdentificationCard, 
+  User, 
   Buildings, 
-  Briefcase, 
   UserCircle, 
+  Calendar, 
+  Clock, 
+  MapPin, 
+  Phone, 
+  Heart, 
+  Briefcase, 
   IdentificationBadge, 
+  CheckCircle,
+  Info,
+  Copy,
   CheckSquare,
-  FirstAidKit, 
-  Clock,
-  Info, 
   PencilSimple,
-  Heart, User
+  X,
+  Lock,
+  Key
 } from 'phosphor-react';
-import { toast } from 'react-toastify';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { updateEmail, EmailAuthProvider, reauthenticateWithCredential, verifyBeforeUpdateEmail } from 'firebase/auth';
+import { db, auth } from '../../firebase';
+import { toast } from 'react-toastify';
 
 const ProfileSection = styled.div`
   margin-bottom: 2rem;
@@ -230,14 +237,18 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
   const [copied, setCopied] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showEmergencyContactModal, setShowEmergencyContactModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [editData, setEditData] = useState({
     address: '',
     phoneNumber: '',
     emergencyContactName: '',
     emergencyContactPhone: '',
-    emergencyContactRelationship: ''
+    emergencyContactRelationship: '',
+    newEmail: '',
+    currentPassword: ''
   });
   const [processing, setProcessing] = useState(false);
+  const [emailUpdateError, setEmailUpdateError] = useState('');
   
   // Initialize edit data when opening modals
   const handleOpenContactModal = () => {
@@ -259,12 +270,27 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     setShowEmergencyContactModal(true);
   };
   
+  const handleOpenEmailModal = () => {
+    setEditData(prev => ({
+      ...prev,
+      newEmail: user?.email || '',
+      currentPassword: ''
+    }));
+    setEmailUpdateError('');
+    setShowEmailModal(true);
+  };
+  
   const handleCloseContactModal = () => {
     setShowContactModal(false);
   };
   
   const handleCloseEmergencyContactModal = () => {
     setShowEmergencyContactModal(false);
+  };
+  
+  const handleCloseEmailModal = () => {
+    setShowEmailModal(false);
+    setEmailUpdateError('');
   };
   
   const handleInputChange = (e) => {
@@ -336,7 +362,83 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     }
   };
   
-  // Email update functionality removed - now only admins can change emails
+  const handleUpdateEmail = async (e) => {
+    e.preventDefault();
+    setEmailUpdateError('');
+    
+    try {
+      setProcessing(true);
+      
+      // Validate inputs
+      const newEmail = editData.newEmail.trim();
+      const currentPassword = editData.currentPassword;
+      
+      if (!newEmail) {
+        setEmailUpdateError('Email cannot be empty');
+        return;
+      }
+      
+      if (!currentPassword) {
+        setEmailUpdateError('Current password is required to update email');
+        return;
+      }
+      
+      // Get the current user
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        toast.error('You must be logged in to update your email');
+        return;
+      }
+      
+      // If the email hasn't changed, no need to update
+      if (newEmail === currentUser.email) {
+        toast.info('New email is the same as current email');
+        handleCloseEmailModal();
+        return;
+      }
+      
+      // Re-authenticate the user before updating email
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        currentPassword
+      );
+      
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Use verifyBeforeUpdateEmail instead of updateEmail
+      // This will send a verification email to the new address
+      await verifyBeforeUpdateEmail(currentUser, newEmail);
+      
+      // Update email in Firestore only after verification
+      // This will be handled when the user verifies their email and logs in with the new email
+      // For now, we'll just show a success message about verification
+      
+      toast.success(
+        'Verification email sent to ' + newEmail + '. ' +
+        'Please check your inbox and follow the verification link to complete the email change.'
+      );
+      handleCloseEmailModal();
+    } catch (error) {
+      console.error('Error updating email:', error);
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/requires-recent-login') {
+        setEmailUpdateError('For security reasons, please log out and log back in before changing your email.');
+      } else if (error.code === 'auth/email-already-in-use') {
+        setEmailUpdateError('This email is already in use by another account.');
+      } else if (error.code === 'auth/invalid-email') {
+        setEmailUpdateError('The email address is not valid.');
+      } else if (error.code === 'auth/wrong-password') {
+        setEmailUpdateError('Incorrect password. Please try again.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setEmailUpdateError('Email update operation is not allowed. Please contact your administrator.');
+      } else {
+        setEmailUpdateError(`Failed to update email: ${error.message}`);
+      }
+    } finally {
+      setProcessing(false);
+    }
+  };
   
   // Helper function to format timestamps in a more readable format (e.g., "May 8, 2000")
   const formatTimestamp = (timestamp) => {
@@ -533,23 +635,10 @@ const ProfileRole = styled.div`
                   Email:
                 </FieldLabel>
                 <FieldValue>{user?.email}</FieldValue>
-                {/* Email editing removed - now only admins can change emails */}
-                {userData?.emailChangeRequested && (
-                  <div style={{ 
-                    marginLeft: '10px', 
-                    padding: '4px 8px', 
-                    backgroundColor: '#fff3cd', 
-                    borderRadius: '4px', 
-                    fontSize: '0.8rem',
-                    color: '#856404',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px'
-                  }}>
-                    <Info size={16} weight="fill" />
-                    <span>Email change pending verification</span>
-                  </div>
-                )}
+                <EditButton onClick={handleOpenEmailModal} title="Update Email Address">
+                  <PencilSimple size={16} weight="bold" />
+                  <span style={{ marginLeft: '4px' }}>Edit</span>
+                </EditButton>
               </ProfileField>
               <ProfileField>
                 <FieldLabel>
@@ -791,7 +880,80 @@ const ProfileRole = styled.div`
         </Modal>
       )}
       
-      {/* Email Update Modal removed - now only admins can change emails */}
+      {/* Email Update Modal */}
+      {showEmailModal && (
+        <Modal>
+          <ModalContent>
+            <ModalHeader>
+              <ModalTitle>
+                <Envelope size={20} weight="bold" style={{ marginRight: '8px' }} />
+                Update Email Address
+              </ModalTitle>
+              <ModalCloseButton onClick={handleCloseEmailModal}>&times;</ModalCloseButton>
+            </ModalHeader>
+            
+            <ModalForm onSubmit={handleUpdateEmail}>
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid #e9ecef' }}>
+                <Info size={18} style={{ color: '#0d6efd', marginRight: '8px', verticalAlign: 'middle' }} />
+                <span style={{ fontSize: '0.9rem' }}>
+                  Updating your email will change both your login credentials and profile information.
+                  You will need to use the new email for future logins.
+                </span>
+              </div>
+              
+              {emailUpdateError && (
+                <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #f5c2c7', color: '#842029' }}>
+                  <X size={18} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                  <span>{emailUpdateError}</span>
+                </div>
+              )}
+              
+              <FormGroup>
+                <FormLabel>New Email Address</FormLabel>
+                <FormInput
+                  type="email"
+                  name="newEmail"
+                  value={editData.newEmail}
+                  onChange={handleInputChange}
+                  placeholder="Enter new email address"
+                  required
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <FormLabel>
+                  <Lock size={16} style={{ marginRight: '5px', verticalAlign: 'middle' }} />
+                  Current Password (for verification)
+                </FormLabel>
+                <FormInput
+                  type="password"
+                  name="currentPassword"
+                  value={editData.currentPassword}
+                  onChange={handleInputChange}
+                  placeholder="Enter your current password"
+                  required
+                />
+              </FormGroup>
+              
+              <FormActions>
+                <CancelButton 
+                  type="button" 
+                  onClick={handleCloseEmailModal}
+                  disabled={processing}
+                >
+                  Cancel
+                </CancelButton>
+                <SubmitButton 
+                  type="submit" 
+                  disabled={processing}
+                >
+                  {processing ? 'Updating...' : 'Update Email'}
+                </SubmitButton>
+              </FormActions>
+            </ModalForm>
+          </ModalContent>
+        </Modal>
+      )}
     </Card>
   );
 };

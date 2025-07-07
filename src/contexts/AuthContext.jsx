@@ -22,18 +22,10 @@ export const AuthProvider = ({ children }) => {
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
       
-      // If the user document exists, check for admin-initiated email changes
+      // If the user document exists and the email is different, update it
       if (userDoc.exists()) {
         const userData = userDoc.data();
         
-        // Check if this is an admin-initiated email change
-        if (userData.emailChangeRequested && userData.newEmailAddress) {
-          console.log('Admin-initiated email change detected');
-          // Don't override admin changes - the user needs to update their auth email
-          return;
-        }
-        
-        // Normal case - sync Auth email to Firestore if different
         if (userData.email !== user.email) {
           await updateDoc(userDocRef, {
             email: user.email
