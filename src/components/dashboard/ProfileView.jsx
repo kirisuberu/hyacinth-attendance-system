@@ -24,7 +24,7 @@ import {
   Key
 } from 'phosphor-react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { updateEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { updateEmail, EmailAuthProvider, reauthenticateWithCredential, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { db, auth } from '../../firebase';
 import { toast } from 'react-toastify';
 
@@ -405,17 +405,18 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
       
       await reauthenticateWithCredential(currentUser, credential);
       
-      // Update email in Firebase Authentication
-      await updateEmail(currentUser, newEmail);
+      // Use verifyBeforeUpdateEmail instead of updateEmail
+      // This will send a verification email to the new address
+      await verifyBeforeUpdateEmail(currentUser, newEmail);
       
-      // Update email in Firestore
-      const userId = userData?.userId || user?.uid;
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        email: newEmail
-      });
+      // Update email in Firestore only after verification
+      // This will be handled when the user verifies their email and logs in with the new email
+      // For now, we'll just show a success message about verification
       
-      toast.success('Email updated successfully! Please use your new email for future logins.');
+      toast.success(
+        'Verification email sent to ' + newEmail + '. ' +
+        'Please check your inbox and follow the verification link to complete the email change.'
+      );
       handleCloseEmailModal();
     } catch (error) {
       console.error('Error updating email:', error);
@@ -429,6 +430,8 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
         setEmailUpdateError('The email address is not valid.');
       } else if (error.code === 'auth/wrong-password') {
         setEmailUpdateError('Incorrect password. Please try again.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setEmailUpdateError('Email update operation is not allowed. Please contact your administrator.');
       } else {
         setEmailUpdateError(`Failed to update email: ${error.message}`);
       }
