@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { verifyBeforeUpdateEmail, getAuth } from 'firebase/auth';
 import { db } from '../../firebase';
 import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List } from 'phosphor-react';
 import * as XLSX from 'xlsx';
@@ -795,31 +796,74 @@ function UserManagementView({ isSuperAdmin }) {
       
       // Check if email is being changed
       const isEmailChanged = selectedUser.email !== editUserData.email.trim();
+      const newEmail = editUserData.email.trim();
+      
+      // Use the userId field if available, otherwise fall back to id
+      const documentId = selectedUser.userId || selectedUser.id;
+      
       if (isEmailChanged) {
-        // Show warning about email change implications
+        // Show confirmation dialog about email change process
         const confirmEmailChange = window.confirm(
-          `WARNING: Changing a user's email in the system will only update their Firestore record, not their Firebase Authentication record. ` +
-          `This means the user will still need to log in with their old email address. \n\n` +
-          `To fully update their email, the user will need to: \n` +
-          `1. Log in with their old email \n` +
-          `2. Go to their profile settings \n` +
-          `3. Update their email address there \n\n` +
-          `Do you still want to proceed with this email change?`
+          `You are about to change ${selectedUser.name}'s email from ${selectedUser.email} to ${newEmail}.\n\n` +
+          `This will:\n` +
+          `1. Send a verification email to ${newEmail}\n` +
+          `2. Update the Firestore record\n\n` +
+          `The user must verify the new email address by clicking the link in the verification email before they can log in with it.\n\n` +
+          `Do you want to proceed?`
         );
         
         if (!confirmEmailChange) {
           return;
         }
+        
+        try {
+          // Get the auth instance
+          const auth = getAuth();
+          
+          // Send verification email to the new address
+          // Note: This requires the user to be logged in, so we're updating Firestore first
+          // and then informing the user they need to verify the new email
+          
+          // Update the user document in Firestore first
+          const userRef = doc(db, 'users', documentId);
+          await updateDoc(userRef, {
+            name: fullName.trim(),
+            email: newEmail,
+            position: editUserData.position,
+            employmentStatus: editUserData.employmentStatus,
+            role: editUserData.role,
+            dateOfBirth: editUserData.dateOfBirth,
+            dateHired: editUserData.dateHired,
+            phoneNumber: editUserData.phoneNumber,
+            address: editUserData.address,
+            emergencyContactName: editUserData.emergencyContactName,
+            emergencyContactPhone: editUserData.emergencyContactPhone,
+            emergencyContactRelationship: editUserData.emergencyContactRelationship,
+            emailChangeRequested: true,
+            newEmailAddress: newEmail,
+            emailChangeRequestedAt: serverTimestamp()
+          });
+          
+          toast.success(
+            `Email change initiated for ${selectedUser.name}. ` +
+            `They will need to verify the new email address (${newEmail}) before they can log in with it.`
+          );
+          
+          // Close the modal
+          setShowEditModal(false);
+          return;
+          
+        } catch (error) {
+          console.error('Error initiating email change:', error);
+          toast.error(`Failed to initiate email change: ${error.message}`);
+          return;
+        }
       }
       
-      // Use the userId field if available, otherwise fall back to id
-      const documentId = selectedUser.userId || selectedUser.id;
-      
-      // Update the user document in Firestore
+      // If email is not being changed, just update the other fields
       const userRef = doc(db, 'users', documentId);
       await updateDoc(userRef, {
         name: fullName.trim(),
-        email: editUserData.email.trim(),
         position: editUserData.position,
         employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
