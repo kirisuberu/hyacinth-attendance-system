@@ -802,14 +802,18 @@ function UserManagementView({ isSuperAdmin }) {
       const documentId = selectedUser.userId || selectedUser.id;
       
       if (isEmailChanged) {
-        // Show confirmation dialog about email change process
+        // Show confirmation dialog about email change process with clear limitations
         const confirmEmailChange = window.confirm(
-          `You are about to change ${selectedUser.name}'s email from ${selectedUser.email} to ${newEmail}.\n\n` +
-          `This will:\n` +
-          `1. Send a verification email to ${newEmail}\n` +
-          `2. Update the Firestore record\n\n` +
-          `The user must verify the new email address by clicking the link in the verification email before they can log in with it.\n\n` +
-          `Do you want to proceed?`
+          `IMPORTANT: You are about to change ${selectedUser.name}'s email from ${selectedUser.email} to ${newEmail}.\n\n` +
+          `Due to Firebase Authentication limitations:\n\n` +
+          `1. This will ONLY update the email in the Firestore database\n` +
+          `2. The user will still need to log in with their OLD email\n` +
+          `3. NO verification email will be sent automatically\n\n` +
+          `To complete the email change process, you must:\n` +
+          `1. Inform the user about their new email\n` +
+          `2. Ask them to log in with their OLD email\n` +
+          `3. Have them update their email in their profile settings (if enabled)\n\n` +
+          `Do you want to proceed with updating just the Firestore record?`
         );
         
         if (!confirmEmailChange) {
@@ -845,8 +849,9 @@ function UserManagementView({ isSuperAdmin }) {
           });
           
           toast.success(
-            `Email change initiated for ${selectedUser.name}. ` +
-            `They will need to verify the new email address (${newEmail}) before they can log in with it.`
+            `Email updated in database for ${selectedUser.name}. ` +
+            `Remember: The user will still need to log in with their OLD email address. ` +
+            `Please inform them about this change.`
           );
           
           // Close the modal
