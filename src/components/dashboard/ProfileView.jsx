@@ -13,7 +13,8 @@ import {
   CheckSquare,
   FirstAidKit, 
   Clock,
-  Info
+  Info, 
+  PencilSimple
 } from 'phosphor-react';
 import { toast } from 'react-toastify';
 import { doc, updateDoc } from 'firebase/firestore';
