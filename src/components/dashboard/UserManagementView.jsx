@@ -793,6 +793,25 @@ function UserManagementView({ isSuperAdmin }) {
         return;
       }
       
+      // Check if email is being changed
+      const isEmailChanged = selectedUser.email !== editUserData.email.trim();
+      if (isEmailChanged) {
+        // Show warning about email change implications
+        const confirmEmailChange = window.confirm(
+          `WARNING: Changing a user's email in the system will only update their Firestore record, not their Firebase Authentication record. ` +
+          `This means the user will still need to log in with their old email address. \n\n` +
+          `To fully update their email, the user will need to: \n` +
+          `1. Log in with their old email \n` +
+          `2. Go to their profile settings \n` +
+          `3. Update their email address there \n\n` +
+          `Do you still want to proceed with this email change?`
+        );
+        
+        if (!confirmEmailChange) {
+          return;
+        }
+      }
+      
       // Use the userId field if available, otherwise fall back to id
       const documentId = selectedUser.userId || selectedUser.id;
       
@@ -836,6 +855,15 @@ function UserManagementView({ isSuperAdmin }) {
       }));
       
       toast.success('User information updated successfully');
+      
+      // Show additional guidance if email was changed
+      if (isEmailChanged) {
+        toast.info(
+          'Remember: The user will still need to log in with their old email address until they update their authentication email themselves.',
+          { autoClose: 8000 }
+        );
+      }
+      
       setShowEditModal(false);
       setEditUserPage(1); // Reset to first page
     } catch (error) {

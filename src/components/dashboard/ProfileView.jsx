@@ -19,10 +19,13 @@ import {
   Copy,
   CheckSquare,
   PencilSimple,
-  X
+  X,
+  Lock,
+  Key
 } from 'phosphor-react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { updateEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { db, auth } from '../../firebase';
 import { toast } from 'react-toastify';
 
 const ProfileSection = styled.div`
@@ -234,14 +237,18 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
   const [copied, setCopied] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showEmergencyContactModal, setShowEmergencyContactModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [editData, setEditData] = useState({
     address: '',
     phoneNumber: '',
     emergencyContactName: '',
     emergencyContactPhone: '',
-    emergencyContactRelationship: ''
+    emergencyContactRelationship: '',
+    newEmail: '',
+    currentPassword: ''
   });
   const [processing, setProcessing] = useState(false);
+  const [emailUpdateError, setEmailUpdateError] = useState('');
   
   // Initialize edit data when opening modals
   const handleOpenContactModal = () => {
@@ -263,12 +270,27 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     setShowEmergencyContactModal(true);
   };
   
+  const handleOpenEmailModal = () => {
+    setEditData(prev => ({
+      ...prev,
+      newEmail: user?.email || '',
+      currentPassword: ''
+    }));
+    setEmailUpdateError('');
+    setShowEmailModal(true);
+  };
+  
   const handleCloseContactModal = () => {
     setShowContactModal(false);
   };
   
   const handleCloseEmergencyContactModal = () => {
     setShowEmergencyContactModal(false);
+  };
+  
+  const handleCloseEmailModal = () => {
+    setShowEmailModal(false);
+    setEmailUpdateError('');
   };
   
   const handleInputChange = (e) => {
@@ -335,6 +357,81 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     } catch (error) {
       console.error('Error updating emergency contact information:', error);
       toast.error(`Failed to update emergency contact information: ${error.message}`);
+    } finally {
+      setProcessing(false);
+    }
+  };
+  
+  const handleUpdateEmail = async (e) => {
+    e.preventDefault();
+    setEmailUpdateError('');
+    
+    try {
+      setProcessing(true);
+      
+      // Validate inputs
+      const newEmail = editData.newEmail.trim();
+      const currentPassword = editData.currentPassword;
+      
+      if (!newEmail) {
+        setEmailUpdateError('Email cannot be empty');
+        return;
+      }
+      
+      if (!currentPassword) {
+        setEmailUpdateError('Current password is required to update email');
+        return;
+      }
+      
+      // Get the current user
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        toast.error('You must be logged in to update your email');
+        return;
+      }
+      
+      // If the email hasn't changed, no need to update
+      if (newEmail === currentUser.email) {
+        toast.info('New email is the same as current email');
+        handleCloseEmailModal();
+        return;
+      }
+      
+      // Re-authenticate the user before updating email
+      const credential = EmailAuthProvider.credential(
+        currentUser.email,
+        currentPassword
+      );
+      
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Update email in Firebase Authentication
+      await updateEmail(currentUser, newEmail);
+      
+      // Update email in Firestore
+      const userId = userData?.userId || user?.uid;
+      const userRef = doc(db, 'users', userId);
+      await updateDoc(userRef, {
+        email: newEmail
+      });
+      
+      toast.success('Email updated successfully! Please use your new email for future logins.');
+      handleCloseEmailModal();
+    } catch (error) {
+      console.error('Error updating email:', error);
+      
+      // Handle specific Firebase Auth errors
+      if (error.code === 'auth/requires-recent-login') {
+        setEmailUpdateError('For security reasons, please log out and log back in before changing your email.');
+      } else if (error.code === 'auth/email-already-in-use') {
+        setEmailUpdateError('This email is already in use by another account.');
+      } else if (error.code === 'auth/invalid-email') {
+        setEmailUpdateError('The email address is not valid.');
+      } else if (error.code === 'auth/wrong-password') {
+        setEmailUpdateError('Incorrect password. Please try again.');
+      } else {
+        setEmailUpdateError(`Failed to update email: ${error.message}`);
+      }
     } finally {
       setProcessing(false);
     }
@@ -535,6 +632,10 @@ const ProfileRole = styled.div`
                   Email:
                 </FieldLabel>
                 <FieldValue>{user?.email}</FieldValue>
+                <EditButton onClick={handleOpenEmailModal} title="Update Email Address">
+                  <PencilSimple size={16} weight="bold" />
+                  <span style={{ marginLeft: '4px' }}>Edit</span>
+                </EditButton>
               </ProfileField>
               <ProfileField>
                 <FieldLabel>
@@ -769,6 +870,81 @@ const ProfileRole = styled.div`
                   disabled={processing}
                 >
                   {processing ? 'Saving...' : 'Save Changes'}
+                </SubmitButton>
+              </FormActions>
+            </ModalForm>
+          </ModalContent>
+        </Modal>
+      )}
+      
+      {/* Email Update Modal */}
+      {showEmailModal && (
+        <Modal>
+          <ModalContent>
+            <ModalHeader>
+              <ModalTitle>
+                <Envelope size={20} weight="bold" style={{ marginRight: '8px' }} />
+                Update Email Address
+              </ModalTitle>
+              <ModalCloseButton onClick={handleCloseEmailModal}>&times;</ModalCloseButton>
+            </ModalHeader>
+            
+            <ModalForm onSubmit={handleUpdateEmail}>
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px', border: '1px solid #e9ecef' }}>
+                <Info size={18} style={{ color: '#0d6efd', marginRight: '8px', verticalAlign: 'middle' }} />
+                <span style={{ fontSize: '0.9rem' }}>
+                  Updating your email will change both your login credentials and profile information.
+                  You will need to use the new email for future logins.
+                </span>
+              </div>
+              
+              {emailUpdateError && (
+                <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #f5c2c7', color: '#842029' }}>
+                  <X size={18} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
+                  <span>{emailUpdateError}</span>
+                </div>
+              )}
+              
+              <FormGroup>
+                <FormLabel>New Email Address</FormLabel>
+                <FormInput
+                  type="email"
+                  name="newEmail"
+                  value={editData.newEmail}
+                  onChange={handleInputChange}
+                  placeholder="Enter new email address"
+                  required
+                />
+              </FormGroup>
+              
+              <FormGroup>
+                <FormLabel>
+                  <Lock size={16} style={{ marginRight: '5px', verticalAlign: 'middle' }} />
+                  Current Password (for verification)
+                </FormLabel>
+                <FormInput
+                  type="password"
+                  name="currentPassword"
+                  value={editData.currentPassword}
+                  onChange={handleInputChange}
+                  placeholder="Enter your current password"
+                  required
+                />
+              </FormGroup>
+              
+              <FormActions>
+                <CancelButton 
+                  type="button" 
+                  onClick={handleCloseEmailModal}
+                  disabled={processing}
+                >
+                  Cancel
+                </CancelButton>
+                <SubmitButton 
+                  type="submit" 
+                  disabled={processing}
+                >
+                  {processing ? 'Updating...' : 'Update Email'}
                 </SubmitButton>
               </FormActions>
             </ModalForm>
