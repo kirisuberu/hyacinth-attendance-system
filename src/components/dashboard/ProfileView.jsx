@@ -14,7 +14,8 @@ import {
   FirstAidKit, 
   Clock,
   Info, 
-  PencilSimple
+  PencilSimple,
+  Heart, User
 } from 'phosphor-react';
 import { toast } from 'react-toastify';
 import { doc, updateDoc } from 'firebase/firestore';
