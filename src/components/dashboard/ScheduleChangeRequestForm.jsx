@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { collection, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Calendar, Clock, ArrowRight, CalendarPlus, NotePencil } from 'phosphor-react';
+import { Calendar, Clock, ArrowRight, CalendarPlus, NotePencil, Globe } from 'phosphor-react';
+import { timeZones } from '../../utils/timeZones';
 
 const FormContainer = styled.div`
   background-color: white;
@@ -146,12 +147,19 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
   const [timeIn, setTimeIn] = useState('');
   const [shiftDuration, setShiftDuration] = useState('8');
   const [reason, setReason] = useState('');
+  const [timeRegion, setTimeRegion] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  
+  // Set default time region based on user data or browser timezone
+  useEffect(() => {
+    const defaultTimeRegion = userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila';
+    setTimeRegion(defaultTimeRegion);
+  }, [userData]);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!dayOfWeek || !timeIn || !shiftDuration || !reason) {
+    if (!dayOfWeek || !timeIn || !shiftDuration || !reason || !timeRegion) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -166,13 +174,13 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
         userEmail: userData?.email || user.email,
         dayOfWeek,
         timeIn,
-        shiftDuration: parseInt(shiftDuration, 10),
+        shiftDuration: parseFloat(shiftDuration),
         reason,
         status: 'pending', // pending, approved, rejected
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
         adminNotes: '',
-        timeRegion: userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila'
+        timeRegion: timeRegion
       };
       
       // Add the request to Firestore
@@ -185,6 +193,7 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
       setTimeIn('');
       setShiftDuration('8');
       setReason('');
+      // Don't reset timeRegion as it should persist between submissions
     } catch (error) {
       console.error('Error submitting schedule change request:', error);
       toast.error('Failed to submit request. Please try again.');
@@ -242,17 +251,14 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
           
           <TimeInputGroup>
             <TimeLabel>Shift Duration (hours)</TimeLabel>
-            <Select 
+            <Input 
+              type="number" 
+              min="1"
+              step="0.5"
               value={shiftDuration} 
               onChange={(e) => setShiftDuration(e.target.value)}
               required
-            >
-              <option value="4">4 hours</option>
-              <option value="6">6 hours</option>
-              <option value="8">8 hours</option>
-              <option value="10">10 hours</option>
-              <option value="12">12 hours</option>
-            </Select>
+            />
           </TimeInputGroup>
         </TimeInputContainer>
         
@@ -268,6 +274,26 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
             placeholder="Please explain why you need to change your schedule..."
             required
           />
+        </FormGroup>
+        
+        <FormGroup>
+          <Label htmlFor="timeRegion">
+            <Globe size={16} style={{ marginRight: '0.5rem' }} />
+            Time Region
+          </Label>
+          <Select 
+            id="timeRegion" 
+            value={timeRegion} 
+            onChange={(e) => setTimeRegion(e.target.value)}
+            required
+          >
+            <option value="">Select a time region</option>
+            {timeZones.map((zone) => (
+              <option key={zone.value} value={zone.value}>
+                {zone.label}
+              </option>
+            ))}
+          </Select>
         </FormGroup>
         
         <SubmitButton type="submit" disabled={submitting}>

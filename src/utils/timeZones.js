@@ -1,0 +1,37 @@
+/**
+ * List of time zones for use in the application
+ * Format: { value: 'IANA Time Zone identifier', label: 'Human-readable label' }
+ */
+export const timeZones = [
+  { value: 'Pacific/Midway', label: '(UTC-11:00) Midway Island, Samoa' },
+  { value: 'Pacific/Honolulu', label: '(UTC-10:00) Hawaii' },
+  { value: 'America/Anchorage', label: '(UTC-09:00) Alaska' },
+  { value: 'America/Los_Angeles', label: '(UTC-08:00) Pacific Time (US & Canada)' },
+  { value: 'America/Denver', label: '(UTC-07:00) Mountain Time (US & Canada)' },
+  { value: 'America/Chicago', label: '(UTC-06:00) Central Time (US & Canada)' },
+  { value: 'America/New_York', label: '(UTC-05:00) Eastern Time (US & Canada)' },
+  { value: 'America/Halifax', label: '(UTC-04:00) Atlantic Time (Canada)' },
+  { value: 'America/Argentina/Buenos_Aires', label: '(UTC-03:00) Buenos Aires' },
+  { value: 'Atlantic/South_Georgia', label: '(UTC-02:00) Mid-Atlantic' },
+  { value: 'Atlantic/Azores', label: '(UTC-01:00) Azores' },
+  { value: 'Europe/London', label: '(UTC+00:00) London, Dublin, Edinburgh' },
+  { value: 'Europe/Paris', label: '(UTC+01:00) Paris, Amsterdam, Berlin' },
+  { value: 'Europe/Helsinki', label: '(UTC+02:00) Helsinki, Athens, Istanbul' },
+  { value: 'Asia/Baghdad', label: '(UTC+03:00) Baghdad, Moscow, Kuwait' },
+  { value: 'Asia/Dubai', label: '(UTC+04:00) Dubai, Abu Dhabi' },
+  { value: 'Asia/Karachi', label: '(UTC+05:00) Karachi, Islamabad' },
+  { value: 'Asia/Dhaka', label: '(UTC+06:00) Dhaka' },
+  { value: 'Asia/Bangkok', label: '(UTC+07:00) Bangkok, Jakarta' },
+  { value: 'Asia/Hong_Kong', label: '(UTC+08:00) Hong Kong, Singapore, Beijing' },
+  { value: 'Asia/Tokyo', label: '(UTC+09:00) Tokyo, Seoul' },
+  { value: 'Australia/Sydney', label: '(UTC+10:00) Sydney, Melbourne' },
+  { value: 'Pacific/Noumea', label: '(UTC+11:00) Noumea, Solomon Islands' },
+  { value: 'Pacific/Auckland', label: '(UTC+12:00) Auckland, Wellington' },
+  { value: 'Asia/Manila', label: '(UTC+08:00) Manila, Philippines' },
+  { value: 'Asia/Kolkata', label: '(UTC+05:30) Mumbai, New Delhi' },
+  { value: 'America/Sao_Paulo', label: '(UTC-03:00) Sao Paulo' },
+  { value: 'America/Mexico_City', label: '(UTC-06:00) Mexico City' },
+  { value: 'Africa/Cairo', label: '(UTC+02:00) Cairo' },
+  { value: 'Africa/Johannesburg', label: '(UTC+02:00) Johannesburg' },
+  { value: 'Asia/Jerusalem', label: '(UTC+02:00) Jerusalem' },
+];
