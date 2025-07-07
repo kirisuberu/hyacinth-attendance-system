@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { collection, query, orderBy, getDocs, doc, updateDoc, Timestamp, where } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, updateDoc, Timestamp, where, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -493,10 +493,10 @@ const ScheduleChangeRequestsView = ({ user, userData }) => {
     try {
       // Get the user document
       const userRef = doc(db, 'users', userId);
-      const userDoc = await getDocs(userRef);
+      const userDocSnapshot = await getDoc(userRef);
       
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
+      if (userDocSnapshot.exists()) {
+        const userData = userDocSnapshot.data();
         let schedule = userData.schedule || [];
         
         // Check if the day already exists in the schedule
@@ -515,6 +515,9 @@ const ScheduleChangeRequestsView = ({ user, userData }) => {
         
         // Update the user's schedule
         await updateDoc(userRef, { schedule });
+        console.log(`Updated schedule for user ${userId} with day ${scheduleData.dayOfWeek}`);
+      } else {
+        console.error(`User document not found for ID: ${userId}`);
       }
     } catch (error) {
       console.error('Error updating user schedule:', error);
