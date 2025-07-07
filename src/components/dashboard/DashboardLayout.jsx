@@ -608,6 +608,17 @@ const DashboardLayout = ({
                     Attendance Requests
                   </NavItem>
                 )}
+                
+                {/* Schedule Change Requests - Available to super admins and admins with permission */}
+                {(isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canManageSchedules !== false)) && (
+                  <NavItem 
+                    className={activeTab === 'schedule_change_requests' ? 'active' : ''} 
+                    onClick={() => setActiveTab('schedule_change_requests')}
+                  >
+                    <Icon><Calendar size={16} /></Icon>
+                    Schedule Change Requests
+                  </NavItem>
+                )}
               </div>
             )}
           </div>

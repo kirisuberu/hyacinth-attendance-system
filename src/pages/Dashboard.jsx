@@ -19,6 +19,7 @@ import UserManagementView from '../components/dashboard/UserManagementView';
 import AdminPrivilegesView from '../components/dashboard/AdminPrivilegesView';
 import ReportsView from '../components/dashboard/ReportsView';
 import AttendanceRequestsView from '../components/dashboard/AttendanceRequestsView';
+import ScheduleChangeRequestsView from '../components/dashboard/ScheduleChangeRequestsView';
 import RulesView from '../components/superadmin/RulesView';
 import AbsentServiceView from '../components/superadmin/AbsentServiceView';
 
@@ -763,6 +764,10 @@ function Dashboard() {
         
         {activeTab === 'attendance_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageAttendanceRequests !== false)) && (
           <AttendanceRequestsView />
+        )}
+        
+        {activeTab === 'schedule_change_requests' && (userData?.role === 'super_admin' || (userData?.role === 'admin' && userData?.privileges?.canManageSchedules !== false)) && (
+          <ScheduleChangeRequestsView />
         )}
         
         {activeTab === 'admin_privileges' && userData?.role === 'super_admin' && (

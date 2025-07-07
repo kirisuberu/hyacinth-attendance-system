@@ -7,6 +7,8 @@ import { format, addHours, parse, isToday as isDateToday } from 'date-fns';
 import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { Clock, Calendar, ArrowRight } from 'phosphor-react';
+import ScheduleChangeRequestForm from './ScheduleChangeRequestForm';
+import UserScheduleRequests from './UserScheduleRequests';
 
 const ScheduleTable = styled.table`
   width: 100%;
@@ -493,6 +495,12 @@ const ScheduleView = ({ user, userData }) => {
         )}
       </CardContent>
     </Card>
+    
+    {/* Schedule Change Request Form */}
+    <ScheduleChangeRequestForm user={user} userData={userData} currentSchedule={schedule} />
+    
+    {/* User's Schedule Change Requests History */}
+    <UserScheduleRequests user={user} />
   </>
   );
 };
