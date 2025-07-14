@@ -1,16 +1,24 @@
 import React from 'react';
-import DashboardLayout from '../components/dashboard/DashboardLayout';
 import DepartmentManagementView from '../components/dashboard/DepartmentManagementView';
-import { useAuth } from '../contexts/AuthContext';
+import { useOutletContext } from 'react-router-dom';
 
 function DepartmentManagement() {
-  const { userData } = useAuth();
+  // Get user data from outlet context provided by DashboardLayout
+  const { user, userData } = useOutletContext();
+  
+  // Check user roles
   const isSuperAdmin = userData?.role === 'superadmin';
   const isAdmin = userData?.role === 'admin';
+  const canManageUsers = isSuperAdmin || (isAdmin && userData?.permissions?.canManageUsers);
+  
+  console.log('DepartmentManagement - userData:', userData);
+  console.log('DepartmentManagement - isSuperAdmin:', isSuperAdmin);
+  console.log('DepartmentManagement - isAdmin:', isAdmin);
+  console.log('DepartmentManagement - canManageUsers:', canManageUsers);
   
   return (
-    <DashboardLayout>
-      {(isSuperAdmin || isAdmin) ? (
+    <>
+      {(isSuperAdmin || (isAdmin && userData?.permissions?.canManageUsers)) ? (
         <DepartmentManagementView isSuperAdmin={isSuperAdmin} />
       ) : (
         <div style={{ padding: '2rem', textAlign: 'center' }}>
@@ -18,7 +26,7 @@ function DepartmentManagement() {
           <p>You don't have permission to access this page.</p>
         </div>
       )}
-    </DashboardLayout>
+    </>
   );
 }
 
