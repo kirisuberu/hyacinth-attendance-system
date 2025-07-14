@@ -18,7 +18,7 @@ function DepartmentManagement() {
   
   return (
     <>
-      {(isSuperAdmin || (isAdmin && userData?.permissions?.canManageUsers)) ? (
+      {(isSuperAdmin || isAdmin) ? (
         <DepartmentManagementView isSuperAdmin={isSuperAdmin} />
       ) : (
         <div style={{ padding: '2rem', textAlign: 'center' }}>
