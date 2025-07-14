@@ -830,10 +830,20 @@ export const getAttendanceStatus = async (userId) => {
       return { status: 'Not Checked In', lastRecord: null };
     }
     
+    // Get the data and handle the timestamp safely
+    const docData = querySnapshot.docs[0].data();
+    const timestamp = docData.timestamp;
+    
+    // Create the lastRecord object with a safely converted timestamp
     const lastRecord = {
       id: querySnapshot.docs[0].id,
-      ...querySnapshot.docs[0].data(),
-      timestamp: querySnapshot.docs[0].data().timestamp.toDate()
+      ...docData,
+      // Handle different timestamp formats safely
+      timestamp: timestamp && typeof timestamp.toDate === 'function' 
+        ? timestamp.toDate() 
+        : timestamp instanceof Date 
+          ? timestamp 
+          : new Date(timestamp)
     };
     
     // Determine status based on the last record type
