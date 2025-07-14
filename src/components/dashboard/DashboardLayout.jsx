@@ -557,14 +557,6 @@ const DashboardLayout = ({
             <Icon><UserCircle size={16} /></Icon>
             My Profile
           </NavItem>
-          
-          <NavItem 
-            className={activeTab === 'changelog' ? 'active' : ''}
-            onClick={() => setActiveTab('changelog')}
-          >
-            <Icon><Bell size={16} /></Icon>
-            App Updates
-          </NavItem>
         </div>
         
         {/* Admin Panel Section - For both admins and super admins */}
@@ -620,8 +612,7 @@ const DashboardLayout = ({
                 {/* Department Management - Available to super admins and admins with permission */}
                 {(isSuperAdmin || canManageUsers) && (
                   <NavItem 
-                    className={activeTab === 'departments' ? 'active' : ''}
-                    onClick={() => setActiveTab('departments')}
+                    onClick={() => navigate('/departments')}
                   >
                     <Icon><Buildings size={16} /></Icon>
                     Department Management
