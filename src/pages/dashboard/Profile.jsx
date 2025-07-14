@@ -17,7 +17,10 @@ const PageTitle = styled.h1`
  * Displays and allows editing of the user's profile information
  */
 function Profile() {
-  const { user, userData, loadingUserData } = useOutletContext();
+  const context = useOutletContext();
+  const user = context?.user || null;
+  const userData = context?.userData || null;
+  const loadingUserData = context?.loadingUserData || false;
 
   return (
     <PageContainer>

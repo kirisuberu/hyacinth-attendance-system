@@ -18,7 +18,8 @@ const PageTitle = styled.h1`
  * Only accessible to admins and super admins with appropriate permissions
  */
 function ScheduleChangeRequests() {
-  const { userData } = useOutletContext();
+  const context = useOutletContext();
+  const userData = context?.userData || null;
   
   // Check if user has permission to access this page
   const canAccess = userData?.role === 'super_admin' || 

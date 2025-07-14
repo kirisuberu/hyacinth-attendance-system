@@ -17,7 +17,9 @@ const PageTitle = styled.h1`
  * Displays the main dashboard view with attendance status and summary
  */
 function DashboardHome() {
-  const { attendanceStatus, lastRecord } = useOutletContext();
+  const context = useOutletContext();
+  const attendanceStatus = context?.attendanceStatus || null;
+  const lastRecord = context?.lastRecord || null;
 
   return (
     <PageContainer>

@@ -18,7 +18,8 @@ const PageTitle = styled.h1`
  * Only accessible to super admins
  */
 function AdminPrivileges() {
-  const { userData } = useOutletContext();
+  const context = useOutletContext();
+  const userData = context?.userData || null;
   
   // Check if user has permission to access this page
   const isSuperAdmin = userData?.role === 'super_admin';

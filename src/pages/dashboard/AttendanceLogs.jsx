@@ -17,7 +17,8 @@ const PageTitle = styled.h1`
  * Displays the user's attendance history and logs
  */
 function AttendanceLogs() {
-  const { user } = useOutletContext();
+  const context = useOutletContext();
+  const user = context?.user || null;
 
   return (
     <PageContainer>

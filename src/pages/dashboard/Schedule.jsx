@@ -17,7 +17,9 @@ const PageTitle = styled.h1`
  * Displays the user's schedule and allows schedule management
  */
 function Schedule() {
-  const { user, userData } = useOutletContext();
+  const context = useOutletContext();
+  const user = context?.user || null;
+  const userData = context?.userData || null;
 
   return (
     <PageContainer>

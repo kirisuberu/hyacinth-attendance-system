@@ -207,7 +207,10 @@ const AppUpdatesButton = styled(Link)`
 `;
 
 function DashboardLayout() {
-  const { user, userData, setUserData } = useOutletContext();
+  const context = useOutletContext();
+  const user = context?.user || null;
+  const userData = context?.userData || null;
+  const setUserData = context?.setUserData || (() => {});
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [lastRecord, setLastRecord] = useState(null);
   const [loading, setLoading] = useState(false);
