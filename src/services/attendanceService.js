@@ -807,6 +807,72 @@ export const deleteAttendanceRecord = async (recordId, adminId, adminName, reaso
  * @param {string} userId - The user ID
  * @returns {Promise<boolean>} - True if the user can time in (either there's no pending time out or it was handled)
  */
+/**
+ * Gets the current attendance status for a user
+ * @param {string} userId - The user ID
+ * @returns {Promise<{status: string, lastRecord: Object|null}>} - The attendance status and last record
+ */
+export const getAttendanceStatus = async (userId) => {
+  try {
+    // Query the most recent attendance record for this user
+    const attendanceRef = collection(db, 'attendance');
+    const q = query(
+      attendanceRef,
+      where('userId', '==', userId),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    
+    // If no records found, user has never timed in/out
+    if (querySnapshot.empty) {
+      return { status: 'Not Checked In', lastRecord: null };
+    }
+    
+    const lastRecord = {
+      id: querySnapshot.docs[0].id,
+      ...querySnapshot.docs[0].data(),
+      timestamp: querySnapshot.docs[0].data().timestamp.toDate()
+    };
+    
+    // Determine status based on the last record type
+    if (lastRecord.type === 'In') {
+      return { status: 'Checked In', lastRecord };
+    } else if (lastRecord.type === 'Out') {
+      // Check if this is from today
+      const today = new Date();
+      const recordDate = lastRecord.timestamp;
+      
+      if (recordDate.getDate() === today.getDate() && 
+          recordDate.getMonth() === today.getMonth() && 
+          recordDate.getFullYear() === today.getFullYear()) {
+        return { status: 'Checked Out Today', lastRecord };
+      } else {
+        return { status: 'Not Checked In', lastRecord };
+      }
+    } else if (lastRecord.type === 'Absent') {
+      // Check if this is from today
+      const today = new Date();
+      const recordDate = lastRecord.timestamp;
+      
+      if (recordDate.getDate() === today.getDate() && 
+          recordDate.getMonth() === today.getMonth() && 
+          recordDate.getFullYear() === today.getFullYear()) {
+        return { status: 'Absent Today', lastRecord };
+      } else {
+        return { status: 'Not Checked In', lastRecord };
+      }
+    }
+    
+    // Default case
+    return { status: 'Not Checked In', lastRecord };
+  } catch (error) {
+    console.error('Error getting attendance status:', error);
+    return { status: 'Error', lastRecord: null };
+  }
+};
+
 export const checkAndHandleFailedTimeOut = async (userId) => {
   try {
     // Query the most recent attendance record for this user

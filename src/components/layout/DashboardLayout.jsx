@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext, Link, useLocation, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
+import { recordAttendance, getAttendanceStatus } from '../../services/attendanceService';
 import styled from 'styled-components';
 import { 
   House, 
@@ -217,6 +218,8 @@ function DashboardLayout() {
   const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
   const [showTimeFormatModal, setShowTimeFormatModal] = useState(false);
   const [selectedTimeRegion, setSelectedTimeRegion] = useState('');
+  const [processingTimeIn, setProcessingTimeIn] = useState(false);
+  const [processingTimeOut, setProcessingTimeOut] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
   const [timeRegionLocked, setTimeRegionLocked] = useState(false);
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
@@ -244,6 +247,23 @@ function DashboardLayout() {
     return location.pathname === path;
   };
 
+  // Initialize attendance status when component loads
+  useEffect(() => {
+    const initializeAttendanceStatus = async () => {
+      if (user?.uid) {
+        try {
+          const status = await getAttendanceStatus(user.uid);
+          setAttendanceStatus(status.status);
+          setLastRecord(status.lastRecord);
+        } catch (error) {
+          console.error('Error initializing attendance status:', error);
+        }
+      }
+    };
+    
+    initializeAttendanceStatus();
+  }, [user?.uid]);
+  
   // Detect user's device time zone and check time region lock setting
   useEffect(() => {
     try {
@@ -358,9 +378,37 @@ function DashboardLayout() {
   };
 
   const handleTimeInOutClick = async (type) => {
-    // Implementation for time in/out functionality would go here
-    // This is a placeholder for the actual implementation
-    console.log(`Time ${type} clicked`);
+    if (!user?.uid) {
+      toast.error('You must be logged in to record attendance');
+      return;
+    }
+    
+    try {
+      // Prevent multiple submissions
+      if (type === 'In' && processingTimeIn) return;
+      if (type === 'Out' && processingTimeOut) return;
+      
+      // Set processing state
+      if (type === 'In') setProcessingTimeIn(true);
+      if (type === 'Out') setProcessingTimeOut(true);
+      
+      // Record attendance
+      await recordAttendance(user.uid, type);
+      
+      // Update attendance status
+      const newStatus = await getAttendanceStatus(user.uid);
+      setAttendanceStatus(newStatus.status);
+      setLastRecord(newStatus.lastRecord);
+      
+      toast.success(`Time ${type} recorded successfully`);
+    } catch (error) {
+      console.error(`Error recording Time ${type}:`, error);
+      toast.error(`Failed to record Time ${type}`);
+    } finally {
+      // Reset processing state
+      if (type === 'In') setProcessingTimeIn(false);
+      if (type === 'Out') setProcessingTimeOut(false);
+    }
   };
 
   return (
@@ -560,16 +608,16 @@ function DashboardLayout() {
           <TimeControls>
             <TimeButton 
               variant="in" 
-              onClick={() => handleTimeInOutClick('in')}
-              disabled={loading || attendanceStatus === 'in'}
+              onClick={() => handleTimeInOutClick('In')}
+              disabled={loading || processingTimeIn || attendanceStatus === 'Checked In'}
             >
               <SignIn size={16} />
               Time In
             </TimeButton>
             <TimeButton 
               variant="out" 
-              onClick={() => handleTimeInOutClick('out')}
-              disabled={loading || attendanceStatus !== 'in'}
+              onClick={() => handleTimeInOutClick('Out')}
+              disabled={loading || processingTimeOut || attendanceStatus !== 'Checked In'}
             >
               <SignOut size={16} />
               Time Out
