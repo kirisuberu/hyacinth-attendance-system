@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List } from 'phosphor-react';
+import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings } from 'phosphor-react';
 import * as XLSX from 'xlsx';
 
 const Container = styled.div`
@@ -197,17 +197,67 @@ const RoleTag = styled.span`
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 500;
-  background-color: ${props => {
-    switch(props.role) {
-      case 'admin':
-        return '#800000';
-      case 'superadmin':
-        return '#000000';
-      default:
-        return '#555555';
-    }
-  }};
-  color: white;
+  text-transform: uppercase;
+  
+  &.superadmin {
+    background-color: #800000;
+    color: white;
+  }
+  
+  &.admin {
+    background-color: #ff9800;
+    color: white;
+  }
+  
+  &.member {
+    background-color: #e0e0e0;
+    color: #333;
+  }
+`;
+
+const DepartmentTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #e3f2fd;
+  color: #1565c0;
+  margin-right: 0.25rem;
+  margin-bottom: 0.25rem;
+`;
+
+const DepartmentTagsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 100%;
+`;
+
+const CheckboxContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+`;
+
+const CheckboxLabel = styled.label`
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background-color: ${props => props.checked ? '#e3f2fd' : '#f5f5f5'};
+  border: 1px solid ${props => props.checked ? '#1565c0' : '#ddd'};
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background-color: ${props => props.checked ? '#bbdefb' : '#e0e0e0'};
+  }
+  
+  input {
+    margin-right: 0.5rem;
+  }
 `;
 
 const StatusTag = styled.span`
@@ -526,6 +576,7 @@ const Icon = styled.span`
 
 function UserManagementView({ isSuperAdmin }) {
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -552,6 +603,7 @@ function UserManagementView({ isSuperAdmin }) {
     { id: 'email', label: 'Email', visible: true, width: 250 },
     { id: 'employmentStatus', label: 'Employment Status', visible: true, width: 180 },
     { id: 'position', label: 'Position', visible: true, width: 200 },
+    { id: 'departments', label: 'Departments', visible: true, width: 200 },
     { id: 'role', label: 'Role', visible: true, width: 120 },
     { id: 'status', label: 'Status', visible: true, width: 120 },
     { id: 'shifts', label: 'Shifts', visible: true, width: 150 },
@@ -583,7 +635,8 @@ function UserManagementView({ isSuperAdmin }) {
     address: '',
     emergencyContactName: '',
     emergencyContactPhone: '',
-    emergencyContactRelationship: ''
+    emergencyContactRelationship: '',
+    departments: []
   });
   const [editUserPage, setEditUserPage] = useState(1); // Track the current page of the edit user modal
   const [newUserData, setNewUserData] = useState({
@@ -597,7 +650,8 @@ function UserManagementView({ isSuperAdmin }) {
     status: 'active',
     dateHired: '',
     address: '',
-    contactNumber: ''
+    contactNumber: '',
+    departments: []
   });
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -617,13 +671,39 @@ function UserManagementView({ isSuperAdmin }) {
 
   useEffect(() => {
     // Set up real-time listener for users collection
-    const unsubscribe = setupUsersListener();
+    const unsubscribeUsers = setupUsersListener();
+    const unsubscribeDepartments = setupDepartmentsListener();
     
-    // Cleanup listener on unmount
+    // Cleanup listeners on unmount
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribeUsers) unsubscribeUsers();
+      if (unsubscribeDepartments) unsubscribeDepartments();
     };
   }, []);
+  
+  const setupDepartmentsListener = () => {
+    try {
+      const departmentsCollection = collection(db, 'departments');
+      const departmentsQuery = query(departmentsCollection, orderBy('name'));
+      
+      // Set up real-time listener
+      return onSnapshot(departmentsQuery, (snapshot) => {
+        const departmentsList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setDepartments(departmentsList);
+        console.log('Real-time departments data update:', departmentsList.length);
+      }, (error) => {
+        console.error('Error in departments listener:', error);
+        toast.error('Failed to load departments');
+      });
+    } catch (error) {
+      console.error('Error setting up departments listener:', error);
+      toast.error('Failed to load departments');
+      return null;
+    }
+  };
 
   const setupUsersListener = () => {
     try {
@@ -667,23 +747,18 @@ function UserManagementView({ isSuperAdmin }) {
     // Parse the name into first name, last name, and middle initial
     let firstName = '', lastName = '', middleInitial = '';
     
+    // Parse the name into components
     if (user.name) {
-      const nameParts = user.name.trim().split(' ');
-      if (nameParts.length === 1) {
-        firstName = nameParts[0];
+      const nameParts = user.name.split(' ');
+      firstName = nameParts[0] || '';
+      
+      if (nameParts.length > 2) {
+        // If there are more than 2 parts, assume the middle part is a middle initial
+        middleInitial = nameParts[1].replace('.', '');
+        lastName = nameParts.slice(2).join(' ');
       } else if (nameParts.length === 2) {
-        firstName = nameParts[0];
+        // If there are exactly 2 parts, assume it's just first and last name
         lastName = nameParts[1];
-      } else if (nameParts.length >= 3) {
-        firstName = nameParts[0];
-        // Check if middle part is just an initial (one character with a period)
-        if (nameParts[1].length === 2 && nameParts[1].endsWith('.')) {
-          middleInitial = nameParts[1].charAt(0);
-          lastName = nameParts.slice(2).join(' ');
-        } else {
-          middleInitial = nameParts[1];
-          lastName = nameParts.slice(2).join(' ');
-        }
       }
     }
     
@@ -693,7 +768,7 @@ function UserManagementView({ isSuperAdmin }) {
       middleInitial,
       email: user.email || '',
       position: user.position || '',
-      employmentStatus: user.employmentStatus || user.position || 'regular',
+      employmentStatus: user.employmentStatus || 'regular',
       role: user.role || 'member',
       dateOfBirth: user.dateOfBirth || '',
       dateHired: user.dateHired || '',
@@ -701,11 +776,10 @@ function UserManagementView({ isSuperAdmin }) {
       address: user.address || '',
       emergencyContactName: user.emergencyContactName || '',
       emergencyContactPhone: user.emergencyContactPhone || '',
-      emergencyContactRelationship: user.emergencyContactRelationship || ''
+      emergencyContactRelationship: user.emergencyContactRelationship || '',
+      departments: user.departments || []
     });
     
-    setSelectedUser(user);
-    setEditUserPage(1); // Reset to first page
     setShowEditModal(true);
   };
 
@@ -775,8 +849,6 @@ function UserManagementView({ isSuperAdmin }) {
   };
 
   const handleUpdateUser = async () => {
-    if (!selectedUser) return;
-    
     try {
       // Format the name
       let fullName = editUserData.firstName;
@@ -795,8 +867,9 @@ function UserManagementView({ isSuperAdmin }) {
       
       // Check if email is being changed
       const isEmailChanged = selectedUser.email !== editUserData.email.trim();
+      
       if (isEmailChanged) {
-        // Show warning about email change implications
+        // Warn about email change implications
         const confirmEmailChange = window.confirm(
           `WARNING: Changing a user's email in the system will only update their Firestore record, not their Firebase Authentication record. ` +
           `This means the user will still need to log in with their old email address. \n\n` +
@@ -829,7 +902,8 @@ function UserManagementView({ isSuperAdmin }) {
         address: editUserData.address,
         emergencyContactName: editUserData.emergencyContactName,
         emergencyContactPhone: editUserData.emergencyContactPhone,
-        emergencyContactRelationship: editUserData.emergencyContactRelationship
+        emergencyContactRelationship: editUserData.emergencyContactRelationship,
+        departments: editUserData.departments
       });
       
       // Update the local state
@@ -850,7 +924,8 @@ function UserManagementView({ isSuperAdmin }) {
           address: editUserData.address,
           emergencyContactName: editUserData.emergencyContactName,
           emergencyContactPhone: editUserData.emergencyContactPhone,
-          emergencyContactRelationship: editUserData.emergencyContactRelationship
+          emergencyContactRelationship: editUserData.emergencyContactRelationship,
+          departments: editUserData.departments
         } : u;
       }));
       
@@ -912,7 +987,8 @@ function UserManagementView({ isSuperAdmin }) {
         address: newUserData.address.trim(),
         contactNumber: newUserData.contactNumber.trim(),
         createdAt: serverTimestamp(),
-        schedule: []
+        schedule: [],
+        departments: newUserData.departments
       });
       
       // Add the new user to the local state
@@ -1348,6 +1424,29 @@ function UserManagementView({ isSuperAdmin }) {
                         return <TableCell key={column.id} className="col-position" style={{ width: `${column.width}px` }}>{user.position || 'N/A'}</TableCell>;
                       }
                       
+                      if (column.id === 'departments') {
+                        return (
+                          <TableCell key={column.id} className="col-departments" style={{ width: `${column.width}px` }}>
+                            {user.departments && user.departments.length > 0 ? (
+                              <DepartmentTagsContainer>
+                                {user.departments.map(deptId => {
+                                  const dept = departments.find(d => d.id === deptId);
+                                  return dept ? (
+                                    <DepartmentTag key={deptId}>
+                                      {dept.code}
+                                    </DepartmentTag>
+                                  ) : null;
+                                })}
+                              </DepartmentTagsContainer>
+                            ) : (
+                              <span style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                                None assigned
+                              </span>
+                            )}
+                          </TableCell>
+                        );
+                      }
+                      
                       if (column.id === 'role') {
                         return (
                           <TableCell key={column.id} className="col-role" style={{ width: `${column.width}px` }}>
@@ -1600,6 +1699,45 @@ function UserManagementView({ isSuperAdmin }) {
                     </div>
                   )}
                 </FormGroup>
+                
+                <FormGroup>
+                  <Label>Departments</Label>
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
+                    Select one or more departments to assign to this user
+                  </div>
+                  <CheckboxContainer>
+                    {departments.map(dept => (
+                      <CheckboxLabel 
+                        key={dept.id} 
+                        checked={editUserData.departments?.includes(dept.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editUserData.departments?.includes(dept.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditUserData({
+                                ...editUserData, 
+                                departments: [...(editUserData.departments || []), dept.id]
+                              });
+                            } else {
+                              setEditUserData({
+                                ...editUserData, 
+                                departments: (editUserData.departments || []).filter(id => id !== dept.id)
+                              });
+                            }
+                          }}
+                        />
+                        {dept.name} ({dept.code})
+                      </CheckboxLabel>
+                    ))}
+                  </CheckboxContainer>
+                  {departments.length === 0 && (
+                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                      No departments available. Please add departments in the Department Management page.
+                    </div>
+                  )}
+                </FormGroup>
               </div>
             )}
             
@@ -1813,6 +1951,45 @@ function UserManagementView({ isSuperAdmin }) {
                     <option value="inactive">Inactive</option>
                     <option value="pending">Pending</option>
                   </Select>
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Departments</Label>
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
+                    Select one or more departments to assign to this user
+                  </div>
+                  <CheckboxContainer>
+                    {departments.map(dept => (
+                      <CheckboxLabel 
+                        key={dept.id} 
+                        checked={newUserData.departments?.includes(dept.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={newUserData.departments?.includes(dept.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewUserData({
+                                ...newUserData, 
+                                departments: [...(newUserData.departments || []), dept.id]
+                              });
+                            } else {
+                              setNewUserData({
+                                ...newUserData, 
+                                departments: (newUserData.departments || []).filter(id => id !== dept.id)
+                              });
+                            }
+                          }}
+                        />
+                        {dept.name} ({dept.code})
+                      </CheckboxLabel>
+                    ))}
+                  </CheckboxContainer>
+                  {departments.length === 0 && (
+                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                      No departments available. Please add departments in the Department Management page.
+                    </div>
+                  )}
                 </FormGroup>
               </div>
             )}

@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import styled from 'styled-components';
@@ -8,6 +9,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Changelog from './pages/Changelog';
+import DepartmentManagement from './pages/DepartmentManagement';
 import './App.css';
 
 import { AuthProvider } from './contexts/AuthContext';
@@ -60,6 +62,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Changelog />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/departments" 
+                element={
+                  <ProtectedRoute>
+                    <DepartmentManagement />
                   </ProtectedRoute>
                 } 
               />

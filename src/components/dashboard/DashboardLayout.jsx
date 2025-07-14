@@ -24,7 +24,8 @@ import {
   Ruler,
   LockSimple,
   CalendarX,
-  Bell
+  Bell,
+  Buildings
 } from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
@@ -600,11 +601,21 @@ const DashboardLayout = ({
                 {/* User Management - Available to super admins and admins with permission */}
                 {(isSuperAdmin || canManageUsers) && (
                   <NavItem 
-                    className={activeTab === 'user_management' ? 'active' : ''} 
+                    className={activeTab === 'user_management' ? 'active' : ''}
                     onClick={() => setActiveTab('user_management')}
                   >
                     <Icon><Users size={16} /></Icon>
                     User Management
+                  </NavItem>
+                )}
+                
+                {/* Department Management - Available to super admins and admins with permission */}
+                {(isSuperAdmin || canManageUsers) && (
+                  <NavItem 
+                    onClick={() => navigate('/departments')}
+                  >
+                    <Icon><Buildings size={16} /></Icon>
+                    Department Management
                   </NavItem>
                 )}
                 
