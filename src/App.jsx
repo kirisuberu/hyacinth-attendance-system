@@ -7,6 +7,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import Changelog from './pages/Changelog';
 import './App.css';
 
 import { AuthProvider } from './contexts/AuthContext';
@@ -51,6 +52,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/changelog" 
+                element={
+                  <ProtectedRoute>
+                    <Changelog />
                   </ProtectedRoute>
                 } 
               />

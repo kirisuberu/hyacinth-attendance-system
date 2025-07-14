@@ -23,7 +23,8 @@ import {
   CaretRight,
   Ruler,
   LockSimple,
-  CalendarX
+  CalendarX,
+  Bell
 } from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
@@ -178,6 +179,26 @@ const Title = styled.h1`
 const UserInfo = styled.div`
   display: flex;
   align-items: center;
+`;
+
+const UpdatesButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: 1px solid #ddd;
+  color: #333;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  margin-right: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #f0f0f0;
+    border-color: #ccc;
+  }
 `;
 
 const UserName = styled.span`
@@ -751,13 +772,20 @@ const DashboardLayout = ({
             {activeTab === 'rules' && 'Attendance Rules'}
           </Title>
           
-          <UserInfo>
-            <UserName>{user?.displayName}</UserName>
-            <LogoutButton onClick={handleLogout}>
-              <SignOut size={16} />
-              Logout
-            </LogoutButton>
-          </UserInfo>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <UpdatesButton onClick={() => navigate('/changelog')}>
+              <Bell size={16} />
+              App Updates
+            </UpdatesButton>
+            
+            <UserInfo>
+              <UserName>{user?.displayName}</UserName>
+              <LogoutButton onClick={handleLogout}>
+                <SignOut size={16} />
+                Logout
+              </LogoutButton>
+            </UserInfo>
+          </div>
         </Header>
         
         <MainContentArea>
