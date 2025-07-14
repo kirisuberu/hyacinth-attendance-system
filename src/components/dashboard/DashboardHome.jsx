@@ -333,7 +333,13 @@ const DashboardHome = ({ attendanceStatus, lastRecord }) => {
                       <div>
                         <div>{lastRecord.type === 'In' ? 'Time In' : 'Time Out'}</div>
                         <div style={{ fontSize: '0.85rem', color: '#777' }}>
-                          {new Date(lastRecord.timestamp.toDate()).toLocaleString()}
+                          {new Date(
+                            lastRecord.timestamp && typeof lastRecord.timestamp.toDate === 'function'
+                              ? lastRecord.timestamp.toDate()
+                              : lastRecord.timestamp instanceof Date
+                                ? lastRecord.timestamp
+                                : new Date(lastRecord.timestamp)
+                          ).toLocaleString()}
                         </div>
                       </div>
                     </div>
