@@ -491,8 +491,8 @@ function DashboardLayout() {
                     </NavItem>
                   )}
                   
-                  {/* Department Management - Available to super admins and admins with permission */}
-                  {canManageUsers && (
+                  {/* Department Management - Available to all super admins and admins */}
+                  {(isSuperAdmin || isAdmin) && (
                     <NavItem 
                       to="/dashboard/departments"
                       className={isActive('/dashboard/departments') ? 'active' : ''}
