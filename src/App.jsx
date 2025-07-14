@@ -5,11 +5,30 @@ import styled from 'styled-components';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
+// Pages
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
 import Changelog from './pages/Changelog';
 import DepartmentManagement from './pages/DepartmentManagement';
+
+// Dashboard pages
+import DashboardHome from './pages/dashboard/DashboardHome';
+import AttendanceLogs from './pages/dashboard/AttendanceLogs';
+import Schedule from './pages/dashboard/Schedule';
+import Profile from './pages/dashboard/Profile';
+import RegistrationRequests from './pages/dashboard/RegistrationRequests';
+import UserManagement from './pages/dashboard/UserManagement';
+import Reports from './pages/dashboard/Reports';
+import AttendanceRequests from './pages/dashboard/AttendanceRequests';
+import ScheduleChangeRequests from './pages/dashboard/ScheduleChangeRequests';
+import AdminPrivileges from './pages/dashboard/AdminPrivileges';
+import Rules from './pages/dashboard/Rules';
+import AbsentService from './pages/dashboard/AbsentService';
+
+// Layouts
+import AuthLayout from './components/layout/AuthLayout';
+import DashboardLayout from './components/layout/DashboardLayout';
+
 import './App.css';
 
 import { AuthProvider } from './contexts/AuthContext';
@@ -47,32 +66,38 @@ function App() {
         <TimeFormatProvider>
           <Router>
             <Routes>
+              {/* Public routes */}
               <Route path="/" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route 
-                path="/dashboard" 
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/changelog" 
-                element={
-                  <ProtectedRoute>
-                    <Changelog />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/departments" 
-                element={
-                  <ProtectedRoute>
-                    <DepartmentManagement />
-                  </ProtectedRoute>
-                } 
-              />
+              
+              {/* Protected routes with AuthLayout */}
+              <Route element={
+                <ProtectedRoute>
+                  <AuthLayout />
+                </ProtectedRoute>
+              }>
+                {/* Dashboard routes with DashboardLayout */}
+                <Route element={<DashboardLayout />}>
+                  <Route path="/dashboard" element={<DashboardHome />} />
+                  <Route path="/dashboard/attendance" element={<AttendanceLogs />} />
+                  <Route path="/dashboard/schedule" element={<Schedule />} />
+                  <Route path="/dashboard/profile" element={<Profile />} />
+                  <Route path="/dashboard/registration-requests" element={<RegistrationRequests />} />
+                  <Route path="/dashboard/user-management" element={<UserManagement />} />
+                  <Route path="/dashboard/reports" element={<Reports />} />
+                  <Route path="/dashboard/attendance-requests" element={<AttendanceRequests />} />
+                  <Route path="/dashboard/schedule-change-requests" element={<ScheduleChangeRequests />} />
+                  <Route path="/dashboard/admin-privileges" element={<AdminPrivileges />} />
+                  <Route path="/dashboard/rules" element={<Rules />} />
+                  <Route path="/dashboard/absent-service" element={<AbsentService />} />
+                </Route>
+                
+                {/* Other protected routes */}
+                <Route path="/changelog" element={<Changelog />} />
+                <Route path="/departments" element={<DepartmentManagement />} />
+              </Route>
+              
+              {/* Fallback route */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>
