@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { 
   House, 
   SignOut, 
+  SignIn,
   Calendar, 
   Clock, 
   User, 
@@ -567,7 +568,7 @@ function DashboardLayout() {
               onClick={() => handleTimeInOutClick('out')}
               disabled={loading || attendanceStatus !== 'in'}
             >
-              <SignOutIcon size={16} />
+              <SignOut size={16} />
               Time Out
             </TimeButton>
           </TimeControls>
