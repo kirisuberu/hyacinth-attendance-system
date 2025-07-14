@@ -494,8 +494,8 @@ function DashboardLayout() {
                   {/* Department Management - Available to super admins and admins with permission */}
                   {canManageUsers && (
                     <NavItem 
-                      to="/departments"
-                      className={isActive('/departments') ? 'active' : ''}
+                      to="/dashboard/departments"
+                      className={isActive('/dashboard/departments') ? 'active' : ''}
                     >
                       <Icon><Buildings size={16} /></Icon>
                       Department Management

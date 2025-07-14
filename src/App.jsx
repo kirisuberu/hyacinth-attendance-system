@@ -90,11 +90,11 @@ function App() {
                   <Route path="/dashboard/admin-privileges" element={<AdminPrivileges />} />
                   <Route path="/dashboard/rules" element={<Rules />} />
                   <Route path="/dashboard/absent-service" element={<AbsentService />} />
+                  <Route path="/dashboard/departments" element={<DepartmentManagement />} />
                 </Route>
                 
                 {/* Other protected routes */}
                 <Route path="/changelog" element={<Changelog />} />
-                <Route path="/departments" element={<DepartmentManagement />} />
               </Route>
               
               {/* Fallback route */}
