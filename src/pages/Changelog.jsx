@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { collection, getDocs, addDoc, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, orderBy, Timestamp, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import DashboardLayout from '../components/dashboard/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
@@ -244,10 +244,16 @@ const Changelog = () => {
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        // Get user data from localStorage (assuming it's stored there from Dashboard)
-        const storedUserData = localStorage.getItem('userData');
-        if (storedUserData) {
-          setUserData(JSON.parse(storedUserData));
+        // Fetch user data directly from Firestore
+        if (currentUser?.uid) {
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            setUserData(userData);
+            console.log('User data loaded:', userData);
+          }
         }
         
         // Fetch changelog updates
@@ -282,6 +288,12 @@ const Changelog = () => {
       return;
     }
     
+    // Verify user is a super admin before proceeding
+    if (!isSuperAdmin) {
+      toast.error('Only Super Admins can post updates');
+      return;
+    }
+    
     setSubmitting(true);
     
     try {
@@ -290,7 +302,7 @@ const Changelog = () => {
         content: content.trim(),
         timestamp: Timestamp.now(),
         authorId: currentUser.uid,
-        authorName: currentUser.displayName || 'Admin'
+        authorName: currentUser.displayName || 'Super Admin'
       };
       
       await addDoc(collection(db, 'changelog'), newUpdate);
@@ -341,6 +353,12 @@ const Changelog = () => {
   };
   
   const isSuperAdmin = userData?.role === 'superadmin';
+  
+  // Debug log
+  useEffect(() => {
+    console.log('Current user role:', userData?.role);
+    console.log('Is super admin:', isSuperAdmin);
+  }, [userData, isSuperAdmin]);
   
   return (
     <DashboardLayout 
