@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useOutletContext, Link, useLocation } from 'react-router-dom';
+import { useNavigate, useOutletContext, Link, useLocation, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import styled from 'styled-components';
 import { 
