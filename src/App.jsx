@@ -57,22 +57,7 @@ function App() {
                   </ProtectedRoute>
                 } 
               />
-              <Route 
-                path="/changelog" 
-                element={
-                  <ProtectedRoute>
-                    <Changelog />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/departments" 
-                element={
-                  <ProtectedRoute>
-                    <DepartmentManagement />
-                  </ProtectedRoute>
-                } 
-              />
+              {/* Changelog and DepartmentManagement are now accessed through Dashboard tabs */}
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Router>

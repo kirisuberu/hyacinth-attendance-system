@@ -22,6 +22,8 @@ import AttendanceRequestsView from '../components/dashboard/AttendanceRequestsVi
 import ScheduleChangeRequestsView from '../components/dashboard/ScheduleChangeRequestsView';
 import RulesView from '../components/superadmin/RulesView';
 import AbsentServiceView from '../components/superadmin/AbsentServiceView';
+import Changelog from '../pages/Changelog';
+import DepartmentManagement from '../pages/DepartmentManagement';
 
 // Styled components for confirmation modal
 const ConfirmationModal = styled.div`
@@ -780,6 +782,14 @@ function Dashboard() {
         
         {activeTab === 'absent_service' && userData?.role === 'super_admin' && (
           <AbsentServiceView />
+        )}
+        
+        {activeTab === 'changelog' && (
+          <Changelog userData={userData} />
+        )}
+        
+        {activeTab === 'departments' && (userData?.role === 'super_admin' || userData?.role === 'admin') && (
+          <DepartmentManagement />
         )}
       </DashboardLayout>
       
