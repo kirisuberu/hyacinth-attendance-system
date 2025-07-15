@@ -238,7 +238,9 @@ const EmptyState = styled.div`
   color: #666;
 `;
 
-function DepartmentManagementView({ isSuperAdmin }) {
+function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
+  // Both super admins and admins can manage departments
+  const canManageDepartments = isSuperAdmin || isAdmin;
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

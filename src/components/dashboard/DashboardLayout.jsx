@@ -128,27 +128,56 @@ const SidebarTimeButton = styled.button`
 `;
 
 const TimeInSidebarButton = styled(SidebarTimeButton)`
-  background-color: #111111;
-  color: #76da7c;
+  background-color: #1e8e24;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
   
   &:hover:not(:disabled) {
-    background-color: #000000;
+    background-color: #25a52c;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
   }
 `;
 
 const TimeOutSidebarButton = styled(SidebarTimeButton)`
-  background-color: #111111;
-  color: #e67979;
+  background-color: #c62828;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
   
   &:hover:not(:disabled) {
-    background-color: #000000;
+    background-color: #d32f2f;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
   }
 `;
 
 const Icon = styled.span`
-  margin-right: 10px;
+  margin-right: 12px;
   display: flex;
   align-items: center;
+  font-size: 1.2rem;
 `;
 
 const Content = styled.div`
@@ -737,14 +766,14 @@ const DashboardLayout = ({
             </NavItem>
           </div>
           
-          <div style={{ marginBottom: '1.5rem' }}>
-            <p style={{ fontSize: '0.9rem', marginBottom: '0.75rem', opacity: '0.8' }}>Attendance Actions</p>
+          <div style={{ marginBottom: '2rem' }}>
+            <p style={{ fontSize: '1rem', marginBottom: '1rem', opacity: '0.9', fontWeight: '500' }}>Attendance Actions</p>
             
             <TimeInSidebarButton 
               onClick={() => handleTimeInOut('In')} 
               disabled={loading || attendanceStatus === 'In'}
             >
-              <Icon><SignIn size={16} /></Icon>
+              <Icon><SignIn size={20} /></Icon>
               Time In
             </TimeInSidebarButton>
             
@@ -752,13 +781,23 @@ const DashboardLayout = ({
               onClick={() => handleTimeInOut('Out')} 
               disabled={loading || attendanceStatus === 'Out' || !attendanceStatus}
             >
-              <Icon><SignOutIcon size={16} /></Icon>
+              <Icon><SignOutIcon size={20} /></Icon>
               Time Out
             </TimeOutSidebarButton>
             
             {attendanceStatus && (
-              <div style={{ padding: '0.5rem 0', textAlign: 'center', fontSize: '0.85rem' }}>
-                Status: <strong>{attendanceStatus === 'In' ? 'Clocked In' : 'Clocked Out'}</strong>
+              <div style={{ 
+                padding: '0.75rem 1rem', 
+                textAlign: 'center', 
+                fontSize: '0.95rem',
+                backgroundColor: attendanceStatus === 'In' ? 'rgba(30, 142, 36, 0.1)' : 'rgba(198, 40, 40, 0.1)',
+                borderRadius: '8px',
+                marginTop: '1rem',
+                border: `1px solid ${attendanceStatus === 'In' ? 'rgba(30, 142, 36, 0.3)' : 'rgba(198, 40, 40, 0.3)'}`
+              }}>
+                Status: <strong style={{ color: attendanceStatus === 'In' ? '#1e8e24' : '#c62828' }}>
+                  {attendanceStatus === 'In' ? 'Clocked In' : 'Clocked Out'}
+                </strong>
               </div>
             )}
           </div>

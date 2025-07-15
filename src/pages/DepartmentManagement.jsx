@@ -46,7 +46,7 @@ function DepartmentManagement() {
   return (
     <>
       {(isSuperAdmin || isAdmin) ? (
-        <DepartmentManagementView isSuperAdmin={isSuperAdmin} />
+        <DepartmentManagementView isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} canEdit={true} />
       ) : (
         <div style={{ padding: '2rem', textAlign: 'center' }}>
           <h2>Access Denied</h2>
