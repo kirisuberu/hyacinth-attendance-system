@@ -383,6 +383,9 @@ const DashboardLayout = ({
   // State for collapsible panels
   const [adminPanelExpanded, setAdminPanelExpanded] = useState(true);
   const [superAdminPanelExpanded, setSuperAdminPanelExpanded] = useState(true);
+  
+  // Define isAdmin based on userData role
+  const isAdmin = userData?.role === 'admin';
 
   // Check if admin user has specific privileges
   const canManageRegistrations = userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false;
