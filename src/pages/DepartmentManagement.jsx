@@ -9,7 +9,7 @@ function DepartmentManagement() {
   const { user, userData } = outletContext || {};
   
   // Check user roles
-  const isSuperAdmin = userData?.role === 'superadmin';
+  const isSuperAdmin = userData?.role === 'super_admin' || userData?.role === 'superadmin';
   const isAdmin = userData?.role === 'admin';
   const canManageUsers = isSuperAdmin || (isAdmin && userData?.permissions?.canManageUsers);
   
