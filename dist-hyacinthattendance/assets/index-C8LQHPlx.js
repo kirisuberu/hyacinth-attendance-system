@@ -7384,6 +7384,7 @@ Do you still want to proceed with this email change?`))return;const Oe=R.userId|
   display: flex;
   align-items: center;
   gap: 1rem;
+  scale: 1.5;
 `,DS=b.button`
   display: flex;
   align-items: center;
@@ -7393,6 +7394,7 @@ Do you still want to proceed with this email change?`))return;const Oe=R.userId|
   font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  scale: 1.5;
   background-color: ${e=>e.variant==="in"?"#4caf50":"#f44336"};
   color: white;
   border: 1px solid ${e=>e.variant==="in"?"#43a047":"#e53935"};
