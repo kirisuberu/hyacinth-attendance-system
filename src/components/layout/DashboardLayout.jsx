@@ -236,6 +236,7 @@ function DashboardLayout() {
   
   // Determine if user is super admin or has specific privileges
   const isSuperAdmin = userData?.role === 'super_admin';
+  const isAdmin = userData?.role === 'admin';
   const canManageRegistrations = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false);
   const canManageUsers = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canManageUsers !== false);
   const canViewReports = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canViewReports !== false);
