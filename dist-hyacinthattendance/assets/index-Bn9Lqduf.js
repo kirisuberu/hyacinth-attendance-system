@@ -7430,7 +7430,7 @@ Do you still want to proceed with this email change?`))return;const Oe=R.userId|
   overflow-y: auto; /* Make content area scrollable */
   height: calc(100vh - 73px); /* Subtract header height */
 `,Jse=b(Zp)`
-  display: flex;
+  display: none; //make flex next time
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
