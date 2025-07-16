@@ -7374,6 +7374,7 @@ Do you still want to proceed with this email change?`))return;const Oe=R.userId|
   justify-content: space-between;
   align-items: center;
   padding: 1rem 2rem;
+  height: 5rem;
   background-color: white;
   border-bottom: 1px solid #eee;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -7384,14 +7385,19 @@ Do you still want to proceed with this email change?`))return;const Oe=R.userId|
   display: flex;
   align-items: center;
   gap: 1rem;
-  scale: 1.2;
+  min-width: 300px;
+  height: 3.5rem;
+  justify-content: center;
 `,DS=b.button`
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
+  width: 110%;
+  height: 110%;
+  font-size: 1.2rem;
   padding: 0.5rem 1rem;
   border-radius: 4px;
-  font-size: 0.9rem;
   cursor: pointer;
   transition: all 0.2s ease;
  
