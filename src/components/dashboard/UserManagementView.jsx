@@ -417,9 +417,11 @@ const ModalContent = styled.div`
   background-color: white;
   padding: 2rem;
   border-radius: 8px;
-  max-width: 400px;
+  max-width: 800px;
   width: 100%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-height: 90vh;
+  overflow-y: auto;
 `;
 
 const ModalTitle = styled.h3`
@@ -762,6 +764,9 @@ function UserManagementView({ isSuperAdmin }) {
       }
     }
     
+    // First set the selected user to ensure it's available when the modal opens
+    setSelectedUser(user);
+    
     setEditUserData({
       firstName,
       lastName,
@@ -780,6 +785,7 @@ function UserManagementView({ isSuperAdmin }) {
       departments: user.departments || []
     });
     
+    // Set the modal visibility after setting the selected user
     setShowEditModal(true);
   };
 
@@ -1595,17 +1601,20 @@ function UserManagementView({ isSuperAdmin }) {
       
       {showEditModal && selectedUser && (
         <ConfirmationModal>
-          <ModalContent style={{ maxWidth: '500px', width: '100%' }}>
+          <ModalContent>
             <ModalTitle>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <UserCircle size={24} />
-                Edit User: {selectedUser.name || selectedUser.email} {editUserPage > 1 && `- Page ${editUserPage} of 2`}
+                Edit User: {selectedUser.name || selectedUser.email}
               </div>
             </ModalTitle>
             
-            {/* Page 1 - Basic Information */}
-            {editUserPage === 1 && (
-              <div style={{ marginBottom: '1.5rem' }}>
+            {/* All information in a single page with two columns */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: '1.5rem', marginBottom: '1.5rem' }}>
+              {/* Left Column - Basic Information */}
+              <div>
+                <h4 style={{ marginTop: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Basic Information</h4>
+                
                 <FormGroup>
                   <Label>First Name</Label>
                   <Input 
@@ -1616,29 +1625,28 @@ function UserManagementView({ isSuperAdmin }) {
                   />
                 </FormGroup>
                 
-                <FormGroup>
-                  <Label>Middle Initial</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.middleInitial}
-                    onChange={(e) => setEditUserData({...editUserData, middleInitial: e.target.value})}
-                    placeholder="Middle Initial"
-                    maxLength={1}
-                  />
-                  <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
-                    Just the first letter, without period
-                  </div>
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Last Name</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.lastName}
-                    onChange={(e) => setEditUserData({...editUserData, lastName: e.target.value})}
-                    placeholder="Last Name"
-                  />
-                </FormGroup>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+                  <FormGroup>
+                    <Label>Middle Initial</Label>
+                    <Input 
+                      type="text" 
+                      value={editUserData.middleInitial}
+                      onChange={(e) => setEditUserData({...editUserData, middleInitial: e.target.value})}
+                      placeholder="M.I."
+                      maxLength={1}
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label>Last Name</Label>
+                    <Input 
+                      type="text" 
+                      value={editUserData.lastName}
+                      onChange={(e) => setEditUserData({...editUserData, lastName: e.target.value})}
+                      placeholder="Last Name"
+                    />
+                  </FormGroup>
+                </div>
                 
                 <FormGroup>
                   <Label>Email</Label>
@@ -1650,17 +1658,28 @@ function UserManagementView({ isSuperAdmin }) {
                   />
                 </FormGroup>
                 
-                <FormGroup>
-                  <Label>Employment Status</Label>
-                  <Select
-                    value={editUserData.employmentStatus || editUserData.position}
-                    onChange={(e) => setEditUserData({...editUserData, employmentStatus: e.target.value})}
-                  >
-                    <option value="regular">Regular</option>
-                    <option value="probationary">Probationary</option>
-                    <option value="intern">Intern</option>
-                  </Select>
-                </FormGroup>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <FormGroup>
+                    <Label>Employment Status</Label>
+                    <Select
+                      value={editUserData.employmentStatus || editUserData.position}
+                      onChange={(e) => setEditUserData({...editUserData, employmentStatus: e.target.value})}
+                    >
+                      <option value="regular">Regular</option>
+                      <option value="probationary">Probationary</option>
+                      <option value="intern">Intern</option>
+                    </Select>
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label>Date Hired</Label>
+                    <Input 
+                      type="date" 
+                      value={editUserData.dateHired || ''}
+                      onChange={(e) => setEditUserData({...editUserData, dateHired: e.target.value})}
+                    />
+                  </FormGroup>
+                </div>
                 
                 <FormGroup>
                   <Label>Position</Label>
@@ -1669,15 +1688,6 @@ function UserManagementView({ isSuperAdmin }) {
                     value={editUserData.position || ''}
                     onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
                     placeholder="Job Position"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Date Hired</Label>
-                  <Input 
-                    type="date" 
-                    value={editUserData.dateHired || ''}
-                    onChange={(e) => setEditUserData({...editUserData, dateHired: e.target.value})}
                   />
                 </FormGroup>
                 
@@ -1701,50 +1711,6 @@ function UserManagementView({ isSuperAdmin }) {
                 </FormGroup>
                 
                 <FormGroup>
-                  <Label>Departments</Label>
-                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
-                    Select one or more departments to assign to this user
-                  </div>
-                  <CheckboxContainer>
-                    {departments.map(dept => (
-                      <CheckboxLabel 
-                        key={dept.id} 
-                        checked={editUserData.departments?.includes(dept.id)}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editUserData.departments?.includes(dept.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditUserData({
-                                ...editUserData, 
-                                departments: [...(editUserData.departments || []), dept.id]
-                              });
-                            } else {
-                              setEditUserData({
-                                ...editUserData, 
-                                departments: (editUserData.departments || []).filter(id => id !== dept.id)
-                              });
-                            }
-                          }}
-                        />
-                        {dept.name} ({dept.code})
-                      </CheckboxLabel>
-                    ))}
-                  </CheckboxContainer>
-                  {departments.length === 0 && (
-                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                      No departments available. Please add departments in the Department Management page.
-                    </div>
-                  )}
-                </FormGroup>
-              </div>
-            )}
-            
-            {/* Page 2 - Additional Information */}
-            {editUserPage === 2 && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <FormGroup>
                   <Label>Date of Birth</Label>
                   <Input 
                     type="date" 
@@ -1752,6 +1718,11 @@ function UserManagementView({ isSuperAdmin }) {
                     onChange={(e) => setEditUserData({...editUserData, dateOfBirth: e.target.value})}
                   />
                 </FormGroup>
+              </div>
+              
+              {/* Right Column - Additional Information */}
+              <div>
+                <h4 style={{ marginTop: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Additional Information</h4>
                 
                 <FormGroup>
                   <Label>Phone #</Label>
@@ -1802,30 +1773,54 @@ function UserManagementView({ isSuperAdmin }) {
                     placeholder="Relationship to Employee"
                   />
                 </FormGroup>
+                
+                <FormGroup>
+                  <Label>Departments</Label>
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
+                    Select one or more departments to assign to this user
+                  </div>
+                  <CheckboxContainer>
+                    {departments.map(dept => (
+                      <CheckboxLabel 
+                        key={dept.id} 
+                        checked={editUserData.departments?.includes(dept.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editUserData.departments?.includes(dept.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditUserData({
+                                ...editUserData, 
+                                departments: [...(editUserData.departments || []), dept.id]
+                              });
+                            } else {
+                              setEditUserData({
+                                ...editUserData, 
+                                departments: (editUserData.departments || []).filter(id => id !== dept.id)
+                              });
+                            }
+                          }}
+                        />
+                        {dept.name} ({dept.code})
+                      </CheckboxLabel>
+                    ))}
+                  </CheckboxContainer>
+                  {departments.length === 0 && (
+                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                      No departments available. Please add departments in the Department Management page.
+                    </div>
+                  )}
+                </FormGroup>
               </div>
-            )}
+            </div>
             
             <ModalButtons>
-              {editUserPage === 1 ? (
-                <>
-                  <Button onClick={() => setShowEditModal(false)}>Cancel</Button>
-                  <Button primary onClick={() => setEditUserPage(2)}>
-                    <Icon><ArrowRight size={16} /></Icon>
-                    Next
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button onClick={() => setEditUserPage(1)}>
-                    <Icon><ArrowLeft size={16} /></Icon>
-                    Back
-                  </Button>
-                  <Button primary onClick={handleUpdateUser}>
-                    <Icon><FloppyDisk size={16} /></Icon>
-                    Save Changes
-                  </Button>
-                </>
-              )}
+              <Button onClick={() => setShowEditModal(false)}>Cancel</Button>
+              <Button primary onClick={handleUpdateUser}>
+                <Icon><FloppyDisk size={16} /></Icon>
+                Save Changes
+              </Button>
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>
@@ -2049,7 +2044,7 @@ function UserManagementView({ isSuperAdmin }) {
       
       {showScheduleModal && selectedUser && (
         <ConfirmationModal>
-          <ModalContent style={{ maxWidth: '600px', width: '100%' }}>
+          <ModalContent>
             <ModalTitle>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Calendar size={24} />
@@ -2068,147 +2063,155 @@ function UserManagementView({ isSuperAdmin }) {
               </div>
             </div>
             
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ marginBottom: '0.5rem' }}>Current Schedule</h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+              {/* Left Column - Current Schedule */}
+              <div>
+                <h4 style={{ marginTop: '0', marginBottom: '0.75rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Current Schedule</h4>
+                
+                {scheduleData.length > 0 ? (
+                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <ScheduleGrid>
+                      {scheduleData.map(schedule => (
+                        <ScheduleCard key={schedule.id}>
+                          <ScheduleHeader>
+                            <ScheduleDay>{schedule.dayOfWeek}</ScheduleDay>
+                            <div>
+                              <ActionButton 
+                                color="#000000" 
+                                onClick={() => handleEditSchedule(schedule)}
+                                title="Edit schedule"
+                                style={{ marginRight: '4px' }}
+                              >
+                                <PencilSimple size={16} />
+                              </ActionButton>
+                              <ActionButton 
+                                color="#f44336" 
+                                onClick={() => handleDeleteSchedule(schedule.id)}
+                                title="Delete schedule"
+                              >
+                                <Trash size={16} />
+                              </ActionButton>
+                            </div>
+                          </ScheduleHeader>
+                          <ScheduleTime>
+                            <div><strong>Time In:</strong> {schedule.timeIn}</div>
+                            <div><strong>Region:</strong> {schedule.timeRegion}</div>
+                            <div><strong>Duration:</strong> {schedule.shiftDuration} hours</div>
+                          </ScheduleTime>
+                        </ScheduleCard>
+                      ))}
+                    </ScheduleGrid>
+                  </div>
+                ) : (
+                  <p>No schedules found. Add a new schedule.</p>
+                )}
+              </div>
               
-              {scheduleData.length > 0 ? (
-                <ScheduleGrid>
-                  {scheduleData.map(schedule => (
-                    <ScheduleCard key={schedule.id}>
-                      <ScheduleHeader>
-                        <ScheduleDay>{schedule.dayOfWeek}</ScheduleDay>
-                        <div>
-                          <ActionButton 
-                            color="#000000" 
-                            onClick={() => handleEditSchedule(schedule)}
-                            title="Edit schedule"
-                            style={{ marginRight: '4px' }}
-                          >
-                            <PencilSimple size={16} />
-                          </ActionButton>
-                          <ActionButton 
-                            color="#f44336" 
-                            onClick={() => handleDeleteSchedule(schedule.id)}
-                            title="Delete schedule"
-                          >
-                            <Trash size={16} />
-                          </ActionButton>
-                        </div>
-                      </ScheduleHeader>
-                      <ScheduleTime>
-                        <div><strong>Time In:</strong> {schedule.timeIn}</div>
-                        <div><strong>Region:</strong> {schedule.timeRegion}</div>
-                        <div><strong>Duration:</strong> {schedule.shiftDuration} hours</div>
-                      </ScheduleTime>
-                    </ScheduleCard>
-                  ))}
-                </ScheduleGrid>
-              ) : (
-                <p>No schedules found. Add a new schedule below.</p>
-              )}
-            </div>
-            
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ marginBottom: '0.5rem' }}>{isEditing ? 'Edit Schedule' : 'Add New Schedule'}</h4>
-              
-              <FormGroup>
-                <Label>Days of Week (select multiple)</Label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  {daysOfWeek.map(day => (
-                    <DayCheckbox key={day}>
-                      <input
-                        type="checkbox"
-                        id={`day-${day}`}
-                        checked={newSchedule.selectedDays.includes(day)}
-                        onChange={() => {
-                          const updatedDays = newSchedule.selectedDays.includes(day)
-                            ? newSchedule.selectedDays.filter(d => d !== day)
-                            : [...newSchedule.selectedDays, day];
-                          setNewSchedule({...newSchedule, selectedDays: updatedDays});
-                        }}
-                      />
-                      <label htmlFor={`day-${day}`}>{day}</label>
-                    </DayCheckbox>
-                  ))}
+              {/* Right Column - Add/Edit Schedule */}
+              <div>
+                <h4 style={{ marginTop: '0', marginBottom: '0.75rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>{isEditing ? 'Edit Schedule' : 'Add New Schedule'}</h4>
+                
+                <FormGroup>
+                  <Label>Days of Week (select multiple)</Label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    {daysOfWeek.map(day => (
+                      <DayCheckbox key={day}>
+                        <input
+                          type="checkbox"
+                          id={`day-${day}`}
+                          checked={newSchedule.selectedDays.includes(day)}
+                          onChange={() => {
+                            const updatedDays = newSchedule.selectedDays.includes(day)
+                              ? newSchedule.selectedDays.filter(d => d !== day)
+                              : [...newSchedule.selectedDays, day];
+                            setNewSchedule({...newSchedule, selectedDays: updatedDays});
+                          }}
+                        />
+                        <label htmlFor={`day-${day}`}>{day}</label>
+                      </DayCheckbox>
+                    ))}
+                  </div>
+                </FormGroup>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <FormGroup>
+                    <Label>Time In</Label>
+                    <Input 
+                      type="time" 
+                      value={newSchedule.timeIn}
+                      onChange={(e) => setNewSchedule({...newSchedule, timeIn: e.target.value})}
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label>Shift Duration (hours)</Label>
+                    <Input 
+                      type="number" 
+                      min="1" 
+                      max="24" 
+                      value={newSchedule.shiftDuration}
+                      onChange={(e) => setNewSchedule({...newSchedule, shiftDuration: e.target.value})}
+                    />
+                  </FormGroup>
                 </div>
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Time In</Label>
-                <Input 
-                  type="time" 
-                  value={newSchedule.timeIn}
-                  onChange={(e) => setNewSchedule({...newSchedule, timeIn: e.target.value})}
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Time Region</Label>
-                <Select 
-                  value={newSchedule.timeRegion}
-                  onChange={(e) => setNewSchedule({...newSchedule, timeRegion: e.target.value})}
-                >
-                  <optgroup label="Asia & Pacific">
-                    <option value="Asia/Manila">Asia/Manila (PHT)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
-                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                    <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
-                  </optgroup>
-                  <optgroup label="Americas">
-                    <option value="America/New_York">America/New_York (Eastern)</option>
-                    <option value="America/Chicago">America/Chicago (Central)</option>
-                    <option value="America/Denver">America/Denver (Mountain)</option>
-                    <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
-                    <option value="America/Anchorage">America/Anchorage (Alaska)</option>
-                    <option value="America/Adak">America/Adak (Hawaii-Aleutian)</option>
-                    <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
-                    <option value="America/Phoenix">America/Phoenix (Arizona)</option>
-                    <option value="America/Toronto">America/Toronto (Eastern Canada)</option>
-                    <option value="America/Vancouver">America/Vancouver (Pacific Canada)</option>
-                  </optgroup>
-                  <optgroup label="Europe & Africa">
-                    <option value="Europe/London">Europe/London (GMT/BST)</option>
-                    <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
-                    <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
-                    <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
-                  </optgroup>
-                </Select>
-              </FormGroup>
-              
-              <FormGroup>
-                <Label>Shift Duration (hours)</Label>
-                <Input 
-                  type="number" 
-                  min="1" 
-                  max="24" 
-                  value={newSchedule.shiftDuration}
-                  onChange={(e) => setNewSchedule({...newSchedule, shiftDuration: e.target.value})}
-                />
-              </FormGroup>
-              
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                {isEditing ? (
-                  <>
+                
+                <FormGroup>
+                  <Label>Time Region</Label>
+                  <Select 
+                    value={newSchedule.timeRegion}
+                    onChange={(e) => setNewSchedule({...newSchedule, timeRegion: e.target.value})}
+                  >
+                    <optgroup label="Asia & Pacific">
+                      <option value="Asia/Manila">Asia/Manila (PHT)</option>
+                      <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                      <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                      <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                    </optgroup>
+                    <optgroup label="Americas">
+                      <option value="America/New_York">America/New_York (Eastern)</option>
+                      <option value="America/Chicago">America/Chicago (Central)</option>
+                      <option value="America/Denver">America/Denver (Mountain)</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+                      <option value="America/Anchorage">America/Anchorage (Alaska)</option>
+                      <option value="America/Adak">America/Adak (Hawaii-Aleutian)</option>
+                      <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
+                      <option value="America/Phoenix">America/Phoenix (Arizona)</option>
+                      <option value="America/Toronto">America/Toronto (Eastern Canada)</option>
+                      <option value="America/Vancouver">America/Vancouver (Pacific Canada)</option>
+                    </optgroup>
+                    <optgroup label="Europe & Africa">
+                      <option value="Europe/London">Europe/London (GMT/BST)</option>
+                      <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                      <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+                      <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
+                    </optgroup>
+                  </Select>
+                </FormGroup>
+                
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                  {isEditing ? (
+                    <>
+                      <Button 
+                        primary 
+                        onClick={handleUpdateSchedule}
+                      >
+                        Update Schedule
+                      </Button>
+                      <Button 
+                        onClick={cancelEdit}
+                      >
+                        Cancel Edit
+                      </Button>
+                    </>
+                  ) : (
                     <Button 
                       primary 
-                      onClick={handleUpdateSchedule}
+                      onClick={handleAddSchedule}
                     >
-                      Update Schedule
+                      Add Schedule
                     </Button>
-                    <Button 
-                      onClick={cancelEdit}
-                    >
-                      Cancel Edit
-                    </Button>
-                  </>
-                ) : (
-                  <Button 
-                    primary 
-                    onClick={handleAddSchedule}
-                  >
-                    Add Schedule
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
             </div>
             
