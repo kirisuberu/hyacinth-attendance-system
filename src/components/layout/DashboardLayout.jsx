@@ -134,7 +134,7 @@ const TimeControls = styled.div`
   display: flex;
   align-items: center;
   gap: 1rem;
-  scale: 1.5;
+  scale: 1.2;
 `;
 
 const TimeButton = styled.button`

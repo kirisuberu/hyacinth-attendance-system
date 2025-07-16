@@ -7384,7 +7384,7 @@ Do you still want to proceed with this email change?`))return;const Oe=R.userId|
   display: flex;
   align-items: center;
   gap: 1rem;
-  scale: 1.5;
+  scale: 1.2;
 `,DS=b.button`
   display: flex;
   align-items: center;
