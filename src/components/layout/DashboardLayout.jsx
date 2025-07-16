@@ -166,6 +166,7 @@ const TimeButton = styled.button`
     cursor: not-allowed;
     background-color: #f0f0f0;
     border-color: #ccc;
+    color: #363636;
   }
 `;
 

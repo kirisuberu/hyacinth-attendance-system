@@ -32,6 +32,7 @@ const DepartmentCard = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
+  border-left: 5px solid ${props => props.color || '#800000'};
 `;
 
 const DepartmentName = styled.h3`
@@ -251,7 +252,8 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
   const [departmentData, setDepartmentData] = useState({
     name: '',
     code: '',
-    description: ''
+    description: '',
+    color: '#800000' // Default color (maroon)
   });
 
   useEffect(() => {
@@ -321,6 +323,7 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
         name: departmentData.name.trim(),
         code: departmentData.code.trim().toUpperCase(),
         description: departmentData.description.trim(),
+        color: departmentData.color || '#800000', // Include the color field
         createdAt: serverTimestamp()
       });
       
@@ -358,6 +361,7 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
         name: departmentData.name.trim(),
         code: departmentData.code.trim().toUpperCase(),
         description: departmentData.description.trim(),
+        color: departmentData.color || '#800000', // Include the color field
         updatedAt: serverTimestamp()
       });
       
@@ -449,7 +453,7 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
       ) : filteredDepartments.length > 0 ? (
         <DepartmentsGrid>
           {filteredDepartments.map(department => (
-            <DepartmentCard key={department.id}>
+            <DepartmentCard key={department.id} color={department.color || '#800000'}>
               <DepartmentName>{department.name}</DepartmentName>
               <DepartmentDescription>
                 {department.description || 'No description provided'}
@@ -530,6 +534,38 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
               />
             </FormGroup>
             
+            <FormGroup>
+              <Label htmlFor="departmentColor">Department Color</Label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '4px',
+                    backgroundColor: departmentData.color,
+                    border: '1px solid #ddd'
+                  }}
+                />
+                <Input
+                  id="departmentColor"
+                  type="text"
+                  value={departmentData.color}
+                  onChange={(e) => setDepartmentData({...departmentData, color: e.target.value})}
+                  placeholder="#RRGGBB"
+                  style={{ width: '120px' }}
+                />
+                <Input
+                  type="color"
+                  value={departmentData.color}
+                  onChange={(e) => setDepartmentData({...departmentData, color: e.target.value})}
+                  style={{ width: '40px', padding: '0', height: '36px' }}
+                />
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.25rem' }}>
+                Choose a color to represent this department
+              </div>
+            </FormGroup>
+            
             <ModalButtons>
               <Button onClick={() => setShowAddModal(false)}>Cancel</Button>
               <Button 
@@ -584,6 +620,38 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
                 value={departmentData.description}
                 onChange={(e) => setDepartmentData({...departmentData, description: e.target.value})}
               />
+            </FormGroup>
+            
+            <FormGroup>
+              <Label htmlFor="editDepartmentColor">Department Color</Label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '4px',
+                    backgroundColor: departmentData.color,
+                    border: '1px solid #ddd'
+                  }}
+                />
+                <Input
+                  id="editDepartmentColor"
+                  type="text"
+                  value={departmentData.color}
+                  onChange={(e) => setDepartmentData({...departmentData, color: e.target.value})}
+                  placeholder="#RRGGBB"
+                  style={{ width: '120px' }}
+                />
+                <Input
+                  type="color"
+                  value={departmentData.color}
+                  onChange={(e) => setDepartmentData({...departmentData, color: e.target.value})}
+                  style={{ width: '40px', padding: '0', height: '36px' }}
+                />
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.25rem' }}>
+                Choose a color to represent this department
+              </div>
             </FormGroup>
             
             <ModalButtons>
