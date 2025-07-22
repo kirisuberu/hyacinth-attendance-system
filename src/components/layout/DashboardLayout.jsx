@@ -173,21 +173,25 @@ const TimeButton = styled.button`
 const UserName = styled.span`
   margin-right: 1rem;
   font-weight: 500;
+  font-size: 1.3rem;
 `;
 
 const LogoutButton = styled.button`
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: none;
-  border: none;
-  color: #666;
+  width: auto;
+  background: #ff4545;
+  border: 1px solid #e53935;
+  color: white;
   cursor: pointer;
-  padding: 0.5rem;
+  font-size: 1.1rem;
+  padding: 0.5rem 1rem;
   border-radius: 4px;
+  margin-left: 2rem;
   
   &:hover {
-    background-color: #f0f0f0;
+    background-color: #e53935;
   }
 `;
 
@@ -430,9 +434,9 @@ function DashboardLayout() {
   return (
     <DashboardContainer>
       <Sidebar>
-        <Logo>
-          <div>Hyacinth</div>
-          <div style={{ fontSize: '1rem', opacity: 0.8 }}>Attendance System</div>
+      <Logo>
+          <img src="logo.png" alt="Hyacinth Logo" style={{ height: '48px', marginBottom: '10px' }} />
+          <span>Hyacinth Hub</span>
         </Logo>
         
         {/* Main Navigation */}
