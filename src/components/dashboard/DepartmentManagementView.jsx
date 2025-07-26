@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Users, Buildings, Pencil, Trash, Plus, UserMinus } from 'phosphor-react';
+import { Users, Buildings, Pencil, Trash, Plus, UserMinus, UserPlus } from 'phosphor-react';
 
 const Container = styled.div`
   padding: 2rem;
