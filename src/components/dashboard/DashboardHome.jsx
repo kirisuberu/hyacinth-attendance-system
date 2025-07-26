@@ -845,12 +845,12 @@ const DashboardHome = () => {
                       <UserCircle size={24} />
                       {getGreeting()}, {userName}
                     </WelcomeTitle>
-                    <Button 
+                    {/*<Button 
                       onClick={() => setShowOverview(true)}
-                      style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: 'white', border: 'none' }}
+                      style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: 'white', border: 'none', display: 'none' }}
                     >
                       View Full Dashboard
-                    </Button>
+                    </Button>*/}
                   </div>
                   <p>{format(new Date(), "EEEE, MMMM d, yyyy 'at' h:mm a")}</p>
               
