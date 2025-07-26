@@ -6,7 +6,7 @@ import styled from 'styled-components';
 import { format, addHours, parse, isToday as isDateToday } from 'date-fns';
 import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
-import { Clock, Calendar, ArrowRight } from 'phosphor-react';
+import { Clock, Calendar, ArrowRight, CalendarPlus, X } from 'phosphor-react';
 import ScheduleChangeRequestForm from './ScheduleChangeRequestForm';
 import UserScheduleRequests from './UserScheduleRequests';
 
@@ -102,10 +102,76 @@ const EmptyState = styled.div`
   border: 1px dashed #ddd;
 `;
 
+const PopupOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
+const PopupContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  padding: 1.5rem;
+`;
+
+const CloseButton = styled.button`
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-size: 1.2rem;
+  padding: 0.25rem;
+  border-radius: 50%;
+  
+  &:hover {
+    background-color: #f0f0f0;
+    color: #333;
+  }
+`;
+
+const RequestButton = styled.button`
+  background-color: #800000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #600000;
+  }
+`;
+
 const ScheduleView = ({ user, userData }) => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showRequestPopup, setShowRequestPopup] = useState(false);
   const { use24HourFormat } = useTimeFormat();
   const userTimeRegion = userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila';
 
@@ -250,7 +316,16 @@ const ScheduleView = ({ user, userData }) => {
   return (
     <>
       <Card>
-        <CardTitle>My Schedule</CardTitle>
+        <CardTitle style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Calendar size={20} style={{ marginRight: '8px' }} />
+            My Schedule
+          </div>
+          <RequestButton onClick={() => setShowRequestPopup(true)}>
+            <CalendarPlus size={16} />
+            Update Schedule
+          </RequestButton>
+        </CardTitle>
         <CardContent>
           {loading ? (
             <p>Loading your schedule...</p>
@@ -496,11 +571,26 @@ const ScheduleView = ({ user, userData }) => {
       </CardContent>
     </Card>
     
-    {/* Schedule Change Request Form */}
-    <ScheduleChangeRequestForm user={user} userData={userData} currentSchedule={schedule} />
-    
     {/* User's Schedule Change Requests History */}
     <UserScheduleRequests user={user} />
+    
+    {/* Schedule Change Request Popup */}
+    {showRequestPopup && (
+      <PopupOverlay onClick={(e) => e.target === e.currentTarget && setShowRequestPopup(false)}>
+        <PopupContent>
+          <CloseButton onClick={() => setShowRequestPopup(false)}>
+            <X size={24} weight="bold" />
+          </CloseButton>
+          <ScheduleChangeRequestForm 
+            user={user} 
+            userData={userData} 
+            currentSchedule={schedule} 
+            isPopup={true} 
+            onClose={() => setShowRequestPopup(false)}
+          />
+        </PopupContent>
+      </PopupOverlay>
+    )}
   </>
   );
 };

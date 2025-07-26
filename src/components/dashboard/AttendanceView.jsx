@@ -184,6 +184,39 @@ const SubmitButton = styled(Button)`
   }
 `;
 
+const PaginationContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1.5rem;
+  gap: 10px;
+`;
+
+const PageButton = styled.button`
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: ${props => props.active ? '#e91e63' : '#f5f5f5'};
+  color: ${props => props.active ? 'white' : '#333'};
+  border: 1px solid ${props => props.active ? '#c2185b' : '#ddd'};
+  
+  &:hover {
+    background-color: ${props => props.active ? '#c2185b' : '#e0e0e0'};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const PageInfo = styled.div`
+  font-size: 0.9rem;
+  color: #666;
+`;
+
 const AttendanceView = ({ user }) => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -193,6 +226,8 @@ const AttendanceView = ({ user }) => {
   const [selectedAbsence, setSelectedAbsence] = useState(null);
   const [petitionRemarks, setPetitionRemarks] = useState('');
   const [submittingPetition, setSubmittingPetition] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage] = useState(10);
 
   // Setup real-time listeners when component mounts
   useEffect(() => {
@@ -525,147 +560,202 @@ const AttendanceView = ({ user }) => {
         {loading ? (
           <p>Loading attendance records...</p>
         ) : attendanceRecords.length > 0 ? (
-          <AttendanceTable>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Day</th>
-                <th colSpan="3">IN</th>
-                <th colSpan="3">OUT</th>
-                <th>Notes</th>
-              </tr>
-              <tr>
-                <th></th>
-                <th></th>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Difference</th>
-                <th>Time</th>
-                <th>Status</th>
-                <th>Duration</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {attendanceRecords.map((record, index) => (
-                <tr key={index}>
-                  <td>{formatDate(record.date)}</td>
-                  <td>
-                    {record.day}
-                    {record.isMultiDay && (
-                      <StatusTag status="Multi-Day">Multi-Day</StatusTag>
-                    )}
-                  </td>
-                  
-                  {/* Check if this is an absent record */}
-                  {record.absentRecord ? (
-                    <>
-                      {/* For absent records, span across all columns */}
-                      <td colSpan="6" style={{ textAlign: 'center' }}>
-                        <StatusTag status="Absent">Absent</StatusTag>
-                        <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                          Missed scheduled shift on {formatDate(record.date)} at {formatTime(record.absentRecord.timestamp)}
-                        </div>
-                        <RequestButton 
-                          onClick={() => handleRequestRemoval(record)}
-                          disabled={submittingPetition}
-                        >
-                          Request Removal
-                        </RequestButton>
-                      </td>
-                      <td>
-                        {record.absentRecord.notes || '-'}
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      {/* IN record */}
-                      <td>{record.inRecord ? formatTime(record.inRecord.timestamp) : '-'}</td>
-                      <td>
-                        {record.inRecord ? (
-                          <StatusTag status={calculateTimeInStatus(record.inRecord, record.date)}>
-                            {calculateTimeInStatus(record.inRecord, record.date)}
-                          </StatusTag>
-                        ) : '-'}
-                      </td>
-                      <td>
-                        {record.inRecord && record.inRecord.timeDiff !== undefined && ['Early', 'Late'].includes(calculateTimeInStatus(record.inRecord, record.date)) ? (
-                          <>
-                            {Math.abs(record.inRecord.timeDiff) >= 60 ? 
-                              `${Math.floor(Math.abs(record.inRecord.timeDiff) / 60)}h ${Math.abs(record.inRecord.timeDiff) % 60}m` : 
-                              `${Math.abs(record.inRecord.timeDiff)}m`
-                            }
-                          </>
-                        ) : '-'}
-                      </td>
-                      
-                      {/* OUT record */}
-                      <td>
-                        {record.outRecord ? (
-                          <>
-                            {formatTime(record.outRecord.timestamp)}
-                            {record.isMultiDay && (
-                              <div style={{ fontSize: '0.8rem', color: '#7b1fa2' }}>
-                                {formatDate(record.outRecord.timestamp.toDate())}
-                              </div>
-                            )}
-                          </>
-                        ) : '-'}
-                      </td>
-                      <td>
-                        {record.outRecord ? (
-                          <StatusTag status={record.outRecord.status || "Complete"}>
-                            {record.outRecord.status || "Complete"}
-                          </StatusTag>
-                        ) : '-'}
-                      </td>
-                      <td>
-                        {record.inRecord && record.outRecord ? (
-                          <>
-                            {(() => {
-                              // Calculate time difference between in and out
-                              const inTime = record.inRecord.timestamp.toDate();
-                              const outTime = record.outRecord.timestamp.toDate();
-                              const diffMinutes = Math.round((outTime - inTime) / (1000 * 60));
-                              
-                              if (diffMinutes >= 60) {
-                                const hours = Math.floor(diffMinutes / 60);
-                                const minutes = diffMinutes % 60;
-                                return `${hours}h ${minutes}m`;
-                              } else {
-                                return `${diffMinutes}m`;
-                              }
-                            })()} 
-                          </>
-                        ) : record.outRecord && record.outRecord.timeDiff !== undefined ? (
-                          <>
-                            {Math.abs(record.outRecord.timeDiff) >= 60 ? 
-                              `${Math.floor(Math.abs(record.outRecord.timeDiff) / 60)}h ${Math.abs(record.outRecord.timeDiff) % 60}m` : 
-                              `${Math.abs(record.outRecord.timeDiff)}m`
-                            }
-                          </>
-                        ) : '-'}
-                      </td>
-                      
-                      {/* Notes (combining both IN and OUT notes if available) */}
-                      <td>
-                        {record.inRecord?.notes && record.outRecord?.notes ? (
-                          <>
-                            <strong>IN:</strong> {record.inRecord.notes}<br/>
-                            <strong>OUT:</strong> {record.outRecord.notes}
-                          </>
-                        ) : record.inRecord?.notes ? (
-                          record.inRecord.notes
-                        ) : record.outRecord?.notes ? (
-                          record.outRecord.notes
-                        ) : '-'}
-                      </td>
-                    </>
-                  )}
+          <>
+            <AttendanceTable>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Day</th>
+                  <th colSpan="3">IN</th>
+                  <th colSpan="3">OUT</th>
+                  <th>Notes</th>
                 </tr>
-              ))}
-            </tbody>
-          </AttendanceTable>
+                <tr>
+                  <th></th>
+                  <th></th>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Difference</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                  <th>Duration</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {attendanceRecords
+                  .slice((currentPage - 1) * recordsPerPage, currentPage * recordsPerPage)
+                  .map((record, index) => (
+                  <tr key={index}>
+                    <td>{formatDate(record.date)}</td>
+                    <td>
+                      {record.day}
+                    </td>
+                    
+                    {/* Check if this is an absent record */}
+                    {record.absentRecord ? (
+                      <>
+                        {/* For absent records, span across all columns */}
+                        <td colSpan="6" style={{ textAlign: 'center' }}>
+                          <StatusTag status="Absent">Absent</StatusTag>
+                          <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+                            Missed scheduled shift on {formatDate(record.date)} at {formatTime(record.absentRecord.timestamp)}
+                          </div>
+                          <RequestButton 
+                            onClick={() => handleRequestRemoval(record)}
+                            disabled={submittingPetition}
+                          >
+                            Request Removal
+                          </RequestButton>
+                        </td>
+                        <td>
+                          {record.absentRecord.notes || '-'}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        {/* IN record */}
+                        <td>{record.inRecord ? formatTime(record.inRecord.timestamp) : '-'}</td>
+                        <td>
+                          {record.inRecord ? (
+                            <StatusTag status={calculateTimeInStatus(record.inRecord, record.date)}>
+                              {calculateTimeInStatus(record.inRecord, record.date)}
+                            </StatusTag>
+                          ) : '-'}
+                        </td>
+                        <td>
+                          {record.inRecord && record.inRecord.timeDiff !== undefined && ['Early', 'Late'].includes(calculateTimeInStatus(record.inRecord, record.date)) ? (
+                            <>
+                              {Math.abs(record.inRecord.timeDiff) >= 60 ? 
+                                `${Math.floor(Math.abs(record.inRecord.timeDiff) / 60)}h ${Math.abs(record.inRecord.timeDiff) % 60}m` : 
+                                `${Math.abs(record.inRecord.timeDiff)}m`
+                              }
+                            </>
+                          ) : '-'}
+                        </td>
+                        
+                        {/* OUT record */}
+                        <td>
+                          {record.outRecord ? (
+                            <>
+                              {formatTime(record.outRecord.timestamp)}
+                              {record.isMultiDay && (
+                                <div style={{ fontSize: '0.8rem', color: '#7b1fa2' }}>
+                                  {formatDate(record.outRecord.timestamp.toDate())}
+                                </div>
+                              )}
+                            </>
+                          ) : '-'}
+                        </td>
+                        <td>
+                          {record.outRecord ? (
+                            <StatusTag status={record.outRecord.status || "Complete"}>
+                              {record.outRecord.status || "Complete"}
+                            </StatusTag>
+                          ) : '-'}
+                        </td>
+                        <td>
+                          {record.inRecord && record.outRecord ? (
+                            <>
+                              {(() => {
+                                // Calculate time difference between in and out
+                                const inTime = record.inRecord.timestamp.toDate();
+                                const outTime = record.outRecord.timestamp.toDate();
+                                const diffMinutes = Math.round((outTime - inTime) / (1000 * 60));
+                                
+                                if (diffMinutes >= 60) {
+                                  const hours = Math.floor(diffMinutes / 60);
+                                  const minutes = diffMinutes % 60;
+                                  return `${hours}h ${minutes}m`;
+                                } else {
+                                  return `${diffMinutes}m`;
+                                }
+                              })()} 
+                            </>
+                          ) : record.outRecord && record.outRecord.timeDiff !== undefined ? (
+                            <>
+                              {Math.abs(record.outRecord.timeDiff) >= 60 ? 
+                                `${Math.floor(Math.abs(record.outRecord.timeDiff) / 60)}h ${Math.abs(record.outRecord.timeDiff) % 60}m` : 
+                                `${Math.abs(record.outRecord.timeDiff)}m`
+                              }
+                            </>
+                          ) : '-'}
+                        </td>
+                        
+                        {/* Notes (combining both IN and OUT notes if available) */}
+                        <td>
+                          {record.inRecord?.notes && record.outRecord?.notes ? (
+                            <>
+                              <strong>IN:</strong> {record.inRecord.notes}<br/>
+                              <strong>OUT:</strong> {record.outRecord.notes}
+                            </>
+                          ) : record.inRecord?.notes ? (
+                            record.inRecord.notes
+                          ) : record.outRecord?.notes ? (
+                            record.outRecord.notes
+                          ) : '-'}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </AttendanceTable>
+            
+            {/* Pagination Controls */}
+            {attendanceRecords.length > recordsPerPage && (
+              <PaginationContainer>
+                <PageButton 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} 
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </PageButton>
+                
+                {/* Calculate page numbers to show */}
+                {Array.from({ length: Math.min(5, Math.ceil(attendanceRecords.length / recordsPerPage)) }, (_, i) => {
+                  // Show pages around current page
+                  let pageNum;
+                  const totalPages = Math.ceil(attendanceRecords.length / recordsPerPage);
+                  
+                  if (totalPages <= 5) {
+                    // If 5 or fewer total pages, show all pages
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    // If current page is among first 3, show first 5 pages
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    // If current page is among last 3, show last 5 pages
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    // Otherwise show current page and 2 pages on each side
+                    pageNum = currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <PageButton 
+                      key={pageNum} 
+                      onClick={() => setCurrentPage(pageNum)}
+                      active={currentPage === pageNum}
+                    >
+                      {pageNum}
+                    </PageButton>
+                  );
+                })}
+                
+                <PageButton 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(attendanceRecords.length / recordsPerPage)))}
+                  disabled={currentPage === Math.ceil(attendanceRecords.length / recordsPerPage)}
+                >
+                  Next
+                </PageButton>
+                
+                <PageInfo>
+                  Showing {Math.min((currentPage - 1) * recordsPerPage + 1, attendanceRecords.length)} - {Math.min(currentPage * recordsPerPage, attendanceRecords.length)} of {attendanceRecords.length} records
+                </PageInfo>
+              </PaginationContainer>
+            )}
+          </>
         ) : (
           <p>No attendance records found.</p>
         )}

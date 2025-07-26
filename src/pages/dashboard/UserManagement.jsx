@@ -1,6 +1,10 @@
 import { useOutletContext } from 'react-router-dom';
 import styled from 'styled-components';
 import UserManagementView from '../../components/dashboard/UserManagementView';
+import UserDashboard from '../../components/dashboard/UserDashboard';
+import DepartmentManagementView from '../../components/dashboard/DepartmentManagementView';
+import CompanyManagementView from '../../components/dashboard/CompanyManagementView';
+import Tabs from '../../components/common/Tabs';
 
 const PageContainer = styled.div`
   padding: 1rem;
@@ -40,7 +44,27 @@ function UserManagement() {
   return (
     <PageContainer>
       <PageTitle>User Management</PageTitle>
-      <UserManagementView isSuperAdmin={isSuperAdmin} />
+      <Tabs 
+        tabs={[
+          {
+            label: "Dashboard",
+            content: <UserDashboard isSuperAdmin={isSuperAdmin} />
+          },
+          {
+            label: "All Users",
+            content: <UserManagementView isSuperAdmin={isSuperAdmin} />
+          },
+          {
+            label: "Departments",
+            content: <DepartmentManagementView isSuperAdmin={isSuperAdmin} isAdmin={userData?.role === 'admin'} canEdit={true} />
+          },
+          {
+            label: "Companies",
+            content: <CompanyManagementView isSuperAdmin={isSuperAdmin} isAdmin={userData?.role === 'admin'} canEdit={true} />
+          }
+        ]}
+        defaultTab={0}
+      />
     </PageContainer>
   );
 }

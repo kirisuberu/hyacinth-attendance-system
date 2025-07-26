@@ -9,9 +9,9 @@ import { timeZones } from '../../utils/timeZones';
 const FormContainer = styled.div`
   background-color: white;
   border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 2rem;
+  padding: ${props => props.isPopup ? '0' : '1.5rem'};
+  box-shadow: ${props => props.isPopup ? 'none' : '0 2px 8px rgba(0, 0, 0, 0.1)'};
+  margin-bottom: ${props => props.isPopup ? '0' : '2rem'};
 `;
 
 const FormTitle = styled.h3`
@@ -142,7 +142,7 @@ const InfoText = styled.p`
   border-radius: 0 4px 4px 0;
 `;
 
-const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
+const ScheduleChangeRequestForm = ({ user, userData, currentSchedule, isPopup = false, onClose }) => {
   const [dayOfWeek, setDayOfWeek] = useState('');
   const [timeIn, setTimeIn] = useState('');
   const [shiftDuration, setShiftDuration] = useState('8');
@@ -194,6 +194,11 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
       setShiftDuration('8');
       setReason('');
       // Don't reset timeRegion as it should persist between submissions
+      
+      // Close popup if in popup mode
+      if (isPopup && onClose) {
+        onClose();
+      }
     } catch (error) {
       console.error('Error submitting schedule change request:', error);
       toast.error('Failed to submit request. Please try again.');
@@ -210,7 +215,7 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule }) => {
       </FormTitle>
       
       <InfoText>
-        Submit a request to change your work schedule. Your request will be reviewed by an administrator.
+        If there are any changes to your schedule, please submit a request to change your schedule. Your request will be reviewed by an administrator.
       </InfoText>
       
       <form onSubmit={handleSubmit}>

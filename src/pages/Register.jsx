@@ -216,7 +216,8 @@ function Register() {
   const [formData, setFormData] = useState({
     lastName: '',
     firstName: '',
-    middleName: '', // Changed from middleInitial to middleName to better handle second names
+    middleInitial: '', // Changed from middleName to middleInitial, will allow max 2 uppercase letters
+    preferredName: '', // Added for "You can call me as" field
     email: '',
     password: '',
     confirmPassword: ''
@@ -247,11 +248,13 @@ function Register() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    // Handle middle initial uppercase conversion
+    // Handle middle initial uppercase conversion and limit to 2 characters
     if (name === 'middleInitial') {
+      // Limit to 2 characters and convert to uppercase
+      const processedValue = value.slice(0, 2).toUpperCase();
       setFormData(prev => ({
         ...prev,
-        [name]: value.toUpperCase()
+        [name]: processedValue
       }));
     } else {
       setFormData(prev => ({
@@ -394,7 +397,7 @@ function Register() {
       }
       
       // Create full name from parts
-      const fullName = `${formData.lastName}, ${formData.firstName}${formData.middleName ? ' ' + formData.middleName : ''}`;
+      const fullName = `${formData.lastName}, ${formData.firstName}${formData.middleInitial ? ' ' + formData.middleInitial : ''}`;
       
       // Update profile with display name if we have a user credential
       if (userCredential?.user) {
@@ -421,16 +424,18 @@ function Register() {
         userId: userId,
         lastName: formData.lastName,
         firstName: formData.firstName,
-        middleName: formData.middleName, // Changed from middleInitial to middleName
+        middleInitial: formData.middleInitial, // Using middleInitial instead of middleName
+        preferredName: formData.preferredName || '', // Add preferred name to registration
         name: fullName,
         email: formData.email,
         position: 'regular', // Default position
         role: 'user', // Default role for new registrations
         status: 'pending',
         timeRegion: deviceTimeZone, // Set detected time zone as default
-        userID: `uid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}` // Permanent userID
+        userID: `uid_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, // Permanent userID
+        createdAt: new Date().toISOString()
       };
-      
+
       try {
         // Submit registration request instead of creating user directly
         await submitRegistrationRequest(userDoc);
@@ -517,7 +522,6 @@ function Register() {
         
         <Form onSubmit={handleSubmit}>
           <FormGroup>
-            <Label>Full Name</Label>
             <NameRow>
               <NameField flex="2" minWidth="150px">
                 <Label htmlFor="lastName">Last Name</Label>
@@ -529,7 +533,7 @@ function Register() {
                     type="text"
                     value={formData.lastName}
                     onChange={handleChange}
-                    placeholder="Last name"
+                    placeholder="Dela Cruz"
                   />
                 </InputWrapper>
                 {errors.lastName && <ErrorMessage>{errors.lastName}</ErrorMessage>}
@@ -544,26 +548,42 @@ function Register() {
                     type="text"
                     value={formData.firstName}
                     onChange={handleChange}
-                    placeholder="First name"
+                    placeholder="Juan"
                   />
                 </InputWrapper>
                 {errors.firstName && <ErrorMessage>{errors.firstName}</ErrorMessage>}
               </NameField>
               
-              <NameField flex="2" minWidth="150px">
-                <Label htmlFor="middleName">Middle/Second Name</Label>
+              <NameField flex="1" minWidth="100px">
+                <Label htmlFor="middleInitial">Middle Initial</Label>
                 <InputWrapper>
                   <Input
-                    id="middleName"
-                    name="middleName"
+                    id="middleInitial"
+                    name="middleInitial"
                     type="text"
-                    value={formData.middleName}
+                    value={formData.middleInitial}
                     onChange={handleChange}
-                    placeholder="Middle or second name (optional)"
+                    placeholder="A"
+                    maxLength="2"
                   />
                 </InputWrapper>
               </NameField>
             </NameRow>
+            
+            <NameField flex="2" minWidth="150px" style={{ marginTop: '1rem' }}>
+              <Label htmlFor="preferredName">You can call me as</Label>
+              <InputWrapper>
+                <Icon><User size={18} /></Icon>
+                <Input
+                  id="preferredName"
+                  name="preferredName"
+                  type="text"
+                  value={formData.preferredName}
+                  onChange={handleChange}
+                  placeholder="Nickname or preferred name"
+                />
+              </InputWrapper>
+            </NameField>
           </FormGroup>
           
           <FormGroup>

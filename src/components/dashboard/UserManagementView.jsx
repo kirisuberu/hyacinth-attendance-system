@@ -579,6 +579,7 @@ const Icon = styled.span`
 function UserManagementView({ isSuperAdmin }) {
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -627,6 +628,7 @@ function UserManagementView({ isSuperAdmin }) {
     firstName: '',
     lastName: '',
     middleInitial: '',
+    preferredName: '',
     email: '',
     position: '',
     employmentStatus: 'regular',
@@ -638,7 +640,8 @@ function UserManagementView({ isSuperAdmin }) {
     emergencyContactName: '',
     emergencyContactPhone: '',
     emergencyContactRelationship: '',
-    departments: []
+    departments: [],
+    companies: []
   });
   const [editUserPage, setEditUserPage] = useState(1); // Track the current page of the edit user modal
   const [newUserData, setNewUserData] = useState({
@@ -650,10 +653,10 @@ function UserManagementView({ isSuperAdmin }) {
     employmentStatus: 'regular',
     role: 'member',
     status: 'active',
-    dateHired: '',
     address: '',
     contactNumber: '',
-    departments: []
+    departments: [],
+    companies: []
   });
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -672,14 +675,16 @@ function UserManagementView({ isSuperAdmin }) {
   };
 
   useEffect(() => {
-    // Set up real-time listener for users collection
-    const unsubscribeUsers = setupUsersListener();
-    const unsubscribeDepartments = setupDepartmentsListener();
+    // Set up real-time listeners for users, departments, and companies
+    const unsubUsers = setupUsersListener();
+    const unsubDepts = setupDepartmentsListener();
+    const unsubCompanies = setupCompaniesListener();
     
-    // Cleanup listeners on unmount
+    // Clean up listeners on unmount
     return () => {
-      if (unsubscribeUsers) unsubscribeUsers();
-      if (unsubscribeDepartments) unsubscribeDepartments();
+      if (unsubUsers) unsubUsers();
+      if (unsubDepts) unsubDepts();
+      if (unsubCompanies) unsubCompanies();
     };
   }, []);
   
@@ -703,6 +708,30 @@ function UserManagementView({ isSuperAdmin }) {
     } catch (error) {
       console.error('Error setting up departments listener:', error);
       toast.error('Failed to load departments');
+      return null;
+    }
+  };
+
+  const setupCompaniesListener = () => {
+    try {
+      const companiesCollection = collection(db, 'companies');
+      const companiesQuery = query(companiesCollection, orderBy('name'));
+      
+      // Set up real-time listener
+      return onSnapshot(companiesQuery, (snapshot) => {
+        const companiesList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setCompanies(companiesList);
+        console.log('Real-time companies data update:', companiesList.length);
+      }, (error) => {
+        console.error('Error in companies listener:', error);
+        toast.error('Failed to load companies');
+      });
+    } catch (error) {
+      console.error('Error setting up companies listener:', error);
+      toast.error('Failed to load companies');
       return null;
     }
   };
@@ -771,6 +800,7 @@ function UserManagementView({ isSuperAdmin }) {
       firstName,
       lastName,
       middleInitial,
+      preferredName: user.preferredName || '',
       email: user.email || '',
       position: user.position || '',
       employmentStatus: user.employmentStatus || 'regular',
@@ -782,7 +812,8 @@ function UserManagementView({ isSuperAdmin }) {
       emergencyContactName: user.emergencyContactName || '',
       emergencyContactPhone: user.emergencyContactPhone || '',
       emergencyContactRelationship: user.emergencyContactRelationship || '',
-      departments: user.departments || []
+      departments: user.departments || [],
+      companies: user.companies || (user.company ? [user.company] : [])
     });
     
     // Set the modal visibility after setting the selected user
@@ -875,31 +906,24 @@ function UserManagementView({ isSuperAdmin }) {
       const isEmailChanged = selectedUser.email !== editUserData.email.trim();
       
       if (isEmailChanged) {
-        // Warn about email change implications
-        const confirmEmailChange = window.confirm(
-          `WARNING: Changing a user's email in the system will only update their Firestore record, not their Firebase Authentication record. ` +
-          `This means the user will still need to log in with their old email address. \n\n` +
-          `To fully update their email, the user will need to: \n` +
-          `1. Log in with their old email \n` +
-          `2. Go to their profile settings \n` +
-          `3. Update their email address there \n\n` +
-          `Do you still want to proceed with this email change?`
-        );
-        
-        if (!confirmEmailChange) {
-          return;
-        }
+        // You might want to handle email changes differently
+        // For example, you might want to update auth user email too
+        console.log('Email has been changed - note that this does not update auth email');
       }
       
-      // Use the userId field if available, otherwise fall back to id
+      // First, we need to determine the correct document ID to use
+      // If userId exists, use that as the document ID, otherwise fall back to id
       const documentId = selectedUser.userId || selectedUser.id;
       
-      // Update the user document in Firestore
+      console.log('Updating user with document ID:', documentId);
+      
+      // Update the user document
       const userRef = doc(db, 'users', documentId);
       await updateDoc(userRef, {
         name: fullName.trim(),
         email: editUserData.email.trim(),
-        position: editUserData.position,
+        preferredName: editUserData.preferredName || '',
+        position: editUserData.position.trim(),
         employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
         dateOfBirth: editUserData.dateOfBirth,
@@ -909,19 +933,22 @@ function UserManagementView({ isSuperAdmin }) {
         emergencyContactName: editUserData.emergencyContactName,
         emergencyContactPhone: editUserData.emergencyContactPhone,
         emergencyContactRelationship: editUserData.emergencyContactRelationship,
-        departments: editUserData.departments
+        departments: editUserData.departments || [],
+        companies: editUserData.companies || [],
+        updatedAt: serverTimestamp(),
       });
       
-      // Update the local state
+      // Update local state
       setUsers(users.map(u => {
         // Match by both potential IDs to ensure we update the correct user
         const isMatch = (u.userId && u.userId === selectedUser.userId) || 
                        (u.id === selectedUser.id);
-        return isMatch ? { 
-          ...u, 
+        return isMatch ? {
+          ...u,
           name: fullName.trim(),
           email: editUserData.email.trim(),
-          position: editUserData.position,
+          preferredName: editUserData.preferredName || '',
+          position: editUserData.position.trim(),
           employmentStatus: editUserData.employmentStatus,
           role: editUserData.role,
           dateOfBirth: editUserData.dateOfBirth,
@@ -931,19 +958,13 @@ function UserManagementView({ isSuperAdmin }) {
           emergencyContactName: editUserData.emergencyContactName,
           emergencyContactPhone: editUserData.emergencyContactPhone,
           emergencyContactRelationship: editUserData.emergencyContactRelationship,
-          departments: editUserData.departments
+          departments: editUserData.departments || [],
+          companies: editUserData.companies || [],
+          updatedAt: new Date(),
         } : u;
       }));
       
       toast.success('User information updated successfully');
-      
-      // Show additional guidance if email was changed
-      if (isEmailChanged) {
-        toast.info(
-          'Remember: The user will still need to log in with their old email address until they update their authentication email themselves.',
-          { autoClose: 8000 }
-        );
-      }
       
       setShowEditModal(false);
       setEditUserPage(1); // Reset to first page
@@ -973,45 +994,39 @@ function UserManagementView({ isSuperAdmin }) {
       // Generate a unique userId
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 8);
-      const userId = `uid_${timestamp}_${randomString}`;
+      const userId = `user_${timestamp}_${randomString}`;
       
-      // Create a document ID based on user type and name
-      const sanitizedName = fullName.trim().toLowerCase().replace(/\s+/g, '_');
-      const documentId = `${newUserData.role}_${sanitizedName}_${timestamp}`;
-      
-      // Create the user document in Firestore
-      const userRef = doc(db, 'users', documentId);
-      await setDoc(userRef, {
-        userId: userId, // Permanent, non-editable ID
-        name: fullName.trim(),
-        email: newUserData.email.trim(),
-        position: newUserData.position,
-        employmentStatus: newUserData.employmentStatus,
-        role: newUserData.role,
-        status: newUserData.status,
-        dateHired: newUserData.dateHired,
-        address: newUserData.address.trim(),
-        contactNumber: newUserData.contactNumber.trim(),
-        createdAt: serverTimestamp(),
-        schedule: [],
-        departments: newUserData.departments
-      });
-      
-      // Add the new user to the local state
+      // Create a new user document
       const newUser = {
-        id: documentId,
-        userId: userId,
+        userId,
         name: fullName.trim(),
         email: newUserData.email.trim(),
-        position: newUserData.position,
+        position: newUserData.position.trim(),
         employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
-        status: newUserData.status,
-        dateHired: newUserData.dateHired,
-        address: newUserData.address.trim(),
-        contactNumber: newUserData.contactNumber.trim(),
-        schedule: [],
-        createdAt: new Date() // Local representation of server timestamp
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        departments: newUserData.departments || [],
+        companies: newUserData.companies || [],
+        // Additional fields can be added here as needed
+      };
+      
+      // Add the user to the database
+      const userRef = doc(db, 'users', userId);
+      await setDoc(userRef, newUser);
+      
+      // No need to manually update state as the listener will handle it
+      // But we'll add to local state anyway for immediate feedback
+      newUser.id = userId; // Add id for consistency with fetched users
+      
+      // Convert server timestamp to regular Date for immediate display
+      const now = new Date();
+      newUser.createdAt = {
+        toDate: () => now
+      };
+      newUser.updatedAt = {
+        toDate: () => now
       };
       
       setUsers([...users, newUser]);
@@ -1031,7 +1046,9 @@ function UserManagementView({ isSuperAdmin }) {
         role: 'member',
         status: 'active',
         address: '',
-        contactNumber: ''
+        contactNumber: '',
+        departments: [],
+        company: ''
       });
     } catch (error) {
       console.error('Error adding user:', error);
@@ -1250,6 +1267,7 @@ function UserManagementView({ isSuperAdmin }) {
       { id: 'position', label: 'Position', visible: true, width: 200 },
       { id: 'role', label: 'Role', visible: true, width: 120 },
       { id: 'status', label: 'Status', visible: true, width: 120 },
+      { id: 'company', label: 'Company', visible: true, width: 150 },
       { id: 'shifts', label: 'Shifts', visible: true, width: 150 },
       { id: 'dateHired', label: 'Date Hired', visible: false, width: 180 },
       { id: 'dateOfBirth', label: 'Date of Birth', visible: false, width: 180 },
@@ -1471,6 +1489,36 @@ function UserManagementView({ isSuperAdmin }) {
                         );
                       }
                       
+                      if (column.id === 'company') {
+                        return (
+                          <TableCell key={column.id} className="col-company" style={{ width: `${column.width}px` }}>
+                            {user.companies && user.companies.length > 0 ? (
+                              <DepartmentTagsContainer>
+                                {user.companies.map(companyId => {
+                                  const company = companies.find(c => c.id === companyId);
+                                  return company ? (
+                                    <DepartmentTag key={companyId} style={{ backgroundColor: '#fff8e1', color: '#ff8f00' }}>
+                                      {company.name}
+                                    </DepartmentTag>
+                                  ) : null;
+                                })}
+                              </DepartmentTagsContainer>
+                            ) : user.company ? (
+                              <DepartmentTag style={{ backgroundColor: '#fff8e1', color: '#ff8f00' }}>
+                                {(() => {
+                                  const company = companies.find(c => c.id === user.company);
+                                  return company ? company.name : user.company;
+                                })()}
+                              </DepartmentTag>
+                            ) : (
+                              <span style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                                None assigned
+                              </span>
+                            )}
+                          </TableCell>
+                        );
+                      }
+                      
                       if (column.id === 'shifts') {
                         return (
                           <TableCell key={column.id} className="col-shifts" style={{ width: `${column.width}px` }}>
@@ -1649,6 +1697,16 @@ function UserManagementView({ isSuperAdmin }) {
                 </div>
                 
                 <FormGroup>
+                  <Label>You can call me as (Preferred Name)</Label>
+                  <Input 
+                    type="text" 
+                    value={editUserData.preferredName || ''}
+                    onChange={(e) => setEditUserData({...editUserData, preferredName: e.target.value})}
+                    placeholder="Preferred Name"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
                   <Label>Email</Label>
                   <Input 
                     type="email" 
@@ -1689,6 +1747,45 @@ function UserManagementView({ isSuperAdmin }) {
                     onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
                     placeholder="Job Position"
                   />
+                </FormGroup>
+                
+                <FormGroup>
+                  <Label>Companies</Label>
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
+                    Select one or more companies to assign to this user
+                  </div>
+                  <CheckboxContainer>
+                    {companies.map(company => (
+                      <CheckboxLabel 
+                        key={company.id} 
+                        checked={editUserData.companies?.includes(company.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editUserData.companies?.includes(company.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditUserData({
+                                ...editUserData, 
+                                companies: [...(editUserData.companies || []), company.id]
+                              });
+                            } else {
+                              setEditUserData({
+                                ...editUserData, 
+                                companies: (editUserData.companies || []).filter(id => id !== company.id)
+                              });
+                            }
+                          }}
+                        />
+                        {company.name}
+                      </CheckboxLabel>
+                    ))}
+                  </CheckboxContainer>
+                  {companies.length === 0 && (
+                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                      No companies available. Add companies in the Company Management page.
+                    </div>
+                  )}
                 </FormGroup>
                 
                 <FormGroup>
@@ -1992,6 +2089,45 @@ function UserManagementView({ isSuperAdmin }) {
             {/* Page 2 - Additional Information */}
             {addUserPage === 2 && (
               <div style={{ marginBottom: '1.5rem' }}>
+                <FormGroup>
+                  <Label>Companies</Label>
+                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
+                    Select one or more companies to assign to this user
+                  </div>
+                  <CheckboxContainer>
+                    {companies.map(company => (
+                      <CheckboxLabel 
+                        key={company.id} 
+                        checked={newUserData.companies?.includes(company.id)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={newUserData.companies?.includes(company.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewUserData({
+                                ...newUserData, 
+                                companies: [...(newUserData.companies || []), company.id]
+                              });
+                            } else {
+                              setNewUserData({
+                                ...newUserData, 
+                                companies: (newUserData.companies || []).filter(id => id !== company.id)
+                              });
+                            }
+                          }}
+                        />
+                        {company.name}
+                      </CheckboxLabel>
+                    ))}
+                  </CheckboxContainer>
+                  {companies.length === 0 && (
+                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                      No companies available. Add companies in the Company Management page.
+                    </div>
+                  )}
+                </FormGroup>
+                
                 <FormGroup>
                   <Label>Address</Label>
                   <Input 

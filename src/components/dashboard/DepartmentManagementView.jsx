@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Users, Buildings, Pencil, Trash, X, Check, Plus } from 'phosphor-react';
+import { Users, Buildings, Pencil, Trash, Plus, UserMinus } from 'phosphor-react';
 
 const Container = styled.div`
   padding: 2rem;
@@ -106,7 +106,7 @@ const SearchBar = styled.input`
   padding: 0.75rem 1rem;
   border: 1px solid #ddd;
   border-radius: 4px;
-  width: 300px;
+  width: ${props => props.fullWidth ? '100%' : '300px'};
   font-size: 0.9rem;
   
   &:focus {
@@ -149,7 +149,7 @@ const ModalContent = styled.div`
   background-color: white;
   padding: 2rem;
   border-radius: 8px;
-  max-width: 500px;
+  max-width: ${props => props.wide ? '800px' : '500px'};
   width: 100%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 `;
@@ -248,6 +248,13 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [departmentMembers, setDepartmentMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingAllUsers, setLoadingAllUsers] = useState(false);
+  const [membersSearchTerm, setMembersSearchTerm] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [departmentData, setDepartmentData] = useState({
     name: '',
@@ -264,6 +271,11 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
     return () => {
       if (unsubscribe) unsubscribe();
     };
+  }, []);
+  
+  // Fetch all users once
+  useEffect(() => {
+    fetchAllUsers();
   }, []);
 
   const setupDepartmentsListener = () => {
@@ -407,6 +419,130 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
     setShowDeleteModal(true);
   };
 
+  const handleMembersClick = async (department) => {
+    setSelectedDepartment(department);
+    setShowMembersModal(true);
+    setMembersSearchTerm('');
+    await fetchDepartmentMembers(department.id);
+  };
+  
+  const fetchDepartmentMembers = async (departmentId) => {
+    try {
+      setLoadingMembers(true);
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('departments', 'array-contains', departmentId));
+      const querySnapshot = await getDocs(q);
+      
+      const members = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setDepartmentMembers(members);
+      setLoadingMembers(false);
+    } catch (error) {
+      console.error('Error fetching department members:', error);
+      toast.error('Failed to load department members');
+      setLoadingMembers(false);
+      setDepartmentMembers([]);
+    }
+  };
+  
+  const fetchAllUsers = async () => {
+    try {
+      setLoadingAllUsers(true);
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, orderBy('firstName'));
+      const querySnapshot = await getDocs(q);
+      
+      const users = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setAllUsers(users);
+      setLoadingAllUsers(false);
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+      toast.error('Failed to load users');
+      setLoadingAllUsers(false);
+    }
+  };
+  
+  const handleAddUserToDepartment = async (userId) => {
+    if (!selectedDepartment || isProcessing) return;
+    
+    try {
+      setIsProcessing(true);
+      
+      // Get the user document
+      const userRef = doc(db, 'users', userId);
+      const user = allUsers.find(u => u.id === userId);
+      
+      // Check if user already has this department
+      const userDepartments = user.departments || [];
+      if (userDepartments.includes(selectedDepartment.id)) {
+        toast.info('User is already in this department');
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Add department to user's departments array
+      const updatedDepartments = [...userDepartments, selectedDepartment.id];
+      await updateDoc(userRef, {
+        departments: updatedDepartments,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Refresh the members list
+      await fetchDepartmentMembers(selectedDepartment.id);
+      
+      toast.success(`User added to ${selectedDepartment.name} department`);
+      setIsProcessing(false);
+    } catch (error) {
+      console.error('Error adding user to department:', error);
+      toast.error('Failed to add user to department');
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleRemoveUserFromDepartment = async (userId) => {
+    if (!selectedDepartment || isProcessing) return;
+    
+    try {
+      setIsProcessing(true);
+      
+      // Get the user document
+      const userRef = doc(db, 'users', userId);
+      const user = departmentMembers.find(m => m.id === userId);
+      
+      if (!user) {
+        toast.error('User not found');
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Remove department from user's departments array
+      const userDepartments = user.departments || [];
+      const updatedDepartments = userDepartments.filter(deptId => deptId !== selectedDepartment.id);
+      
+      await updateDoc(userRef, {
+        departments: updatedDepartments,
+        updatedAt: serverTimestamp()
+      });
+      
+      // Refresh the members list
+      await fetchDepartmentMembers(selectedDepartment.id);
+      
+      toast.success(`User removed from ${selectedDepartment.name} department`);
+      setIsProcessing(false);
+    } catch (error) {
+      console.error('Error removing user from department:', error);
+      toast.error('Failed to remove user from department');
+      setIsProcessing(false);
+    }
+  };
+
   const resetDepartmentForm = () => {
     setDepartmentData({
       name: '',
@@ -461,6 +597,13 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
               <DepartmentMeta>
                 <DepartmentCode>{department.code}</DepartmentCode>
                 <DepartmentActions>
+                  <ActionButton 
+                    onClick={() => handleMembersClick(department)}
+                    title="See Department Members"
+                    color="#2196f3"
+                  >
+                    <Users size={18} />
+                  </ActionButton>
                   <ActionButton 
                     onClick={() => handleEditClick(department)}
                     title="Edit Department"
@@ -702,6 +845,198 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
                 style={{ backgroundColor: '#f44336' }}
               >
                 Delete Department
+              </Button>
+            </ModalButtons>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* Department Members Modal */}
+      {showMembersModal && selectedDepartment && (
+        <ModalOverlay>
+          <ModalContent wide>
+            <ModalTitle>
+              <Users size={24} />
+              {selectedDepartment.name} Department Members
+            </ModalTitle>
+            
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', marginTop: '1rem' }}>
+              <div style={{ width: '60%', borderRight: '1px solid #eee', paddingRight: '1rem' }}>
+                <h3 style={{ fontSize: '1.1rem', marginTop: 0, marginBottom: '1rem' }}>Current Members</h3>
+                
+                {loadingMembers ? (
+                  <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+                    Loading members...
+                  </div>
+                ) : departmentMembers.length > 0 ? (
+                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '0.75rem', borderBottom: '1px solid #eee' }}>Name</th>
+                          <th style={{ textAlign: 'left', padding: '0.75rem', borderBottom: '1px solid #eee' }}>Email</th>
+                          <th style={{ textAlign: 'center', padding: '0.75rem', borderBottom: '1px solid #eee' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {departmentMembers.map(member => {
+                          const displayName = (() => {
+                            if (member.firstName && member.lastName) {
+                              return `${member.firstName} ${member.lastName}`;
+                            } else if (member.firstName) {
+                              return member.firstName;
+                            } else if (member.lastName) {
+                              return member.lastName;
+                            } else if (member.displayName) {
+                              return member.displayName;
+                            } else if (member.email) {
+                              return member.email.split('@')[0];
+                            } else {
+                              return 'Unnamed User';
+                            }
+                          })();
+                          
+                          return (
+                            <tr key={member.id}>
+                              <td style={{ padding: '0.75rem', borderBottom: '1px solid #f5f5f5' }}>
+                                {displayName}
+                              </td>
+                              <td style={{ padding: '0.75rem', borderBottom: '1px solid #f5f5f5' }}>
+                                {member.email || 'No email'}
+                              </td>
+                              <td style={{ padding: '0.75rem', borderBottom: '1px solid #f5f5f5', textAlign: 'center' }}>
+                                <ActionButton 
+                                  onClick={() => handleRemoveUserFromDepartment(member.id)}
+                                  title="Remove from department"
+                                  color="#f44336"
+                                  disabled={isProcessing}
+                                >
+                                  <UserMinus size={18} />
+                                </ActionButton>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '2rem 0', color: '#666' }}>
+                    <Users size={32} weight="light" style={{ opacity: 0.5, marginBottom: '1rem' }} />
+                    <p>No members found in this department</p>
+                  </div>
+                )}
+              </div>
+              
+              <div style={{ width: '40%' }}>
+                <h3 style={{ fontSize: '1.1rem', marginTop: 0, marginBottom: '1rem' }}>Add Members</h3>
+                
+                <div style={{ marginBottom: '1rem' }}>
+                  <SearchBar
+                    fullWidth
+                    type="text"
+                    placeholder="Search users..."
+                    value={membersSearchTerm}
+                    onChange={(e) => setMembersSearchTerm(e.target.value)}
+                  />
+                </div>
+                
+                {loadingAllUsers ? (
+                  <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+                    Loading users...
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                    {allUsers
+                      .filter(user => {
+                        // Filter users who are not already in the department
+                        const userDepts = user.departments || [];
+                        if (userDepts.includes(selectedDepartment.id)) {
+                          return false;
+                        }
+                        
+                        // Filter by search term if present
+                        if (membersSearchTerm.trim()) {
+                          const searchLower = membersSearchTerm.toLowerCase();
+                          const firstName = user.firstName || '';
+                          const lastName = user.lastName || '';
+                          const email = user.email || '';
+                          
+                          return firstName.toLowerCase().includes(searchLower) || 
+                                lastName.toLowerCase().includes(searchLower) || 
+                                email.toLowerCase().includes(searchLower) || 
+                                `${firstName} ${lastName}`.toLowerCase().includes(searchLower);
+                        }
+                        
+                        return true;
+                      })
+                      .map(user => {
+                        const displayName = (() => {
+                          if (user.firstName && user.lastName) {
+                            return `${user.firstName} ${user.lastName}`;
+                          } else if (user.firstName) {
+                            return user.firstName;
+                          } else if (user.lastName) {
+                            return user.lastName;
+                          } else if (user.displayName) {
+                            return user.displayName;
+                          } else if (user.email) {
+                            return user.email.split('@')[0];
+                          } else {
+                            return 'Unnamed User';
+                          }
+                        })();
+                        
+                        return (
+                          <div 
+                            key={user.id} 
+                            style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center',
+                              padding: '0.75rem',
+                              borderBottom: '1px solid #f5f5f5',
+                              backgroundColor: 'white'
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: '500' }}>{displayName}</div>
+                              <div style={{ fontSize: '0.85rem', color: '#666' }}>{user.email}</div>
+                            </div>
+                            <ActionButton 
+                              onClick={() => handleAddUserToDepartment(user.id)}
+                              title="Add to department"
+                              color="#4caf50"
+                              disabled={isProcessing}
+                            >
+                              <UserPlus size={18} />
+                            </ActionButton>
+                          </div>
+                        );
+                      })
+                    }
+                    
+                    {allUsers.filter(user => {
+                      const userDepts = user.departments || [];
+                      return !userDepts.includes(selectedDepartment.id);
+                    }).length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '1rem 0', color: '#666' }}>
+                        <p>All users are already in this department</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <ModalButtons>
+              <Button onClick={() => {
+                setShowMembersModal(false);
+                setSelectedDepartment(null);
+                setDepartmentMembers([]);
+                setMembersSearchTerm('');
+              }}>
+                Close
               </Button>
             </ModalButtons>
           </ModalContent>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import styled from 'styled-components';
 import { 
@@ -23,7 +23,7 @@ import {
   Lock,
   Key
 } from 'phosphor-react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { updateEmail, EmailAuthProvider, reauthenticateWithCredential, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { db, auth } from '../../firebase';
 import { toast } from 'react-toastify';
@@ -236,7 +236,6 @@ const SubmitButton = styled.button`
 const ProfileView = ({ user, userData, loadingUserData }) => {
   const [copied, setCopied] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [showEmergencyContactModal, setShowEmergencyContactModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [editData, setEditData] = useState({
     address: '',
@@ -244,30 +243,70 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     emergencyContactName: '',
     emergencyContactPhone: '',
     emergencyContactRelationship: '',
+    preferredName: '',
     newEmail: '',
     currentPassword: ''
   });
   const [processing, setProcessing] = useState(false);
   const [emailUpdateError, setEmailUpdateError] = useState('');
+  const [companies, setCompanies] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(true);
+  const [loadingDepartments, setLoadingDepartments] = useState(true);
+
+  // Fetch companies data
+  useEffect(() => {
+    setLoadingCompanies(true);
+    const companiesQuery = query(collection(db, 'companies'));
+    
+    const unsubscribe = onSnapshot(companiesQuery, (snapshot) => {
+      const companiesData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCompanies(companiesData);
+      setLoadingCompanies(false);
+    }, (error) => {
+      console.error("Error fetching companies:", error); 
+      setLoadingCompanies(false);
+    });
+    
+    return () => unsubscribe();
+  }, []);
   
-  // Initialize edit data when opening modals
+  // Fetch departments data
+  useEffect(() => {
+    setLoadingDepartments(true);
+    const departmentsQuery = query(collection(db, 'departments'));
+    
+    const unsubscribe = onSnapshot(departmentsQuery, (snapshot) => {
+      const departmentsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setDepartments(departmentsData);
+      setLoadingDepartments(false);
+    }, (error) => {
+      console.error("Error fetching departments:", error);
+      setLoadingDepartments(false);
+    });
+    
+    return () => unsubscribe();
+  }, []);
+
+  // Initialize edit data when opening contact modal (now includes emergency contact and preferred name)
   const handleOpenContactModal = () => {
     setEditData(prev => ({
       ...prev,
       address: userData?.address || '',
-      phoneNumber: userData?.phoneNumber || userData?.contactNumber || ''
-    }));
-    setShowContactModal(true);
-  };
-  
-  const handleOpenEmergencyContactModal = () => {
-    setEditData(prev => ({
-      ...prev,
+      phoneNumber: userData?.phoneNumber || userData?.contactNumber || '',
+      preferredName: userData?.preferredName || '',
+      // Also load emergency contact information
       emergencyContactName: userData?.emergencyContactName || '',
       emergencyContactPhone: userData?.emergencyContactPhone || '',
       emergencyContactRelationship: userData?.emergencyContactRelationship || ''
     }));
-    setShowEmergencyContactModal(true);
+    setShowContactModal(true);
   };
   
   const handleOpenEmailModal = () => {
@@ -284,9 +323,7 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     setShowContactModal(false);
   };
   
-  const handleCloseEmergencyContactModal = () => {
-    setShowEmergencyContactModal(false);
-  };
+  // Emergency contact modal has been merged with contact modal, so this handler is no longer needed
   
   const handleCloseEmailModal = () => {
     setShowEmailModal(false);
@@ -314,11 +351,17 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
         return;
       }
       
-      // Update the user document in Firestore
+      // Update the user document in Firestore with contact, preferred name, and emergency contact info
       const userRef = doc(db, 'users', userId);
       await updateDoc(userRef, {
+        // Regular contact information
         address: editData.address.trim(),
-        phoneNumber: editData.phoneNumber.trim()
+        phoneNumber: editData.phoneNumber.trim(),
+        preferredName: editData.preferredName.trim(),
+        // Emergency contact information
+        emergencyContactName: editData.emergencyContactName.trim(),
+        emergencyContactPhone: editData.emergencyContactPhone.trim(),
+        emergencyContactRelationship: editData.emergencyContactRelationship.trim()
       });
       
       toast.success('Contact information updated successfully');
@@ -331,36 +374,7 @@ const ProfileView = ({ user, userData, loadingUserData }) => {
     }
   };
   
-  const handleUpdateEmergencyContact = async (e) => {
-    e.preventDefault();
-    
-    try {
-      setProcessing(true);
-      
-      // Get the user document ID
-      const userId = userData?.userId || user?.uid;
-      if (!userId) {
-        toast.error('User ID not found');
-        return;
-      }
-      
-      // Update the user document in Firestore
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, {
-        emergencyContactName: editData.emergencyContactName.trim(),
-        emergencyContactPhone: editData.emergencyContactPhone.trim(),
-        emergencyContactRelationship: editData.emergencyContactRelationship.trim()
-      });
-      
-      toast.success('Emergency contact information updated successfully');
-      handleCloseEmergencyContactModal();
-    } catch (error) {
-      console.error('Error updating emergency contact information:', error);
-      toast.error(`Failed to update emergency contact information: ${error.message}`);
-    } finally {
-      setProcessing(false);
-    }
-  };
+  // Emergency contact updates are now handled by handleUpdateContactInfo
   
   const handleUpdateEmail = async (e) => {
     e.preventDefault();
@@ -584,6 +598,18 @@ const ProfileRole = styled.div`
                 </ProfileAvatar>
                 <ProfileInfo>
                   <ProfileName>{userData?.name || user?.displayName || 'User'}</ProfileName>
+                  {userData?.preferredName && (
+                    <div style={{
+                      fontSize: '0.9rem',
+                      color: '#666',
+                      marginBottom: '6px',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <User size={14} style={{ marginRight: '6px' }} />
+                      I prefer to be called as {userData.preferredName}
+                    </div>
+                  )}
                   <div>
                     <ProfileRole>{userData?.role || 'member'}</ProfileRole>
                     <span style={{
@@ -677,6 +703,113 @@ const ProfileRole = styled.div`
                   </FieldLabel>
                   <FieldValue>{userData?.position || 'Not specified'}</FieldValue>
                 </ProfileField>
+                
+                
+                
+                <ProfileField>
+                  <FieldLabel>
+                    <Buildings size={18} />
+                    Companies:
+                  </FieldLabel>
+                  <FieldValue>
+                    {loadingCompanies ? (
+                      'Loading company information...'
+                    ) : companies && companies.length > 0 ? (
+                      userData?.companies && userData.companies.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {userData.companies.map(companyId => {
+                            const company = companies.find(c => c.id === companyId);
+                            return company ? (
+                              <span 
+                                key={companyId}
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.85rem',
+                                  fontWeight: '500',
+                                  backgroundColor: '#fff8e1',
+                                  color: '#ff8f00',
+                                  marginRight: '5px',
+                                  marginBottom: '5px'
+                                }}
+                              >
+                                {company.name}
+                              </span>
+                            ) : (
+                              <span key={companyId}>{companyId}</span>
+                            );
+                          })}
+                        </div>
+                      ) : userData?.company ? (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '0.85rem',
+                            fontWeight: '500',
+                            backgroundColor: '#fff8e1',
+                            color: '#ff8f00'
+                          }}
+                        >
+                          {(() => {
+                            const company = companies.find(c => c.id === userData.company);
+                            return company ? company.name : userData.company;
+                          })()}
+                        </span>
+                      ) : (
+                        'Not affiliated with any company'
+                      )
+                    ) : (
+                      'No companies data available'
+                    )}
+                  </FieldValue>
+                </ProfileField>
+                <ProfileField>
+                  <FieldLabel>
+                    <Buildings size={18} />
+                    Departments:
+                  </FieldLabel>
+                  <FieldValue>
+                    {loadingDepartments ? (
+                      'Loading department information...'
+                    ) : departments && departments.length > 0 ? (
+                      userData?.departments && userData.departments.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                          {userData.departments.map(deptId => {
+                            const dept = departments.find(d => d.id === deptId);
+                            return dept ? (
+                              <span 
+                                key={deptId}
+                                style={{
+                                  display: 'inline-block',
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.85rem',
+                                  fontWeight: '500',
+                                  backgroundColor: '#f3e5f5',
+                                  color: '#7b1fa2',
+                                  marginRight: '5px',
+                                  marginBottom: '5px'
+                                }}
+                              >
+                                {dept.name} {dept.code ? `(${dept.code})` : ''}
+                              </span>
+                            ) : (
+                              <span key={deptId}>{deptId}</span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        'Not assigned to any department'
+                      )
+                    ) : (
+                      'No departments data available'
+                    )}
+                  </FieldValue>
+                </ProfileField>
+                
                 <ProfileField>
                   <FieldLabel>
                     <Calendar size={18} />
@@ -727,54 +860,70 @@ const ProfileRole = styled.div`
                   </FieldLabel>
                   <FieldValue>{userData?.phoneNumber || userData?.contactNumber || 'Not specified'}</FieldValue>
                 </ProfileField>
-              </ProfileSection>
 
-              <ProfileSection>
-                <SectionTitle>
-                  <Heart size={20} weight="bold" />
-                  Emergency Contact
-                  <EditButton onClick={handleOpenEmergencyContactModal} title="Edit Emergency Contact">
-                    <PencilSimple size={16} weight="bold" />
-                    <span style={{ marginLeft: '4px' }}>Edit</span>
-                  </EditButton>
-                </SectionTitle>
-                <ProfileField>
-                  <FieldLabel>
-                    <User size={18} />
-                    Name:
-                  </FieldLabel>
-                  <FieldValue>{userData?.emergencyContactName || 'Not specified'}</FieldValue>
-                </ProfileField>
-                <ProfileField>
-                  <FieldLabel>
-                    <Phone size={18} />
-                    Phone:
-                  </FieldLabel>
-                  <FieldValue>{userData?.emergencyContactPhone || 'Not specified'}</FieldValue>
-                </ProfileField>
-                <ProfileField>
-                  <FieldLabel>
-                    <Heart size={18} />
-                    Relationship:
-                  </FieldLabel>
-                  <FieldValue>{userData?.emergencyContactRelationship || 'Not specified'}</FieldValue>
-                </ProfileField>
+                {/* Emergency Contact Fields */}
+                <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed #eee' }}>
+                  <h4 style={{ fontSize: '1rem', marginBottom: '1rem', color: '#555', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Heart size={18} weight="bold" />
+                    Emergency Contact
+                  </h4>
+
+                  <ProfileField>
+                    <FieldLabel>
+                      <User size={18} />
+                      Name:
+                    </FieldLabel>
+                    <FieldValue>{userData?.emergencyContactName || 'Not specified'}</FieldValue>
+                  </ProfileField>
+                  <ProfileField>
+                    <FieldLabel>
+                      <Phone size={18} />
+                      Phone:
+                    </FieldLabel>
+                    <FieldValue>{userData?.emergencyContactPhone || 'Not specified'}</FieldValue>
+                  </ProfileField>
+                  <ProfileField>
+                    <FieldLabel>
+                      <Heart size={18} />
+                      Relationship:
+                    </FieldLabel>
+                    <FieldValue>{userData?.emergencyContactRelationship || 'Not specified'}</FieldValue>
+                  </ProfileField>
+                </div>
               </ProfileSection>
             </ProfileContainer>
           </>
         )}
       </CardContent>
       
-      {/* Contact Information Edit Modal */}
+      {/* Contact Information Edit Modal with Emergency Contact */}
       {showContactModal && (
         <Modal>
           <ModalContent>
             <ModalHeader>
-              <ModalTitle>Edit Contact Information</ModalTitle>
+              <ModalTitle>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MapPin size={18} weight="bold" />
+                  Edit Contact Information
+                </div>
+              </ModalTitle>
               <ModalCloseButton onClick={handleCloseContactModal}>&times;</ModalCloseButton>
             </ModalHeader>
             
             <ModalForm onSubmit={handleUpdateContactInfo}>
+              {/* Contact Information Fields */}
+              <h4 style={{ fontSize: '0.95rem', marginTop: '0', marginBottom: '1rem', color: '#555' }}>Contact Details</h4>
+              <FormGroup>
+                <FormLabel>I prefer to be called as</FormLabel>
+                <FormInput
+                  type="text"
+                  name="preferredName"
+                  value={editData.preferredName}
+                  onChange={handleInputChange}
+                  placeholder="Enter your preferred name"
+                />
+              </FormGroup>
+
               <FormGroup>
                 <FormLabel>Address</FormLabel>
                 <FormInput
@@ -797,73 +946,51 @@ const ProfileRole = styled.div`
                 />
               </FormGroup>
               
+              {/* Emergency Contact Fields */}
+              <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px dashed #ddd' }}>
+                <h4 style={{ fontSize: '0.95rem', marginTop: '0', marginBottom: '1rem', color: '#555', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Heart size={16} weight="bold" />
+                  Emergency Contact
+                </h4>
+                
+                <FormGroup>
+                  <FormLabel>Contact Name</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="emergencyContactName"
+                    value={editData.emergencyContactName}
+                    onChange={handleInputChange}
+                    placeholder="Enter emergency contact name"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <FormLabel>Contact Phone</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="emergencyContactPhone"
+                    value={editData.emergencyContactPhone}
+                    onChange={handleInputChange}
+                    placeholder="Enter emergency contact phone"
+                  />
+                </FormGroup>
+                
+                <FormGroup>
+                  <FormLabel>Relationship</FormLabel>
+                  <FormInput
+                    type="text"
+                    name="emergencyContactRelationship"
+                    value={editData.emergencyContactRelationship}
+                    onChange={handleInputChange}
+                    placeholder="Enter relationship (e.g., Parent, Spouse)"
+                  />
+                </FormGroup>
+              </div>
+              
               <FormActions>
                 <CancelButton 
                   type="button" 
                   onClick={handleCloseContactModal}
-                  disabled={processing}
-                >
-                  Cancel
-                </CancelButton>
-                <SubmitButton 
-                  type="submit" 
-                  disabled={processing}
-                >
-                  {processing ? 'Saving...' : 'Save Changes'}
-                </SubmitButton>
-              </FormActions>
-            </ModalForm>
-          </ModalContent>
-        </Modal>
-      )}
-      
-      {/* Emergency Contact Edit Modal */}
-      {showEmergencyContactModal && (
-        <Modal>
-          <ModalContent>
-            <ModalHeader>
-              <ModalTitle>Edit Emergency Contact</ModalTitle>
-              <ModalCloseButton onClick={handleCloseEmergencyContactModal}>&times;</ModalCloseButton>
-            </ModalHeader>
-            
-            <ModalForm onSubmit={handleUpdateEmergencyContact}>
-              <FormGroup>
-                <FormLabel>Contact Name</FormLabel>
-                <FormInput
-                  type="text"
-                  name="emergencyContactName"
-                  value={editData.emergencyContactName}
-                  onChange={handleInputChange}
-                  placeholder="Enter emergency contact name"
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <FormLabel>Contact Phone</FormLabel>
-                <FormInput
-                  type="text"
-                  name="emergencyContactPhone"
-                  value={editData.emergencyContactPhone}
-                  onChange={handleInputChange}
-                  placeholder="Enter emergency contact phone"
-                />
-              </FormGroup>
-              
-              <FormGroup>
-                <FormLabel>Relationship</FormLabel>
-                <FormInput
-                  type="text"
-                  name="emergencyContactRelationship"
-                  value={editData.emergencyContactRelationship}
-                  onChange={handleInputChange}
-                  placeholder="Enter relationship (e.g., Parent, Spouse)"
-                />
-              </FormGroup>
-              
-              <FormActions>
-                <CancelButton 
-                  type="button" 
-                  onClick={handleCloseEmergencyContactModal}
                   disabled={processing}
                 >
                   Cancel

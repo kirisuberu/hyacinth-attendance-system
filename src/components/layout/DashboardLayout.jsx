@@ -19,7 +19,7 @@ import {
   ListChecks,
   CaretDown,
   CaretRight,
-  Bell
+  Bell 
 } from 'phosphor-react';
 import UserPlus from '../icons/UserPlus';
 import { auth, db } from '../../firebase';
@@ -117,7 +117,7 @@ const Content = styled.div`
 
 const Header = styled.header`
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   padding: 1rem 2rem;
   height: 5rem;
@@ -435,7 +435,7 @@ function DashboardLayout() {
     <DashboardContainer>
       <Sidebar>
       <Logo>
-          <img src="logo.png" alt="Hyacinth Logo" style={{ height: '48px', marginBottom: '10px' }} />
+          <img src="/logo.png" alt="Hyacinth Logo" style={{ height: '48px', marginBottom: '10px' }} />
           <span>Hyacinth Hub</span>
         </Logo>
         
@@ -508,17 +508,6 @@ function DashboardLayout() {
                     >
                       <Icon><Users size={16} /></Icon>
                       User Management
-                    </NavItem>
-                  )}
-                  
-                  {/* Department Management - Available to all super admins and admins */}
-                  {(isSuperAdmin || isAdmin) && (
-                    <NavItem 
-                      to="/dashboard/departments"
-                      className={isActive('/dashboard/departments') ? 'active' : ''}
-                    >
-                      <Icon><Buildings size={16} /></Icon>
-                      Department Management
                     </NavItem>
                   )}
                   
@@ -625,25 +614,6 @@ function DashboardLayout() {
       
       <Content>
         <Header>
-          <TimeControls>
-            <TimeButton 
-              variant="in" 
-              onClick={() => handleTimeInOutClick('In')}
-              disabled={loading || processingTimeIn || attendanceStatus === 'Checked In'}
-            >
-              <SignIn size={16} />
-              Time In
-            </TimeButton>
-            <TimeButton 
-              variant="out" 
-              onClick={() => handleTimeInOutClick('Out')}
-              disabled={loading || processingTimeOut || attendanceStatus !== 'Checked In'}
-            >
-              <SignOut size={16} />
-              Time Out
-            </TimeButton>
-          </TimeControls>
-          
           <UserInfo>
             <AppUpdatesButton to="/changelog">
               <Bell size={16} />
@@ -659,7 +629,7 @@ function DashboardLayout() {
         
         <MainContentArea>
           {/* This is where the child routes will be rendered */}
-          <Outlet context={{ user, userData, setUserData, attendanceStatus, lastRecord }} />
+          <Outlet context={{ user, userData, setUserData, attendanceStatus, setAttendanceStatus, lastRecord, setLastRecord }} />
         </MainContentArea>
       </Content>
     </DashboardContainer>

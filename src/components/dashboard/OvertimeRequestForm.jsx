@@ -182,7 +182,7 @@ const OvertimeRequestForm = ({ user }) => {
               id="remarks"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Please provide details about why you need overtime hours"
+              placeholder="Please provide details about the reason for overtime, and who requested it."
               required
             />
           </FormGroup>
