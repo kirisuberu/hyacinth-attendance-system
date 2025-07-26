@@ -8146,7 +8146,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
   font-weight: 500;
   font-size: 1.3rem;
 `,SUe=O.button`
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.5rem;
   width: auto;

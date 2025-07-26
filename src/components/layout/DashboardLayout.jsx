@@ -177,7 +177,7 @@ const UserName = styled.span`
 `;
 
 const LogoutButton = styled.button`
-  display: flex;
+  display: none;
   align-items: center;
   gap: 0.5rem;
   width: auto;
