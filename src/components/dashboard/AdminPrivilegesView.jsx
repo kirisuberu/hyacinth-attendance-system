@@ -5,109 +5,6 @@ import { db } from '../../firebase';
 import { toast } from 'react-toastify';
 import { Shield, Check, X, Users, UserPlus, ChartBar, ClockClockwise } from 'phosphor-react';
 
-const Container = styled.div`
-  padding: 2rem;
-`;
-
-const Title = styled.h2`
-  color: #333;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const AdminTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-`;
-
-const TableHead = styled.thead`
-  background-color: #f5f5f5;
-`;
-
-const TableRow = styled.tr`
-  &:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-  
-  &:hover {
-    background-color: #f0f0f0;
-  }
-`;
-
-const TableHeader = styled.th`
-  padding: 1rem;
-  text-align: left;
-  font-weight: 600;
-  color: #333;
-  border-bottom: 1px solid #ddd;
-`;
-
-const TableCell = styled.td`
-  padding: 1rem;
-  border-bottom: 1px solid #ddd;
-`;
-
-const PrivilegeToggle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const ToggleButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 24px;
-  border-radius: 12px;
-  background-color: ${props => props.enabled ? '#4caf50' : '#f44336'};
-  border: none;
-  cursor: pointer;
-  position: relative;
-  transition: background-color 0.3s ease;
-  
-  &:hover {
-    opacity: 0.9;
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
-
-const ToggleIcon = styled.div`
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const Icon = styled.span`
-  display: inline-flex;
-  align-items: center;
-  margin-right: 0.5rem;
-`;
-
-const PrivilegeLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const NoAdminsMessage = styled.div`
-  text-align: center;
-  padding: 2rem;
-  color: #666;
-  font-style: italic;
-`;
 
 function AdminPrivilegesView() {
   const [admins, setAdmins] = useState([]);
@@ -316,3 +213,107 @@ function AdminPrivilegesView() {
 }
 
 export default AdminPrivilegesView;
+
+const Container = styled.div`
+  padding: 2rem;
+`;
+
+const Title = styled.h2`
+  color: #333;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const AdminTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+`;
+
+const TableHead = styled.thead`
+  background-color: #f5f5f5;
+`;
+
+const TableRow = styled.tr`
+  &:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+`;
+
+const TableHeader = styled.th`
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+`;
+
+const TableCell = styled.td`
+  padding: 1rem;
+  border-bottom: 1px solid #ddd;
+`;
+
+const PrivilegeToggle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const ToggleButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: ${props => props.enabled ? '#4caf50' : '#f44336'};
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.3s ease;
+  
+  &:hover {
+    opacity: 0.9;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const ToggleIcon = styled.div`
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+`;
+
+const PrivilegeLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const NoAdminsMessage = styled.div`
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  font-style: italic;
+`;

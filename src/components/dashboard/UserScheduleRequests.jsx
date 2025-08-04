@@ -5,6 +5,143 @@ import { db } from '../../firebase';
 import { format } from 'date-fns';
 import { CalendarCheck, Clock, ArrowRight, CalendarX, ClockClockwise } from 'phosphor-react';
 
+
+
+const UserScheduleRequests = ({ user }) => {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    setLoading(true);
+    
+    // Create a query for this user's schedule change requests
+    const requestsQuery = query(
+      collection(db, 'schedule_change_requests'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+    
+    // Set up real-time listener
+    const unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+      const requestsList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setRequests(requestsList);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error fetching schedule change requests:', error);
+      setLoading(false);
+    });
+    
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, [user]);
+  
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    
+    try {
+      const date = timestamp.toDate();
+      return format(date, 'MMM d, yyyy h:mm a');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Invalid date';
+    }
+  };
+  
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'pending':
+        return <ClockClockwise size={16} weight="fill" />;
+      case 'approved':
+        return <CalendarCheck size={16} weight="fill" />;
+      case 'rejected':
+        return <CalendarX size={16} weight="fill" />;
+      default:
+        return null;
+    }
+  };
+  
+  return (
+    <Container>
+      <Title>
+        <ClockClockwise size={20} weight="fill" />
+        My Schedule Change Requests
+      </Title>
+      
+      {loading ? (
+        <p>Loading your requests...</p>
+      ) : requests.length > 0 ? (
+        requests.map(request => (
+          <RequestCard key={request.id} status={request.status}>
+            <RequestHeader>
+              <RequestDate>Submitted on {formatDate(request.createdAt)}</RequestDate>
+              <StatusBadge status={request.status}>
+                {getStatusIcon(request.status)}
+                {request.status === 'pending' ? 'Pending Review' : 
+                 request.status === 'approved' ? 'Approved' : 'Rejected'}
+              </StatusBadge>
+            </RequestHeader>
+            
+            <RequestDetails>
+              <DetailItem>
+                <DetailLabel>Day Requested</DetailLabel>
+                <DetailValue>
+                  {request.dayOfWeek}
+                </DetailValue>
+              </DetailItem>
+              
+              <DetailItem>
+                <DetailLabel>Schedule</DetailLabel>
+                <DetailValue>
+                  <TimeDisplay>
+                    <div>
+                      <Clock size={16} weight="fill" style={{ color: '#4CAF50', marginRight: '4px' }} />
+                      {request.timeIn}
+                    </div>
+                    <ArrowRight size={14} style={{ color: '#999' }} />
+                    <div>{request.shiftDuration} hours</div>
+                  </TimeDisplay>
+                </DetailValue>
+              </DetailItem>
+              
+              {request.updatedAt && request.updatedAt !== request.createdAt && (
+                <DetailItem>
+                  <DetailLabel>Last Updated</DetailLabel>
+                  <DetailValue>{formatDate(request.updatedAt)}</DetailValue>
+                </DetailItem>
+              )}
+            </RequestDetails>
+            
+            <div>
+              <DetailLabel>Reason for Change</DetailLabel>
+              <ReasonText>{request.reason}</ReasonText>
+            </div>
+            
+            {request.adminNotes && (
+              <AdminNotes>
+                <strong>Admin Notes:</strong> {request.adminNotes}
+              </AdminNotes>
+            )}
+          </RequestCard>
+        ))
+      ) : (
+        <EmptyState>
+          <ClockClockwise size={32} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
+          <h4>No Requests Found</h4>
+          <p>You haven't submitted any schedule change requests yet.</p>
+        </EmptyState>
+      )}
+    </Container>
+  );
+};
+
+export default UserScheduleRequests;
+
 const Container = styled.div`
   margin-top: 2rem;
 `;
@@ -144,138 +281,3 @@ const EmptyState = styled.div`
   color: #666;
   margin-top: 1rem;
 `;
-
-const UserScheduleRequests = ({ user }) => {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  
-  useEffect(() => {
-    if (!user?.uid) return;
-    
-    setLoading(true);
-    
-    // Create a query for this user's schedule change requests
-    const requestsQuery = query(
-      collection(db, 'schedule_change_requests'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
-    );
-    
-    // Set up real-time listener
-    const unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
-      const requestsList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setRequests(requestsList);
-      setLoading(false);
-    }, (error) => {
-      console.error('Error fetching schedule change requests:', error);
-      setLoading(false);
-    });
-    
-    // Cleanup listener on unmount
-    return () => unsubscribe();
-  }, [user]);
-  
-  const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    
-    try {
-      const date = timestamp.toDate();
-      return format(date, 'MMM d, yyyy h:mm a');
-    } catch (error) {
-      console.error('Error formatting date:', error);
-      return 'Invalid date';
-    }
-  };
-  
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending':
-        return <ClockClockwise size={16} weight="fill" />;
-      case 'approved':
-        return <CalendarCheck size={16} weight="fill" />;
-      case 'rejected':
-        return <CalendarX size={16} weight="fill" />;
-      default:
-        return null;
-    }
-  };
-  
-  return (
-    <Container>
-      <Title>
-        <ClockClockwise size={20} weight="fill" />
-        My Schedule Change Requests
-      </Title>
-      
-      {loading ? (
-        <p>Loading your requests...</p>
-      ) : requests.length > 0 ? (
-        requests.map(request => (
-          <RequestCard key={request.id} status={request.status}>
-            <RequestHeader>
-              <RequestDate>Submitted on {formatDate(request.createdAt)}</RequestDate>
-              <StatusBadge status={request.status}>
-                {getStatusIcon(request.status)}
-                {request.status === 'pending' ? 'Pending Review' : 
-                 request.status === 'approved' ? 'Approved' : 'Rejected'}
-              </StatusBadge>
-            </RequestHeader>
-            
-            <RequestDetails>
-              <DetailItem>
-                <DetailLabel>Day Requested</DetailLabel>
-                <DetailValue>
-                  {request.dayOfWeek}
-                </DetailValue>
-              </DetailItem>
-              
-              <DetailItem>
-                <DetailLabel>Schedule</DetailLabel>
-                <DetailValue>
-                  <TimeDisplay>
-                    <div>
-                      <Clock size={16} weight="fill" style={{ color: '#4CAF50', marginRight: '4px' }} />
-                      {request.timeIn}
-                    </div>
-                    <ArrowRight size={14} style={{ color: '#999' }} />
-                    <div>{request.shiftDuration} hours</div>
-                  </TimeDisplay>
-                </DetailValue>
-              </DetailItem>
-              
-              {request.updatedAt && request.updatedAt !== request.createdAt && (
-                <DetailItem>
-                  <DetailLabel>Last Updated</DetailLabel>
-                  <DetailValue>{formatDate(request.updatedAt)}</DetailValue>
-                </DetailItem>
-              )}
-            </RequestDetails>
-            
-            <div>
-              <DetailLabel>Reason for Change</DetailLabel>
-              <ReasonText>{request.reason}</ReasonText>
-            </div>
-            
-            {request.adminNotes && (
-              <AdminNotes>
-                <strong>Admin Notes:</strong> {request.adminNotes}
-              </AdminNotes>
-            )}
-          </RequestCard>
-        ))
-      ) : (
-        <EmptyState>
-          <ClockClockwise size={32} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
-          <h4>No Requests Found</h4>
-          <p>You haven't submitted any schedule change requests yet.</p>
-        </EmptyState>
-      )}
-    </Container>
-  );
-};
-
-export default UserScheduleRequests;

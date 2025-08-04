@@ -6,141 +6,6 @@ import { toast } from 'react-toastify';
 import { Calendar, Clock, ArrowRight, CalendarPlus, NotePencil, Globe } from 'phosphor-react';
 import { timeZones } from '../../utils/timeZones';
 
-const FormContainer = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: ${props => props.isPopup ? '0' : '1.5rem'};
-  box-shadow: ${props => props.isPopup ? 'none' : '0 2px 8px rgba(0, 0, 0, 0.1)'};
-  margin-bottom: ${props => props.isPopup ? '0' : '2rem'};
-`;
-
-const FormTitle = styled.h3`
-  font-size: 1.1rem;
-  color: #333;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #800000;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
-`;
-
-const FormGroup = styled.div`
-  margin-bottom: 1.25rem;
-`;
-
-const Label = styled.label`
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #444;
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: #333;
-  background-color: #f9f9f9;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: #333;
-  background-color: #f9f9f9;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const TextArea = styled.textarea`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: #333;
-  background-color: #f9f9f9;
-  min-height: 100px;
-  resize: vertical;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const SubmitButton = styled.button`
-  background-color: #800000;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.75rem 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: #600000;
-  }
-  
-  &:disabled {
-    background-color: #cccccc;
-    cursor: not-allowed;
-  }
-`;
-
-const TimeInputContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1rem;
-`;
-
-const TimeInputGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`;
-
-const TimeLabel = styled.span`
-  font-size: 0.85rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const InfoText = styled.p`
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 1.5rem;
-  padding: 0.75rem;
-  background-color: #f5f5f5;
-  border-left: 3px solid #800000;
-  border-radius: 0 4px 4px 0;
-`;
 
 const ScheduleChangeRequestForm = ({ user, userData, currentSchedule, isPopup = false, onClose }) => {
   const [dayOfWeek, setDayOfWeek] = useState('');
@@ -310,3 +175,139 @@ const ScheduleChangeRequestForm = ({ user, userData, currentSchedule, isPopup = 
 };
 
 export default ScheduleChangeRequestForm;
+
+const FormContainer = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: ${props => props.isPopup ? '0' : '1.5rem'};
+  box-shadow: ${props => props.isPopup ? 'none' : '0 2px 8px rgba(0, 0, 0, 0.1)'};
+  margin-bottom: ${props => props.isPopup ? '0' : '2rem'};
+`;
+
+const FormTitle = styled.h3`
+  font-size: 1.1rem;
+  color: #333;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #800000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 1.25rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #444;
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
+  background-color: #f9f9f9;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
+  background-color: #f9f9f9;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
+  background-color: #f9f9f9;
+  min-height: 100px;
+  resize: vertical;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const SubmitButton = styled.button`
+  background-color: #800000;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #600000;
+  }
+  
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+`;
+
+const TimeInputContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+`;
+
+const TimeInputGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+`;
+
+const TimeLabel = styled.span`
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const InfoText = styled.p`
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  background-color: #f5f5f5;
+  border-left: 3px solid #800000;
+  border-radius: 0 4px 4px 0;
+`;

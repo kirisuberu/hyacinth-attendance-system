@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext, Link, useLocation, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
+import { isMobile } from 'react-device-detect';
 import { recordAttendance, getAttendanceStatus } from '../../services/attendanceService';
 import styled from 'styled-components';
 import { 
   House, 
   SignOut, 
-  SignIn,
   Calendar, 
   Clock, 
   User, 
@@ -15,7 +15,6 @@ import {
   Shield,
   Ruler,
   CalendarX,
-  Buildings,
   ListChecks,
   CaretDown,
   CaretRight,
@@ -27,204 +26,14 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { getAttendanceRules } from '../../services/systemSettingsService';
-import { preventMultiSubmit } from '../../utils/debounce';
 import { checkAndHandleFailedTimeOut } from '../../services/attendanceService';
 
-// Styled components for layout
-const DashboardContainer = styled.div`
-  display: flex;
-  height: 100vh; /* Lock to viewport height */
-  overflow: hidden; /* Prevent overall page scrolling */
-`;
-
-const Sidebar = styled.div`
-  width: 250px;
-  background: linear-gradient(180deg, #000000 0%, #800000 100%);
-  color: white;
-  padding: 2rem 1rem;
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Full height */
-  overflow-y: auto; /* Allow sidebar to scroll if needed */
-`;
-
-const Logo = styled.div`
-  font-size: 1.5rem;
-  font-weight: bold;
-  margin-bottom: 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  width: 100%;
-`;
-
-const NavItem = styled(Link)`
-  display: flex;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-decoration: none;
-  color: white;
-  
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-  
-  &.active {
-    background-color: rgba(255, 255, 255, 0.2);
-    font-weight: bold;
-  }
-`;
-
-const TimeFormatToggle = styled.button`
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: 1px solid #ddd;
-  background-color: ${props => props.active ? '#e6f0ff' : 'white'};
-  border-color: ${props => props.active ? '#bbd6fb' : '#ddd'};
-  color: ${props => props.active ? '#1a73e8' : '#666'};
-  font-weight: ${props => props.active ? 'bold' : 'normal'};
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: ${props => props.active ? '#e6f0ff' : '#f5f5f5'};
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-`;
-
-const Icon = styled.span`
-  margin-right: 0.75rem;
-  display: flex;
-  align-items: center;
-`;
-
-const Content = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-`;
-
-const Header = styled.header`
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  padding: 1rem 2rem;
-  height: 5rem;
-  background-color: white;
-  border-bottom: 1px solid #eee;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-`;
-
-const UserInfo = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const TimeControls = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  min-width: 300px;
-  height: 3.5rem;
-  justify-content: center;
-`;
-
-const TimeButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 110%;
-  height: 110%;
-  font-size: 1.2rem;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
- 
-  background-color: ${props => props.variant === 'in' ? '#4caf50' : '#f44336'};
-  color: white;
-  border: 1px solid ${props => props.variant === 'in' ? '#43a047' : '#e53935'};
-  
-  &:hover {
-    background-color: ${props => props.variant === 'in' ? '#43a047' : '#e53935'};
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    background-color: #f0f0f0;
-    border-color: #ccc;
-    color: #363636;
-  }
-`;
-
-const UserName = styled.span`
-  margin-right: 1rem;
-  font-weight: 500;
-  font-size: 1.3rem;
-`;
-
-const LogoutButton = styled.button`
-  display: none;
-  align-items: center;
-  gap: 0.5rem;
-  width: auto;
-  background: #ff4545;
-  border: 1px solid #e53935;
-  color: white;
-  cursor: pointer;
-  font-size: 1.1rem;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  margin-left: 2rem;
-  
-  &:hover {
-    background-color: #e53935;
-  }
-`;
-
-const MainContentArea = styled.div`
-  flex: 1;
-  padding: 1rem;
-  overflow-y: auto; /* Make content area scrollable */
-  height: calc(100vh - 73px); /* Subtract header height */
-`;
-
-const AppUpdatesButton = styled(Link)`
-  display: none; //make flex next time
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  background-color: #f5f5f5;
-  color: #333;
-  border: 1px solid #ddd;
-  text-decoration: none;
-  font-size: 0.9rem;
-  margin-right: 1rem;
-  
-  &:hover {
-    background-color: #e0e0e0;
-  }
-`;
 
 function DashboardLayout() {
-  const context = useOutletContext();
-  const user = context?.user || null;
-  const userData = context?.userData || null;
-  const setUserData = context?.setUserData || (() => {});
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, userData, setUserData } = useOutletContext();
+  const [isUsingMobileDevice, setIsUsingMobileDevice] = useState(false);
   const [attendanceStatus, setAttendanceStatus] = useState(null);
   const [lastRecord, setLastRecord] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -244,16 +53,14 @@ function DashboardLayout() {
   const [adminPanelExpanded, setAdminPanelExpanded] = useState(true);
   const [superAdminPanelExpanded, setSuperAdminPanelExpanded] = useState(true);
   const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
-  const navigate = useNavigate();
-  const location = useLocation();
-  
+
   // Determine if user is super admin or has specific privileges
   // Check for different possible variations of super_admin role
   const isSuperAdmin = userData?.role === 'super_admin' || 
                      userData?.role === 'superadmin' || 
                      userData?.role === 'super-admin';
   const isAdmin = userData?.role === 'admin';
-  
+
   // Debug log to check the actual role value
   console.log('User role:', userData?.role, 'isSuperAdmin:', isSuperAdmin, 'isAdmin:', isAdmin);
   const canManageRegistrations = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canManageRegistrations !== false);
@@ -282,8 +89,17 @@ function DashboardLayout() {
     };
     
     initializeAttendanceStatus();
-  }, [user?.uid]);
-  
+    // Check for failed time outs
+    if (user?.uid) {
+      checkAndHandleFailedTimeOut(user.uid).catch(error => console.error('Failed time out check error:', error));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    // Set mobile device detection
+    setIsUsingMobileDevice(isMobile);
+  }, []);
+
   // Detect user's device time zone and check time region lock setting
   useEffect(() => {
     try {
@@ -339,54 +155,6 @@ function DashboardLayout() {
     }
   }, [userData, detectedTimeZone]);
 
-  const handleTimeRegionChange = async () => {
-    if (!user?.uid || updatingTimeRegion) return;
-    
-    try {
-      setUpdatingTimeRegion(true);
-      
-      // Update the user document in Firestore
-      const userDocRef = doc(db, 'users', user.uid);
-      await updateDoc(userDocRef, {
-        timeRegion: selectedTimeRegion
-      });
-      
-      // Update local state
-      setUserData(prev => ({
-        ...prev,
-        timeRegion: selectedTimeRegion
-      }));
-      
-      toast.success('Time region updated successfully');
-      setShowTimeRegionModal(false);
-    } catch (error) {
-      console.error('Error updating time region:', error);
-      toast.error('Failed to update time region');
-    } finally {
-      setUpdatingTimeRegion(false);
-    }
-  };
-
-  const handleTimeFormatChange = async () => {
-    if (updatingTimeFormat) return;
-    
-    try {
-      setUpdatingTimeFormat(true);
-      const success = await toggleTimeFormat();
-      
-      if (success) {
-        toast.success(`Time format updated to ${!use24HourFormat ? '24-hour' : '12-hour'} format`);
-      } else {
-        toast.error('Failed to update time format');
-      }
-    } catch (error) {
-      console.error('Error updating time format:', error);
-      toast.error('Failed to update time format');
-    } finally {
-      setUpdatingTimeFormat(false);
-      setShowTimeFormatModal(false);
-    }
-  };
 
   const handleLogout = () => {
     auth.signOut().then(() => {
@@ -397,39 +165,6 @@ function DashboardLayout() {
     });
   };
 
-  const handleTimeInOutClick = async (type) => {
-    if (!user?.uid) {
-      toast.error('You must be logged in to record attendance');
-      return;
-    }
-    
-    try {
-      // Prevent multiple submissions
-      if (type === 'In' && processingTimeIn) return;
-      if (type === 'Out' && processingTimeOut) return;
-      
-      // Set processing state
-      if (type === 'In') setProcessingTimeIn(true);
-      if (type === 'Out') setProcessingTimeOut(true);
-      
-      // Record attendance
-      await recordAttendance(user.uid, type);
-      
-      // Update attendance status
-      const newStatus = await getAttendanceStatus(user.uid);
-      setAttendanceStatus(newStatus.status);
-      setLastRecord(newStatus.lastRecord);
-      
-      toast.success(`Time ${type} recorded successfully`);
-    } catch (error) {
-      console.error(`Error recording Time ${type}:`, error);
-      toast.error(`Failed to record Time ${type}`);
-    } finally {
-      // Reset processing state
-      if (type === 'In') setProcessingTimeIn(false);
-      if (type === 'Out') setProcessingTimeOut(false);
-    }
-  };
 
   return (
     <DashboardContainer>
@@ -639,3 +374,189 @@ function DashboardLayout() {
 
 
 export default DashboardLayout;
+
+// Styled components for layout
+const DashboardContainer = styled.div`
+  display: flex;
+  height: 100vh; /* Lock to viewport height */
+  overflow: hidden; /* Prevent overall page scrolling */
+`;
+
+const Sidebar = styled.div`
+  width: 250px;
+  background: linear-gradient(180deg, #000000 0%, #800000 100%);
+  color: white;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Full height */
+  overflow-y: auto; /* Allow sidebar to scroll if needed */
+`;
+
+const Logo = styled.div`
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+`;
+
+const NavItem = styled(Link)`
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  color: white;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  &.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    font-weight: bold;
+  }
+`;
+
+const TimeRegionModal = styled.div`
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+`;
+
+const TimeFormatModal = styled(TimeRegionModal)`
+  top: auto;
+  bottom: 0;
+`;
+
+const Icon = styled.span`
+  margin-right: 0.75rem;
+  display: flex;
+  align-items: center;
+`;
+
+const Content = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+`;
+
+const Header = styled.header`
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 1rem 2rem;
+  height: 5rem;
+  background-color: white;
+  border-bottom: 1px solid #eee;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+`;
+
+const UserInfo = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+const TimeControls = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 300px;
+  height: 3.5rem;
+  justify-content: center;
+`;
+
+const TimeButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 110%;
+  height: 110%;
+  font-size: 1.2rem;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+ 
+  background-color: ${props => props.variant === 'in' ? '#4caf50' : '#f44336'};
+  color: white;
+  border: 1px solid ${props => props.variant === 'in' ? '#43a047' : '#e53935'};
+  
+  &:hover {
+    background-color: ${props => props.variant === 'in' ? '#43a047' : '#e53935'};
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background-color: #f0f0f0;
+    border-color: #ccc;
+    color: #363636;
+  }
+`;
+
+const UserName = styled.span`
+  margin-right: 1rem;
+  font-weight: 500;
+  font-size: 1.3rem;
+`;
+
+const LogoutButton = styled.button`
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  width: auto;
+  background: #ff4545;
+  border: 1px solid #e53935;
+  color: white;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  margin-left: 2rem;
+  
+  &:hover {
+    background-color: #e53935;
+  }
+`;
+
+const MainContentArea = styled.div`
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto; /* Make content area scrollable */
+  height: calc(100vh - 73px); /* Subtract header height */
+`;
+
+const AppUpdatesButton = styled(Link)`
+  display: none; //make flex next time
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-right: 1rem;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+`;

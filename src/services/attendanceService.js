@@ -1,6 +1,7 @@
 import { collection, query, where, getDocs, addDoc, Timestamp, doc, getDoc, updateDoc, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getAttendanceRules } from './systemSettingsService';
+import { getCurrentTimestamp, getCurrentTimeInZone, timestampToZonedDate, calculateTimeDifferenceInMinutes } from '../utils/timeZoneUtils';
 
 /**
  * Records an attendance entry (time in/out) for a user
@@ -18,7 +19,7 @@ export const recordAttendance = async (userId, type, notes = '') => {
     }
     
     const userData = userDoc.data();
-    const timestamp = Timestamp.now();
+    const timestamp = getCurrentTimestamp();
     
     // For time in/out, determine status based on schedule
     let status = 'N/A';
@@ -73,8 +74,9 @@ export const determineTimeInStatus = async (userId) => {
     const userSchedule = userData.schedule || [];
     const userTimeRegion = userData.timeRegion || 'Asia/Manila'; // Get user's time region
     
-    const now = new Date();
-    const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+    // Get current time in user's time zone
+    const zoneTime = getCurrentTimeInZone(userTimeRegion);
+    const currentDay = zoneTime.dayOfWeek;
     
     // Find today's schedule if it exists
     const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
@@ -87,31 +89,18 @@ export const determineTimeInStatus = async (userId) => {
     // Parse schedule time
     const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
     
-    // Create Date objects for comparison, using the user's time region
-    const scheduleDate = new Date();
-    scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+    // Create schedule time object to compare with current time (both in user's timezone)
+    const scheduleTime = {
+      hour: scheduledHour,
+      minute: scheduledMinute
+    };
     
-    // Calculate time difference in minutes
-    let diffMinutes = Math.round((now - scheduleDate) / (1000 * 60));
+    // Calculate time difference in minutes between schedule and current time (both in user's timezone)
+    let diffMinutes = calculateTimeDifferenceInMinutes(scheduleTime, zoneTime);
     
-    // Check for unusually large time differences (more than 10 hours)
-    // This could indicate a timezone mismatch between the user's local time and their schedule
-    if (Math.abs(diffMinutes) > 600) { // 10 hours in minutes
-      console.log(`Detected unusually large time difference (${diffMinutes} minutes) for user ${userId}`);
-      console.log(`User time region: ${userTimeRegion}, Schedule time: ${scheduledHour}:${scheduledMinute}`);
-      
-      // Recalculate using local time comparison
-      // This approach ignores timezone differences and just compares the local time components
-      const userLocalHour = now.getHours();
-      const userLocalMinute = now.getMinutes();
-      
-      // Calculate difference in minutes between local time and scheduled time
-      const localHourDiff = userLocalHour - scheduledHour;
-      const localMinuteDiff = userLocalMinute - scheduledMinute;
-      diffMinutes = (localHourDiff * 60) + localMinuteDiff;
-      
-      console.log(`Recalculated time difference using local time comparison: ${diffMinutes} minutes`);
-    }
+    console.log(`Time difference for user ${userId}: ${diffMinutes} minutes`);
+    console.log(`User time region: ${userTimeRegion}, Schedule time: ${scheduledHour}:${scheduledMinute}, Current time in zone: ${zoneTime.hour}:${zoneTime.minute}`);
+
     
     // Get attendance rules from system settings
     const rules = await getAttendanceRules();
@@ -216,22 +205,28 @@ export const determineTimeOutStatus = async (userId) => {
       return { status, timeDiff };
     }
     
-    const lastTimeInDate = latestTimeIn.timestamp.toDate();
+    // Get the user's time zone setting
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    const userData = userDoc.exists() ? userDoc.data() : {};
+    const userTimeRegion = userData.timeRegion || 'Asia/Manila';
+    
+    // Convert timestamps to the user's time zone
+    const lastTimeInZoned = timestampToZonedDate(latestTimeIn.timestamp, userTimeRegion);
+    
+    // Get current time in user's time zone
     const now = new Date();
     
     // Calculate time difference in minutes
-    timeDiff = Math.round((now - lastTimeInDate) / (1000 * 60));
+    timeDiff = Math.round((now - lastTimeInZoned) / (1000 * 60));
     
     // Check if this is a multi-day shift
-    const isMultiDayShift = lastTimeInDate.toDateString() !== now.toDateString();
+    const isMultiDayShift = lastTimeInZoned.toDateString() !== now.toDateString();
     
     // Determine if shift is complete based on scheduled duration
-    const userDoc = await getDoc(doc(db, 'users', userId));
     if (userDoc.exists()) {
-      const userData = userDoc.data();
       const userSchedule = userData.schedule || [];
       
-      const timeInDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][lastTimeInDate.getDay()];
+      const timeInDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][lastTimeInZoned.getDay()];
       
       // Find the schedule for the day of the time in
       const daySchedule = userSchedule && Array.isArray(userSchedule) ?
@@ -248,11 +243,15 @@ export const determineTimeOutStatus = async (userId) => {
         // For multi-day shifts, handle the calculation differently
         if (isMultiDayShift) {
           // Calculate the expected end time based on the start time and shift duration
-          const expectedEndTime = new Date(lastTimeInDate);
+          const expectedEndTime = new Date(lastTimeInZoned);
           expectedEndTime.setMinutes(expectedEndTime.getMinutes() + scheduledMinutes);
           
           // Calculate the difference between the actual end time and expected end time
           const endTimeDiff = Math.round((now - expectedEndTime) / (1000 * 60));
+          
+          console.log(`Time out evaluation for user ${userId} in timezone ${userTimeRegion}:`);
+          console.log(`Time in: ${lastTimeInZoned.toLocaleString()}, Expected end: ${expectedEndTime.toLocaleString()}, Actual end: ${now.toLocaleString()}`);
+          console.log(`End time difference: ${endTimeDiff} minutes, Multi-day shift: ${isMultiDayShift}`);
           
           if (endTimeDiff < -incompleteThreshold) { // More than incompleteThreshold minutes early
             status = 'Incomplete';
@@ -270,6 +269,10 @@ export const determineTimeOutStatus = async (userId) => {
           } else {
             status = 'Complete';
           }
+          
+          console.log(`Time out evaluation for user ${userId} in timezone ${userTimeRegion}:`);
+          console.log(`Time in: ${lastTimeInZoned.toLocaleString()}, Duration: ${scheduledMinutes} minutes, Time worked: ${timeDiff} minutes`);
+          console.log(`Status: ${status}, Incomplete threshold: ${incompleteThreshold} minutes, Overtime threshold: ${overtimeThreshold} minutes`);
         }
       }
     }

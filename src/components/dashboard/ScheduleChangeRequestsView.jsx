@@ -19,351 +19,6 @@ import {
 } from 'phosphor-react';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 
-const RequestsContainer = styled.div`
-  margin-bottom: 2rem;
-`;
-
-const FilterContainer = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-`;
-
-const FilterButton = styled.button`
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  border: 1px solid #ddd;
-  background-color: ${props => props.active ? '#800000' : 'white'};
-  color: ${props => props.active ? 'white' : '#333'};
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: ${props => props.active ? '#600000' : '#f5f5f5'};
-  }
-`;
-
-const RequestCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-left: 4px solid ${props => {
-    switch (props.status) {
-      case 'pending': return '#FFC107';
-      case 'approved': return '#4CAF50';
-      case 'rejected': return '#F44336';
-      default: return '#9E9E9E';
-    }
-  }};
-`;
-
-const RequestHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-`;
-
-const UserInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
-
-const UserName = styled.div`
-  font-weight: 600;
-  color: #333;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const UserEmail = styled.div`
-  font-size: 0.85rem;
-  color: #666;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const StatusBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.75rem;
-  border-radius: 50px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background-color: ${props => {
-    switch (props.status) {
-      case 'pending': return '#FFF8E1';
-      case 'approved': return '#E8F5E9';
-      case 'rejected': return '#FFEBEE';
-      default: return '#F5F5F5';
-    }
-  }};
-  color: ${props => {
-    switch (props.status) {
-      case 'pending': return '#F57C00';
-      case 'approved': return '#2E7D32';
-      case 'rejected': return '#C62828';
-      default: return '#757575';
-    }
-  }};
-  border: 1px solid ${props => {
-    switch (props.status) {
-      case 'pending': return '#FFE082';
-      case 'approved': return '#A5D6A7';
-      case 'rejected': return '#EF9A9A';
-      default: return '#E0E0E0';
-    }
-  }};
-`;
-
-const RequestDetails = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #eee;
-`;
-
-const DetailItem = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
-
-const DetailLabel = styled.span`
-  font-size: 0.8rem;
-  color: #666;
-  margin-bottom: 0.25rem;
-`;
-
-const DetailValue = styled.span`
-  font-weight: 500;
-  color: #333;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const TimeDisplay = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-`;
-
-const ReasonText = styled.p`
-  margin: 0.5rem 0;
-  color: #555;
-  font-size: 0.9rem;
-  line-height: 1.5;
-`;
-
-const ActionButtons = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  flex-wrap: wrap;
-`;
-
-const Button = styled.button`
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.2s ease;
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`;
-
-const ApproveButton = styled(Button)`
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  
-  &:hover {
-    background-color: #388E3C;
-  }
-`;
-
-const RejectButton = styled(Button)`
-  background-color: #F44336;
-  color: white;
-  border: none;
-  
-  &:hover {
-    background-color: #D32F2F;
-  }
-`;
-
-const EditButton = styled(Button)`
-  background-color: #2196F3;
-  color: white;
-  border: none;
-  
-  &:hover {
-    background-color: #1976D2;
-  }
-`;
-
-const Modal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #eee;
-`;
-
-const ModalTitle = styled.h3`
-  margin: 0;
-  color: #333;
-  font-size: 1.2rem;
-`;
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #999;
-  
-  &:hover {
-    color: #333;
-  }
-`;
-
-const FormGroup = styled.div`
-  margin-bottom: 1.25rem;
-`;
-
-const Label = styled.label`
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #444;
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: #333;
-  background-color: #f9f9f9;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: #333;
-  background-color: #f9f9f9;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const TextArea = styled.textarea`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  color: #333;
-  background-color: #f9f9f9;
-  min-height: 100px;
-  resize: vertical;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const ModalButtons = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 1.5rem;
-`;
-
-const CancelButton = styled(Button)`
-  background-color: #f5f5f5;
-  color: #333;
-  border: 1px solid #ddd;
-  
-  &:hover {
-    background-color: #e0e0e0;
-  }
-`;
-
-const SaveButton = styled(Button)`
-  background-color: #800000;
-  color: white;
-  border: none;
-  
-  &:hover {
-    background-color: #600000;
-  }
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 3rem 2rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  color: #666;
-`;
 
 const ScheduleChangeRequestsView = ({ user, userData }) => {
   const [requests, setRequests] = useState([]);
@@ -857,3 +512,349 @@ const ScheduleChangeRequestsView = ({ user, userData }) => {
 };
 
 export default ScheduleChangeRequestsView;
+
+const RequestsContainer = styled.div`
+  margin-bottom: 2rem;
+`;
+
+const FilterContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+`;
+
+const FilterButton = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  border: 1px solid #ddd;
+  background-color: ${props => props.active ? '#800000' : 'white'};
+  color: ${props => props.active ? 'white' : '#333'};
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.active ? '#600000' : '#f5f5f5'};
+  }
+`;
+
+const RequestCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid ${props => {
+    switch (props.status) {
+      case 'pending': return '#FFC107';
+      case 'approved': return '#4CAF50';
+      case 'rejected': return '#F44336';
+      default: return '#9E9E9E';
+    }
+  }};
+`;
+
+const RequestHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+`;
+
+const UserInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const UserName = styled.div`
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const UserEmail = styled.div`
+  font-size: 0.85rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const StatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 50px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background-color: ${props => {
+    switch (props.status) {
+      case 'pending': return '#FFF8E1';
+      case 'approved': return '#E8F5E9';
+      case 'rejected': return '#FFEBEE';
+      default: return '#F5F5F5';
+    }
+  }};
+  color: ${props => {
+    switch (props.status) {
+      case 'pending': return '#F57C00';
+      case 'approved': return '#2E7D32';
+      case 'rejected': return '#C62828';
+      default: return '#757575';
+    }
+  }};
+  border: 1px solid ${props => {
+    switch (props.status) {
+      case 'pending': return '#FFE082';
+      case 'approved': return '#A5D6A7';
+      case 'rejected': return '#EF9A9A';
+      default: return '#E0E0E0';
+    }
+  }};
+`;
+
+const RequestDetails = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+`;
+
+const DetailItem = styled.div`
+  display: flex;
+  flex-direction: column;
+`;
+
+const DetailLabel = styled.span`
+  font-size: 0.8rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+`;
+
+const DetailValue = styled.span`
+  font-weight: 500;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const TimeDisplay = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const ReasonText = styled.p`
+  margin: 0.5rem 0;
+  color: #555;
+  font-size: 0.9rem;
+  line-height: 1.5;
+`;
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+`;
+
+const Button = styled.button`
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const ApproveButton = styled(Button)`
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  
+  &:hover {
+    background-color: #388E3C;
+  }
+`;
+
+const RejectButton = styled(Button)`
+  background-color: #F44336;
+  color: white;
+  border: none;
+  
+  &:hover {
+    background-color: #D32F2F;
+  }
+`;
+
+const EditButton = styled(Button)`
+  background-color: #2196F3;
+  color: white;
+  border: none;
+  
+  &:hover {
+    background-color: #1976D2;
+  }
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #eee;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  
+  &:hover {
+    color: #333;
+  }
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 1.25rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #444;
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
+  background-color: #f9f9f9;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
+  background-color: #f9f9f9;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
+  background-color: #f9f9f9;
+  min-height: 100px;
+  resize: vertical;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+`;
+
+const CancelButton = styled(Button)`
+  background-color: #f5f5f5;
+  color: #333;
+  border: 1px solid #ddd;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+`;
+
+const SaveButton = styled(Button)`
+  background-color: #800000;
+  color: white;
+  border: none;
+  
+  &:hover {
+    background-color: #600000;
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 3rem 2rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  color: #666;
+`;

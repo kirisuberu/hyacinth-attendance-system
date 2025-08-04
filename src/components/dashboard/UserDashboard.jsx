@@ -4,148 +4,7 @@ import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Users, Buildings, Calendar, Clock, Briefcase, Bank } from 'phosphor-react';
 
-const DashboardContainer = styled.div`
-  padding: 1rem 0;
-  max-width: 1400px;
-  margin: 0 auto;
-`;
 
-const StatsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-`;
-
-const StatCard = styled.div`
-  background-color: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid #eee;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  transition: transform 0.2s, box-shadow 0.2s;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
-  }
-`;
-
-const StatHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 1rem;
-  gap: 0.75rem;
-`;
-
-const StatIcon = styled.div`
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: ${props => props.bgColor || '#f0f0f0'};
-  color: ${props => props.iconColor || '#333'};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const StatTitle = styled.h3`
-  font-size: 0.9rem;
-  color: #666;
-  margin: 0;
-`;
-
-const StatValue = styled.div`
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: #333;
-`;
-
-const SectionTitle = styled.h3`
-  font-size: 1.2rem;
-  margin: 2.5rem 0 1.25rem;
-  color: #333;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #eee;
-`;
-
-const StatusContainer = styled.div`
-  margin-top: 1rem;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  padding: 1rem;
-  background-color: #fafafa;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-`;
-
-const StatusHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-  color: #333;
-  font-size: 1rem;
-  font-weight: 600;
-`;
-
-const StatusGrid = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  flex-grow: 1;
-`;
-
-const SummaryTable = styled.table`
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-  margin-bottom: 2.5rem;
-`;
-
-const TableHeader = styled.th`
-  padding: 1.25rem 1.5rem;
-  text-align: left;
-  font-weight: 600;
-  color: #333;
-  background-color: #f5f5f5;
-  border-bottom: 1px solid #ddd;
-  font-size: 0.95rem;
-`;
-
-const TableCell = styled.td`
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #eee;
-  
-  &:first-child {
-    font-weight: 500;
-  }
-`;
-
-const TableRow = styled.tr`
-  &:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-  
-  &:hover {
-    background-color: #f0f0f0;
-  }
-  
-  &:last-child td {
-    border-bottom: none;
-  }
-`;
 
 /**
  * UserDashboard component showing consolidated information about users
@@ -472,3 +331,146 @@ function UserDashboard({ isSuperAdmin }) {
 }
 
 export default UserDashboard;
+
+const DashboardContainer = styled.div`
+  padding: 1rem 0;
+  max-width: 1400px;
+  margin: 0 auto;
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+`;
+
+const StatCard = styled.div`
+  background-color: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transition: transform 0.2s, box-shadow 0.2s;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+  }
+`;
+
+const StatHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 0.75rem;
+`;
+
+const StatIcon = styled.div`
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: ${props => props.bgColor || '#f0f0f0'};
+  color: ${props => props.iconColor || '#333'};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const StatTitle = styled.h3`
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+`;
+
+const StatValue = styled.div`
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #333;
+`;
+
+const SectionTitle = styled.h3`
+  font-size: 1.2rem;
+  margin: 2.5rem 0 1.25rem;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+`;
+
+const StatusContainer = styled.div`
+  margin-top: 1rem;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 1rem;
+  background-color: #fafafa;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+`;
+
+const StatusHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-size: 1rem;
+  font-weight: 600;
+`;
+
+const StatusGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex-grow: 1;
+`;
+
+const SummaryTable = styled.table`
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  margin-bottom: 2.5rem;
+`;
+
+const TableHeader = styled.th`
+  padding: 1.25rem 1.5rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #ddd;
+  font-size: 0.95rem;
+`;
+
+const TableCell = styled.td`
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #eee;
+  
+  &:first-child {
+    font-weight: 500;
+  }
+`;
+
+const TableRow = styled.tr`
+  &:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+  
+  &:last-child td {
+    border-bottom: none;
+  }
+`;

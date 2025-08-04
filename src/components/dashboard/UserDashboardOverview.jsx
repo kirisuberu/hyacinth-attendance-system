@@ -23,230 +23,7 @@ import {
 } from 'phosphor-react';
 import { Card, CardTitle, CardContent, Grid } from './DashboardComponents';
 
-const SummaryContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-`;
 
-const SectionTitle = styled.h3`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.25rem;
-  margin: 1.5rem 0 1rem 0;
-  color: #333;
-`;
-
-const ProfileSnapshot = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 1.5rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  margin-bottom: 1rem;
-`;
-
-const UserAvatar = styled.div`
-  width: 80px;
-  height: 80px;
-  background-color: #800000;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 2rem;
-  margin-right: 1.5rem;
-`;
-
-const UserInfo = styled.div`
-  flex: 1;
-`;
-
-const UserName = styled.h3`
-  margin: 0 0 0.5rem 0;
-  font-size: 1.5rem;
-`;
-
-const UserPosition = styled.div`
-  color: #666;
-  margin-bottom: 0.5rem;
-`;
-
-const UserMeta = styled.div`
-  display: flex;
-  gap: 1.5rem;
-  margin-top: 0.5rem;
-`;
-
-const MetaItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: #555;
-`;
-
-const StatCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-`;
-
-const StatCardHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-`;
-
-const StatCardTitle = styled.h4`
-  margin: 0;
-  font-size: 0.9rem;
-  color: #666;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const StatCardValue = styled.div`
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: #333;
-`;
-
-const TrendUpIcon = styled.span`
-  color: #4caf50;
-`;
-
-const TrendDownIcon = styled.span`
-  color: #f44336;
-`;
-
-const ProgressBar = styled.div`
-  width: 100%;
-  height: 8px;
-  background-color: #f0f0f0;
-  border-radius: 4px;
-  margin-top: 0.5rem;
-  overflow: hidden;
-`;
-
-const ProgressFill = styled.div`
-  height: 100%;
-  border-radius: 4px;
-`;
-
-const ChartContainer = styled.div`
-  display: flex;
-  height: 160px;
-  align-items: flex-end;
-  gap: 8px;
-  margin-top: 1rem;
-`;
-
-const ChartBarContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-`;
-
-const ChartBarValue = styled.div`
-  width: 100%;
-  min-width: 20px;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
-`;
-
-const ChartBarLabel = styled.div`
-  font-size: 0.7rem;
-  margin-top: 0.5rem;
-  text-align: center;
-`;
-
-const StatsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(4, 1fr);
-  }
-`;
-
-const ReportPreview = styled.div`
-  margin-top: 1rem;
-`;
-
-const ReportTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-`;
-
-const TableHead = styled.thead`
-  background-color: #f5f5f5;
-`;
-
-const TableRow = styled.tr`
-  &:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-  
-  &:hover {
-    background-color: #f0f0f0;
-  }
-`;
-
-const TableHeader = styled.th`
-  padding: 1rem;
-  text-align: left;
-  font-weight: 600;
-  color: #333;
-  border-bottom: 1px solid #ddd;
-`;
-
-const TableCell = styled.td`
-  padding: 1rem;
-  border-bottom: 1px solid #eee;
-`;
-
-const StatusTag = styled.span`
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background-color: ${props => {
-    if (props.status === 'Early') return '#e3f2fd';
-    if (props.status === 'On Time') return '#e8f5e9';
-    if (props.status === 'Late') return '#ffebee';
-    if (props.status === 'Complete') return '#e8f5e9';
-    if (props.status === 'Incomplete') return '#fff8e1';
-    return '#f5f5f5';
-  }};
-  color: ${props => {
-    if (props.status === 'Early') return '#1565c0';
-    if (props.status === 'On Time') return '#2e7d32';
-    if (props.status === 'Late') return '#c62828';
-    if (props.status === 'Complete') return '#2e7d32';
-    if (props.status === 'Incomplete') return '#ef6c00';
-    return '#757575';
-  }};
-  border: 1px solid ${props => {
-    if (props.status === 'Early') return '#bbdefb';
-    if (props.status === 'On Time') return '#c8e6c9';
-    if (props.status === 'Late') return '#ffcdd2';
-    if (props.status === 'Complete') return '#c8e6c9';
-    if (props.status === 'Incomplete') return '#ffe0b2';
-    return '#eeeeee';
-  }};
-`;
 
 const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, setShowOverview }) => {
   // Debug authentication state
@@ -835,3 +612,228 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
 };
 
 export default UserDashboardOverview;
+
+const SummaryContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+`;
+
+const SectionTitle = styled.h3`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.25rem;
+  margin: 1.5rem 0 1rem 0;
+  color: #333;
+`;
+
+const ProfileSnapshot = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1rem;
+`;
+
+const UserAvatar = styled.div`
+  width: 80px;
+  height: 80px;
+  background-color: #800000;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+  margin-right: 1.5rem;
+`;
+
+const UserInfo = styled.div`
+  flex: 1;
+`;
+
+const UserName = styled.h3`
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+`;
+
+const UserPosition = styled.div`
+  color: #666;
+  margin-bottom: 0.5rem;
+`;
+
+const UserMeta = styled.div`
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+`;
+
+const MetaItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #555;
+`;
+
+const StatCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+`;
+
+const StatCardHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+`;
+
+const StatCardTitle = styled.h4`
+  margin: 0;
+  font-size: 0.9rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const StatCardValue = styled.div`
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #333;
+`;
+
+const TrendUpIcon = styled.span`
+  color: #4caf50;
+`;
+
+const TrendDownIcon = styled.span`
+  color: #f44336;
+`;
+
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 8px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div`
+  height: 100%;
+  border-radius: 4px;
+`;
+
+const ChartContainer = styled.div`
+  display: flex;
+  height: 160px;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 1rem;
+`;
+
+const ChartBarContainer = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const ChartBarValue = styled.div`
+  width: 100%;
+  min-width: 20px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+`;
+
+const ChartBarLabel = styled.div`
+  font-size: 0.7rem;
+  margin-top: 0.5rem;
+  text-align: center;
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+`;
+
+const ReportPreview = styled.div`
+  margin-top: 1rem;
+`;
+
+const ReportTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+`;
+
+const TableHead = styled.thead`
+  background-color: #f5f5f5;
+`;
+
+const TableRow = styled.tr`
+  &:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+`;
+
+const TableHeader = styled.th`
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+`;
+
+const TableCell = styled.td`
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+`;
+
+const StatusTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background-color: ${props => {
+    if (props.status === 'Early') return '#e3f2fd';
+    if (props.status === 'On Time') return '#e8f5e9';
+    if (props.status === 'Late') return '#ffebee';
+    if (props.status === 'Complete') return '#e8f5e9';
+    if (props.status === 'Incomplete') return '#fff8e1';
+    return '#f5f5f5';
+  }};
+  color: ${props => {
+    if (props.status === 'Early') return '#1565c0';
+    if (props.status === 'On Time') return '#2e7d32';
+    if (props.status === 'Late') return '#c62828';
+    if (props.status === 'Complete') return '#2e7d32';
+    if (props.status === 'Incomplete') return '#ef6c00';
+    return '#757575';
+  }};
+  border: 1px solid ${props => {
+    if (props.status === 'Early') return '#bbdefb';
+    if (props.status === 'On Time') return '#c8e6c9';
+    if (props.status === 'Late') return '#ffcdd2';
+    if (props.status === 'Complete') return '#c8e6c9';
+    if (props.status === 'Incomplete') return '#ffe0b2';
+    return '#eeeeee';
+  }};
+`;

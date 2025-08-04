@@ -5,71 +5,7 @@ import { toast } from 'react-toastify';
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import { Clock, CalendarBlank, Timer, ClipboardText } from 'phosphor-react';
 
-const FormGroup = styled.div`
-  margin-bottom: 1.5rem;
-`;
 
-const Label = styled.label`
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #333;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  
-  &:focus {
-    outline: none;
-    border-color: #e91e63;
-    box-shadow: 0 0 0 2px rgba(233, 30, 99, 0.2);
-  }
-`;
-
-const TextArea = styled.textarea`
-  width: 100%;
-  min-height: 120px;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  resize: vertical;
-  
-  &:focus {
-    outline: none;
-    border-color: #e91e63;
-    box-shadow: 0 0 0 2px rgba(233, 30, 99, 0.2);
-  }
-`;
-
-const SubmitButton = styled.button`
-  background-color: #e91e63;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  
-  &:hover {
-    background-color: #c2185b;
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-`;
 
 const OvertimeRequestForm = ({ user }) => {
   const [date, setDate] = useState('');
@@ -202,3 +138,69 @@ const OvertimeRequestForm = ({ user }) => {
 };
 
 export default OvertimeRequestForm;
+
+const FormGroup = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #e91e63;
+    box-shadow: 0 0 0 2px rgba(233, 30, 99, 0.2);
+  }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  min-height: 120px;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  resize: vertical;
+  
+  &:focus {
+    outline: none;
+    border-color: #e91e63;
+    box-shadow: 0 0 0 2px rgba(233, 30, 99, 0.2);
+  }
+`;
+
+const SubmitButton = styled.button`
+  background-color: #e91e63;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  
+  &:hover {
+    background-color: #c2185b;
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;

@@ -33,338 +33,6 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { getAttendanceRules } from '../../services/systemSettingsService';
 
-// Styled components for layout
-const DashboardContainer = styled.div`
-  display: flex;
-  height: 100vh; /* Lock to viewport height */
-  overflow: hidden; /* Prevent overall page scrolling */
-`;
-
-const Sidebar = styled.div`
-  width: 250px;
-  background: linear-gradient(180deg, #000000 0%, #800000 100%);
-  color: white;
-  padding: 2rem 1rem;
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Full height */
-  overflow-y: auto; /* Allow sidebar to scroll if needed */
-`;
-
-const Logo = styled.div`
-  font-size: 1.5rem;
-  font-weight: bold;
-  margin-bottom: 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  width: 100%;
-`;
-
-const NavItem = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-  
-  &.active {
-    background-color: rgba(255, 255, 255, 0.2);
-    font-weight: bold;
-  }
-`;
-
-const TimeFormatToggle = styled.button`
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: 1px solid #ddd;
-  background-color: ${props => props.active ? '#e6f0ff' : 'white'};
-  border-color: ${props => props.active ? '#bbd6fb' : '#ddd'};
-  color: ${props => props.active ? '#1a73e8' : '#666'};
-  font-weight: ${props => props.active ? 'bold' : 'normal'};
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: ${props => props.active ? '#e6f0ff' : '#f5f5f5'};
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-`;
-
-const SidebarTimeButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  width: 100%;
-  border: none;
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  
-  &:hover:not(:disabled) {
-    transform: translateY(-2px);
-  }
-`;
-
-const TimeInSidebarButton = styled(SidebarTimeButton)`
-  background-color: #1e8e24;
-  color: white;
-  font-size: 1.1rem;
-  font-weight: 600;
-  padding: 1rem 1.25rem;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
-  margin-bottom: 1rem;
-  transition: all 0.3s ease;
-  
-  &:hover:not(:disabled) {
-    background-color: #25a52c;
-    transform: translateY(-3px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
-  }
-  
-  &:active:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-  }
-`;
-
-const TimeOutSidebarButton = styled(SidebarTimeButton)`
-  background-color: #c62828;
-  color: white;
-  font-size: 1.1rem;
-  font-weight: 600;
-  padding: 1rem 1.25rem;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
-  margin-bottom: 1rem;
-  transition: all 0.3s ease;
-  
-  &:hover:not(:disabled) {
-    background-color: #d32f2f;
-    transform: translateY(-3px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
-  }
-  
-  &:active:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-  }
-`;
-
-const Icon = styled.span`
-  margin-right: 12px;
-  display: flex;
-  align-items: center;
-  font-size: 1.2rem;
-`;
-
-const Content = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background-color: #f5f5f5;
-  height: 100vh; /* Full height */
-  overflow-y: auto; /* Make content area scrollable */
-`;
-
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid #eee;
-  background-color: #f5f5f5;
-  z-index: 10; /* Ensure header stays on top */
-`;
-
-const Title = styled.h1`
-  font-size: 1.75rem;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
-`;
-
-const UserInfo = styled.div`
-  display: flex;
-  align-items: center;
-`;
-
-const UpdatesButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  border: 1px solid #ddd;
-  color: #333;
-  cursor: pointer;
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
-  margin-right: 1rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: #f0f0f0;
-    border-color: #ccc;
-  }
-`;
-
-const UserName = styled.span`
-  margin-right: 1rem;
-  font-weight: 500;
-`;
-
-const LogoutButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  border: none;
-  color: #666;
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 4px;
-  
-  &:hover {
-    background-color: #f0f0f0;
-  }
-`;
-
-// Modal components
-const MainContentArea = styled.div`
-  flex: 1;
-  padding: 1rem;
-  overflow-y: auto; /* Make content area scrollable */
-  height: calc(100vh - 73px); /* Subtract header height */
-`;
-
-const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 500px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  display: flex;
-  flex-direction: column;
-  max-height: 90vh;
-  overflow-y: auto;
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid #eee;
-  
-  h3 {
-    margin: 0;
-    font-size: 1.25rem;
-  }
-`;
-
-const ModalBody = styled.div`
-  padding: 1rem;
-  overflow-y: auto;
-`;
-
-const ModalFooter = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  padding: 1rem;
-  border-top: 1px solid #eee;
-  gap: 0.5rem;
-`;
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  
-  &:hover {
-    color: #000;
-  }
-`;
-
-const FormGroup = styled.div`
-  margin-bottom: 1rem;
-`;
-
-const Label = styled.label`
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #333;
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  
-  &:focus {
-    outline: none;
-    border-color: #6e8efb;
-  }
-`;
-
-const Button = styled.button`
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  border: 1px solid #ddd;
-  background-color: ${props => props.primary ? '#6e8efb' : 'white'};
-  color: ${props => props.primary ? 'white' : '#333'};
-  
-  &:hover {
-    background-color: ${props => props.primary ? '#5a7df9' : '#f5f5f5'};
-  }
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`;
 
 // Main layout component
 const DashboardLayout = ({ 
@@ -954,3 +622,336 @@ const DashboardLayout = ({
 };  
 
 export default DashboardLayout;
+
+// Styled components for layout
+const DashboardContainer = styled.div`
+  display: flex;
+  height: 100vh; /* Lock to viewport height */
+  overflow: hidden; /* Prevent overall page scrolling */
+`;
+
+const Sidebar = styled.div`
+  width: 250px;
+  background: linear-gradient(180deg, #000000 0%, #800000 100%);
+  color: white;
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Full height */
+  overflow-y: auto; /* Allow sidebar to scroll if needed */
+`;
+
+const Logo = styled.div`
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+`;
+
+const NavItem = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  &.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    font-weight: bold;
+  }
+`;
+
+const TimeFormatToggle = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background-color: ${props => props.active ? '#e6f0ff' : 'white'};
+  border-color: ${props => props.active ? '#bbd6fb' : '#ddd'};
+  color: ${props => props.active ? '#1a73e8' : '#666'};
+  font-weight: ${props => props.active ? 'bold' : 'normal'};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.active ? '#e6f0ff' : '#f5f5f5'};
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;
+
+const SidebarTimeButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  border: none;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+`;
+
+const TimeInSidebarButton = styled(SidebarTimeButton)`
+  background-color: #1e8e24;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
+  
+  &:hover:not(:disabled) {
+    background-color: #25a52c;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  }
+`;
+
+const TimeOutSidebarButton = styled(SidebarTimeButton)`
+  background-color: #c62828;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  transition: all 0.3s ease;
+  
+  &:hover:not(:disabled) {
+    background-color: #d32f2f;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+  }
+`;
+
+const Icon = styled.span`
+  margin-right: 12px;
+  display: flex;
+  align-items: center;
+  font-size: 1.2rem;
+`;
+
+const Content = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f5f5;
+  height: 100vh; /* Full height */
+  overflow-y: auto; /* Make content area scrollable */
+`;
+
+const Header = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  background-color: #f5f5f5;
+  z-index: 10; /* Ensure header stays on top */
+`;
+
+const Title = styled.h1`
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+`;
+
+const UserInfo = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+const UpdatesButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: 1px solid #ddd;
+  color: #333;
+  cursor: pointer;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  margin-right: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #f0f0f0;
+    border-color: #ccc;
+  }
+`;
+
+const UserName = styled.span`
+  margin-right: 1rem;
+  font-weight: 500;
+`;
+
+const LogoutButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 4px;
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+`;
+
+// Modal components
+const MainContentArea = styled.div`
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto; /* Make content area scrollable */
+  height: calc(100vh - 73px); /* Subtract header height */
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+  
+  h3 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+`;
+
+const ModalBody = styled.div`
+  padding: 1rem;
+  overflow-y: auto;
+`;
+
+const ModalFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding: 1rem;
+  border-top: 1px solid #eee;
+  gap: 0.5rem;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  
+  &:hover {
+    color: #000;
+  }
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #6e8efb;
+  }
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background-color: ${props => props.primary ? '#6e8efb' : 'white'};
+  color: ${props => props.primary ? 'white' : '#333'};
+  
+  &:hover {
+    background-color: ${props => props.primary ? '#5a7df9' : '#f5f5f5'};
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;

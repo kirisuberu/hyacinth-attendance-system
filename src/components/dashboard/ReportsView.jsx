@@ -6,196 +6,6 @@ import { toast } from 'react-toastify';
 import { Calendar, Download, FileXls, Users, Clock, FloppyDisk } from 'phosphor-react';
 import { utils, writeFile } from 'xlsx';
 
-const Container = styled.div`
-  padding: 2rem;
-`;
-
-const Title = styled.h2`
-  color: #333;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const FilterContainer = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-`;
-
-const FilterRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  align-items: flex-end;
-`;
-
-const FilterGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 200px;
-`;
-
-const FilterLabel = styled.label`
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-  color: #555;
-  font-weight: 500;
-`;
-
-const DateInput = styled.input`
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  width: 100%;
-  
-  &:focus {
-    outline: none;
-    border-color: #6e8efb;
-    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
-  }
-`;
-
-const Button = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.25rem;
-  border: none;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:focus {
-    outline: none;
-  }
-`;
-
-const PrimaryButton = styled(Button)`
-  background-color: #6e8efb;
-  color: white;
-  
-  &:hover {
-    background-color: #5a7af0;
-  }
-  
-  &:disabled {
-    background-color: #b3c0f2;
-    cursor: not-allowed;
-  }
-`;
-
-const SecondaryButton = styled(Button)`
-  background-color: #f0f0f0;
-  color: #333;
-  
-  &:hover {
-    background-color: #e0e0e0;
-  }
-  
-  &:disabled {
-    background-color: #f0f0f0;
-    color: #999;
-    cursor: not-allowed;
-  }
-`;
-
-const ReportTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-`;
-
-const TableHead = styled.thead`
-  background-color: #f5f5f5;
-`;
-
-const TableRow = styled.tr`
-  &:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-  
-  &:hover {
-    background-color: #f0f0f0;
-  }
-`;
-
-const TableHeader = styled.th`
-  padding: 1rem;
-  text-align: left;
-  font-weight: 600;
-  color: #333;
-  border-bottom: 1px solid #ddd;
-`;
-
-const TableCell = styled.td`
-  padding: 1rem;
-  border-bottom: 1px solid #eee;
-`;
-
-const LoadingState = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 3rem;
-  color: #666;
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-`;
-
-const StatusTag = styled.span`
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background-color: ${props => {
-    if (props.status === 'Early') return '#e3f2fd';
-    if (props.status === 'On Time') return '#e8f5e9';
-    if (props.status === 'Late') return '#ffebee';
-    if (props.status === 'Complete') return '#e8f5e9';
-    if (props.status === 'Incomplete') return '#fff8e1';
-    return '#f5f5f5';
-  }};
-  color: ${props => {
-    if (props.status === 'Early') return '#1565c0';
-    if (props.status === 'On Time') return '#2e7d32';
-    if (props.status === 'Late') return '#c62828';
-    if (props.status === 'Complete') return '#2e7d32';
-    if (props.status === 'Incomplete') return '#ef6c00';
-    return '#757575';
-  }};
-  border: 1px solid ${props => {
-    if (props.status === 'Early') return '#bbdefb';
-    if (props.status === 'On Time') return '#c8e6c9';
-    if (props.status === 'Late') return '#ffcdd2';
-    if (props.status === 'Complete') return '#c8e6c9';
-    if (props.status === 'Incomplete') return '#ffe0b2';
-    return '#eeeeee';
-  }};
-`;
-
-const Icon = styled.span`
-  display: inline-flex;
-  align-items: center;
-  margin-right: 0.5rem;
-`;
 
 const ReportsView = () => {
   const [startDate, setStartDate] = useState('');
@@ -633,3 +443,194 @@ const ReportsView = () => {
 };
 
 export default ReportsView;
+
+const Container = styled.div`
+  padding: 2rem;
+`;
+
+const Title = styled.h2`
+  color: #333;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const FilterContainer = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+`;
+
+const FilterRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-end;
+`;
+
+const FilterGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 200px;
+`;
+
+const FilterLabel = styled.label`
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  color: #555;
+  font-weight: 500;
+`;
+
+const DateInput = styled.input`
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  width: 100%;
+  
+  &:focus {
+    outline: none;
+    border-color: #6e8efb;
+    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
+  }
+`;
+
+const Button = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:focus {
+    outline: none;
+  }
+`;
+
+const PrimaryButton = styled(Button)`
+  background-color: #6e8efb;
+  color: white;
+  
+  &:hover {
+    background-color: #5a7af0;
+  }
+  
+  &:disabled {
+    background-color: #b3c0f2;
+    cursor: not-allowed;
+  }
+`;
+
+const SecondaryButton = styled(Button)`
+  background-color: #f0f0f0;
+  color: #333;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+  
+  &:disabled {
+    background-color: #f0f0f0;
+    color: #999;
+    cursor: not-allowed;
+  }
+`;
+
+const ReportTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+`;
+
+const TableHead = styled.thead`
+  background-color: #f5f5f5;
+`;
+
+const TableRow = styled.tr`
+  &:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+`;
+
+const TableHeader = styled.th`
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+`;
+
+const TableCell = styled.td`
+  padding: 1rem;
+  border-bottom: 1px solid #eee;
+`;
+
+const LoadingState = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+  color: #666;
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+`;
+
+const StatusTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background-color: ${props => {
+    if (props.status === 'Early') return '#e3f2fd';
+    if (props.status === 'On Time') return '#e8f5e9';
+    if (props.status === 'Late') return '#ffebee';
+    if (props.status === 'Complete') return '#e8f5e9';
+    if (props.status === 'Incomplete') return '#fff8e1';
+    return '#f5f5f5';
+  }};
+  color: ${props => {
+    if (props.status === 'Early') return '#1565c0';
+    if (props.status === 'On Time') return '#2e7d32';
+    if (props.status === 'Late') return '#c62828';
+    if (props.status === 'Complete') return '#2e7d32';
+    if (props.status === 'Incomplete') return '#ef6c00';
+    return '#757575';
+  }};
+  border: 1px solid ${props => {
+    if (props.status === 'Early') return '#bbdefb';
+    if (props.status === 'On Time') return '#c8e6c9';
+    if (props.status === 'Late') return '#ffcdd2';
+    if (props.status === 'Complete') return '#c8e6c9';
+    if (props.status === 'Incomplete') return '#ffe0b2';
+    return '#eeeeee';
+  }};
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+`;

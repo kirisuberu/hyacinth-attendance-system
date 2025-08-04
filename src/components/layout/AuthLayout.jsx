@@ -5,15 +5,7 @@ import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
 
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  font-size: 1.2rem;
-  color: #6e8efb;
-  background-color: #f5f5f5;
-`;
+
 
 /**
  * AuthLayout component that handles authentication and user data fetching
@@ -154,3 +146,13 @@ function AuthLayout() {
 }
 
 export default AuthLayout;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 1.2rem;
+  color: #6e8efb;
+  background-color: #f5f5f5;
+`;

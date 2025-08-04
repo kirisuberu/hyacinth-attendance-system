@@ -1,580 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings } from 'phosphor-react';
 import * as XLSX from 'xlsx';
+import styled from 'styled-components';
 
-const Container = styled.div`
-  padding: 2rem;
-`;
-
-const Title = styled.h2`
-  color: #333;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const TableContainer = styled.div`
-  width: 100%;
-  overflow-x: auto;
-  margin-top: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  position: relative;
-  max-height: calc(100vh - 250px);
-  overflow-y: auto;
-`;
-
-const UserTable = styled.table`
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  table-layout: fixed;
-`;
-
-const TableHead = styled.thead`
-  background-color: #f5f5f5;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-`;
-
-const TableRow = styled.tr`
-  &:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-  
-  &:hover {
-    background-color: #f0f0f0;
-  }
-`;
-
-const TableHeader = styled.th`
-  padding: 1rem;
-  text-align: left;
-  font-weight: 600;
-  color: #333;
-  border-bottom: 1px solid #ddd;
-  background-color: #f5f5f5;
-  white-space: nowrap;
-  position: relative;
-  
-  /* Default minimum width for all columns */
-  min-width: 180px;
-  
-  /* Specific column widths */
-  &.col-name { min-width: 200px; }
-  &.col-email { min-width: 250px; }
-  &.col-employmentStatus { min-width: 180px; }
-  &.col-position { min-width: 200px; }
-  &.col-role { min-width: 120px; }
-  &.col-status { min-width: 120px; }
-  &.col-shifts { min-width: 150px; }
-  &.col-dateHired { min-width: 180px; }
-  &.col-dateOfBirth { min-width: 180px; }
-  &.col-phoneNumber { min-width: 180px; }
-  &.col-address { min-width: 250px; max-width: 300px; }
-  &.col-emergencyContactName { min-width: 220px; }
-  &.col-emergencyContactPhone { min-width: 220px; }
-  &.col-emergencyContactRelationship { min-width: 220px; }
-  &.col-actions { min-width: 180px; }
-  
-  &.sticky-left {
-    position: sticky;
-    left: 0;
-    z-index: 20;
-    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-    background-color: #f5f5f5 !important;
-  }
-  
-  &.sticky-right {
-    position: sticky;
-    right: 0;
-    z-index: 20;
-    box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
-    background-color: #f5f5f5 !important;
-  }
-  
-  /* Resizer handle */
-  .resizer {
-    position: absolute;
-    right: 0;
-    top: 0;
-    height: 100%;
-    width: 5px;
-    background: rgba(0, 0, 0, 0.1);
-    cursor: col-resize;
-    user-select: none;
-    touch-action: none;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  
-  &:hover .resizer {
-    opacity: 1;
-  }
-  
-  &.resizing {
-    cursor: col-resize;
-    
-    .resizer {
-      opacity: 1;
-      background: rgba(128, 0, 0, 0.5);
-    }
-  }
-`;
-
-const TableCell = styled.td`
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #ddd;
-  white-space: nowrap;
-  background-color: white;
-  
-  /* Match the widths from TableHeader */
-  &.col-name { min-width: 200px; }
-  &.col-email { min-width: 250px; }
-  &.col-employmentStatus { min-width: 180px; }
-  &.col-position { min-width: 200px; }
-  &.col-role { min-width: 120px; }
-  &.col-status { min-width: 120px; }
-  &.col-shifts { min-width: 150px; }
-  &.col-dateHired { min-width: 180px; }
-  &.col-dateOfBirth { min-width: 180px; }
-  &.col-phoneNumber { min-width: 180px; }
-  &.col-address { 
-    min-width: 250px; 
-    max-width: 300px; 
-    white-space: normal; /* Allow text wrapping for address */
-    word-break: break-word;
-  }
-  &.col-emergencyContactName { min-width: 220px; }
-  &.col-emergencyContactPhone { min-width: 220px; }
-  &.col-emergencyContactRelationship { min-width: 220px; }
-  &.col-actions { min-width: 180px; }
-  
-  &.sticky-left {
-    position: sticky;
-    left: 0;
-    z-index: 10;
-    background-color: white !important;
-    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-  }
-  
-  &.sticky-right {
-    position: sticky;
-    right: 0;
-    z-index: 10;
-    background-color: white !important;
-    box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
-  }
-`;
-
-const ActionButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: ${props => props.color || '#333'};
-  margin-right: 0.5rem;
-  padding: 0.25rem;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-  }
-`;
-
-const RoleTag = styled.span`
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  
-  &.superadmin {
-    background-color: #800000;
-    color: white;
-  }
-  
-  &.admin {
-    background-color: #ff9800;
-    color: white;
-  }
-  
-  &.member {
-    background-color: #e0e0e0;
-    color: #333;
-  }
-`;
-
-const DepartmentTag = styled.span`
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background-color: #e3f2fd;
-  color: #1565c0;
-  margin-right: 0.25rem;
-  margin-bottom: 0.25rem;
-`;
-
-const DepartmentTagsContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  max-width: 100%;
-`;
-
-const CheckboxContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-`;
-
-const CheckboxLabel = styled.label`
-  display: flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  background-color: ${props => props.checked ? '#e3f2fd' : '#f5f5f5'};
-  border: 1px solid ${props => props.checked ? '#1565c0' : '#ddd'};
-  cursor: pointer;
-  transition: all 0.2s;
-  
-  &:hover {
-    background-color: ${props => props.checked ? '#bbdefb' : '#e0e0e0'};
-  }
-  
-  input {
-    margin-right: 0.5rem;
-  }
-`;
-
-const StatusTag = styled.span`
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  background-color: ${props => {
-    switch(props.status) {
-      case 'active':
-        return '#4caf50';
-      case 'inactive':
-        return '#f44336';
-      case 'pending':
-        return '#ff9800';
-      default:
-        return '#9e9e9e';
-    }
-  }};
-  color: white;
-`;
-
-const SearchBar = styled.input`
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  width: 300px;
-  font-size: 0.9rem;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-  }
-  
-  @media (max-width: 768px) {
-    width: 100%;
-  }
-`;
-
-const ColumnControlContainer = styled.div`
-  position: relative;
-  display: inline-block;
-`;
-
-const ColumnControlButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0.75rem 1rem;
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: #e5e5e5;
-  }
-`;
-
-const ColumnControlDropdown = styled.div`
-  position: absolute;
-  top: 100%;
-  right: 0;
-  width: 250px;
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  z-index: 100;
-  padding: 0.75rem;
-  margin-top: 5px;
-  max-height: 400px;
-  overflow-y: auto;
-`;
-
-const ColumnCheckboxLabel = styled.label`
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  cursor: pointer;
-  user-select: none;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  
-  &:hover {
-    background-color: #f5f5f5;
-  }
-  
-  & > input {
-    margin-right: 10px;
-  }
-`;
-
-const ColumnControlActions = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #eee;
-`;
-
-const ColumnControlButton2 = styled.button`
-  padding: 6px 12px;
-  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
-  color: ${props => props.primary ? 'white' : '#333'};
-  border: 1px solid ${props => props.primary ? '#800000' : '#ddd'};
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
-  }
-`;
-
-const ExportButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: background-color 0.2s;
-  
-  &:hover {
-    background-color: #388e3c;
-  }
-  
-  &:active {
-    background-color: #2e7d32;
-  }
-`;
-
-const ConfirmationModal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background-color: white;
-  padding: 2rem;
-  border-radius: 8px;
-  max-width: 800px;
-  width: 100%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  max-height: 90vh;
-  overflow-y: auto;
-`;
-
-const ModalTitle = styled.h3`
-  margin-top: 0;
-  color: #333;
-`;
-
-const ModalText = styled.p`
-  margin-bottom: 1.5rem;
-  color: #666;
-`;
-
-const ModalButtons = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-`;
-
-const Button = styled.button`
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  
-  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
-  color: ${props => props.primary ? 'white' : '#333'};
-  
-  &:hover {
-    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
-  }
-`;
-
-// Form elements for schedule editing
-const FormGroup = styled.div`
-  margin-bottom: 1rem;
-`;
-
-const DayCheckbox = styled.div`
-  display: inline-flex;
-  align-items: center;
-  background-color: #f5f5f5;
-  padding: 0.5rem 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: #e0e0e0;
-  }
-  
-  input {
-    margin-right: 0.5rem;
-  }
-  
-  input:checked + label {
-    font-weight: 600;
-    color: #800000;
-  }
-`;
-
-const Label = styled.label`
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #333;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  background-color: white;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const ScheduleGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1rem;
-  margin-top: 1rem;
-`;
-
-const ScheduleCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-`;
-
-const ScheduleHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-`;
-
-const ScheduleDay = styled.h4`
-  margin: 0;
-  color: #333;
-`;
-
-const ScheduleTime = styled.div`
-  font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 0.5rem;
-`;
-
-const ScheduleActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  margin-top: auto;
-  gap: 0.5rem;
-`;
-
-const TopActions = styled.div`
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
-  gap: 1rem;
-`;
-
-const Icon = styled.span`
-  display: inline-flex;
-  align-items: center;
-  margin-right: 0.5rem;
-`;
 
 function UserManagementView({ isSuperAdmin }) {
   const [users, setUsers] = useState([]);
@@ -2363,3 +1794,573 @@ function UserManagementView({ isSuperAdmin }) {
 }
 
 export default UserManagementView;
+
+const Container = styled.div`
+  padding: 2rem;
+`;
+
+const Title = styled.h2`
+  color: #333;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const TableContainer = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
+  max-height: calc(100vh - 250px);
+  overflow-y: auto;
+`;
+
+const UserTable = styled.table`
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+`;
+
+const TableHead = styled.thead`
+  background-color: #f5f5f5;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+`;
+
+const TableRow = styled.tr`
+  &:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+`;
+
+const TableHeader = styled.th`
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #ddd;
+  background-color: #f5f5f5;
+  white-space: nowrap;
+  position: relative;
+  
+  /* Default minimum width for all columns */
+  min-width: 180px;
+  
+  /* Specific column widths */
+  &.col-name { min-width: 200px; }
+  &.col-email { min-width: 250px; }
+  &.col-employmentStatus { min-width: 180px; }
+  &.col-position { min-width: 200px; }
+  &.col-role { min-width: 120px; }
+  &.col-status { min-width: 120px; }
+  &.col-shifts { min-width: 150px; }
+  &.col-dateHired { min-width: 180px; }
+  &.col-dateOfBirth { min-width: 180px; }
+  &.col-phoneNumber { min-width: 180px; }
+  &.col-address { min-width: 250px; max-width: 300px; }
+  &.col-emergencyContactName { min-width: 220px; }
+  &.col-emergencyContactPhone { min-width: 220px; }
+  &.col-emergencyContactRelationship { min-width: 220px; }
+  &.col-actions { min-width: 180px; }
+  
+  &.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
+    background-color: #f5f5f5 !important;
+  }
+  
+  &.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 20;
+    box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
+    background-color: #f5f5f5 !important;
+  }
+  
+  /* Resizer handle */
+  .resizer {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 5px;
+    background: rgba(0, 0, 0, 0.1);
+    cursor: col-resize;
+    user-select: none;
+    touch-action: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  
+  &:hover .resizer {
+    opacity: 1;
+  }
+  
+  &.resizing {
+    cursor: col-resize;
+    
+    .resizer {
+      opacity: 1;
+      background: rgba(128, 0, 0, 0.5);
+    }
+  }
+`;
+
+const TableCell = styled.td`
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #ddd;
+  white-space: nowrap;
+  background-color: white;
+  
+  /* Match the widths from TableHeader */
+  &.col-name { min-width: 200px; }
+  &.col-email { min-width: 250px; }
+  &.col-employmentStatus { min-width: 180px; }
+  &.col-position { min-width: 200px; }
+  &.col-role { min-width: 120px; }
+  &.col-status { min-width: 120px; }
+  &.col-shifts { min-width: 150px; }
+  &.col-dateHired { min-width: 180px; }
+  &.col-dateOfBirth { min-width: 180px; }
+  &.col-phoneNumber { min-width: 180px; }
+  &.col-address { 
+    min-width: 250px; 
+    max-width: 300px; 
+    white-space: normal; /* Allow text wrapping for address */
+    word-break: break-word;
+  }
+  &.col-emergencyContactName { min-width: 220px; }
+  &.col-emergencyContactPhone { min-width: 220px; }
+  &.col-emergencyContactRelationship { min-width: 220px; }
+  &.col-actions { min-width: 180px; }
+  
+  &.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: white !important;
+    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
+  }
+  
+  &.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 10;
+    background-color: white !important;
+    box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
+  }
+`;
+
+const ActionButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: ${props => props.color || '#333'};
+  margin-right: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+`;
+
+const RoleTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  
+  &.superadmin {
+    background-color: #800000;
+    color: white;
+  }
+  
+  &.admin {
+    background-color: #ff9800;
+    color: white;
+  }
+  
+  &.member {
+    background-color: #e0e0e0;
+    color: #333;
+  }
+`;
+
+const DepartmentTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: #e3f2fd;
+  color: #1565c0;
+  margin-right: 0.25rem;
+  margin-bottom: 0.25rem;
+`;
+
+const DepartmentTagsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 100%;
+`;
+
+const CheckboxContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+`;
+
+const CheckboxLabel = styled.label`
+  display: flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  background-color: ${props => props.checked ? '#e3f2fd' : '#f5f5f5'};
+  border: 1px solid ${props => props.checked ? '#1565c0' : '#ddd'};
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background-color: ${props => props.checked ? '#bbdefb' : '#e0e0e0'};
+  }
+  
+  input {
+    margin-right: 0.5rem;
+  }
+`;
+
+const StatusTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background-color: ${props => {
+    switch(props.status) {
+      case 'active':
+        return '#4caf50';
+      case 'inactive':
+        return '#f44336';
+      case 'pending':
+        return '#ff9800';
+      default:
+        return '#9e9e9e';
+    }
+  }};
+  color: white;
+`;
+
+const SearchBar = styled.input`
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: 300px;
+  font-size: 0.9rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+  }
+  
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+`;
+
+const ColumnControlContainer = styled.div`
+  position: relative;
+  display: inline-block;
+`;
+
+const ColumnControlButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.75rem 1rem;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #e5e5e5;
+  }
+`;
+
+const ColumnControlDropdown = styled.div`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 250px;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  padding: 0.75rem;
+  margin-top: 5px;
+  max-height: 400px;
+  overflow-y: auto;
+`;
+
+const ColumnCheckboxLabel = styled.label`
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #f5f5f5;
+  }
+  
+  & > input {
+    margin-right: 10px;
+  }
+`;
+
+const ColumnControlActions = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+`;
+
+const ColumnControlButton2 = styled.button`
+  padding: 6px 12px;
+  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
+  color: ${props => props.primary ? 'white' : '#333'};
+  border: 1px solid ${props => props.primary ? '#800000' : '#ddd'};
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
+  }
+`;
+
+const ExportButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #388e3c;
+  }
+  
+  &:active {
+    background-color: #2e7d32;
+  }
+`;
+
+const ConfirmationModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 800px;
+  width: 100%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const ModalTitle = styled.h3`
+  margin-top: 0;
+  color: #333;
+`;
+
+const ModalText = styled.p`
+  margin-bottom: 1.5rem;
+  color: #666;
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
+  color: ${props => props.primary ? 'white' : '#333'};
+  
+  &:hover {
+    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
+  }
+`;
+
+// Form elements for schedule editing
+const FormGroup = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const DayCheckbox = styled.div`
+  display: inline-flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+  
+  input {
+    margin-right: 0.5rem;
+  }
+  
+  input:checked + label {
+    font-weight: 600;
+    color: #800000;
+  }
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const Select = styled.select`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background-color: white;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+    box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const ScheduleGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+`;
+
+const ScheduleCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ScheduleHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+`;
+
+const ScheduleDay = styled.h4`
+  margin: 0;
+  color: #333;
+`;
+
+const ScheduleTime = styled.div`
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+`;
+
+const ScheduleActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  gap: 0.5rem;
+`;
+
+const TopActions = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+`;
+
+const Icon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.5rem;
+`;

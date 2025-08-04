@@ -1,34 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-const TabContainer = styled.div`
-  width: 100%;
-  margin-bottom: 1.5rem;
-`;
 
-const TabList = styled.div`
-  display: flex;
-  border-bottom: 2px solid #ddd;
-  margin-bottom: 1rem;
-`;
-
-const TabItem = styled.div`
-  padding: 0.75rem 1.5rem;
-  cursor: pointer;
-  font-weight: ${props => props.active ? '600' : '400'};
-  color: ${props => props.active ? '#800000' : '#333'};
-  border-bottom: ${props => props.active ? '2px solid #800000' : '2px solid transparent'};
-  margin-bottom: -2px;
-  transition: all 0.2s ease;
-
-  &:hover {
-    color: #800000;
-  }
-`;
-
-const TabContent = styled.div`
-  padding: 0.5rem 0;
-`;
 
 /**
  * Tabs component for switching between different views
@@ -61,3 +34,32 @@ function Tabs({ tabs, defaultTab = 0 }) {
 }
 
 export default Tabs;
+
+const TabContainer = styled.div`
+  width: 100%;
+  margin-bottom: 1.5rem;
+`;
+
+const TabList = styled.div`
+  display: flex;
+  border-bottom: 2px solid #ddd;
+  margin-bottom: 1rem;
+`;
+
+const TabItem = styled.div`
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  font-weight: ${props => props.active ? '600' : '400'};
+  color: ${props => props.active ? '#800000' : '#333'};
+  border-bottom: ${props => props.active ? '2px solid #800000' : '2px solid transparent'};
+  margin-bottom: -2px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: #800000;
+  }
+`;
+
+const TabContent = styled.div`
+  padding: 0.5rem 0;
+`;

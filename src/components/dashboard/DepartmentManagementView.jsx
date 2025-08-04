@@ -1,243 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy, where, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Users, Buildings, Pencil, Trash, Plus, UserMinus, UserPlus } from 'phosphor-react';
+import styled from 'styled-components';
 
-const Container = styled.div`
-  padding: 2rem;
-`;
 
-const Title = styled.h2`
-  color: #333;
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const DepartmentsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-  margin-top: 1.5rem;
-`;
-
-const DepartmentCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  border-left: 5px solid ${props => props.color || '#800000'};
-`;
-
-const DepartmentName = styled.h3`
-  color: #333;
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-  font-size: 1.2rem;
-`;
-
-const DepartmentDescription = styled.p`
-  color: #666;
-  margin-bottom: 1rem;
-  flex-grow: 1;
-`;
-
-const DepartmentMeta = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: auto;
-  padding-top: 1rem;
-  border-top: 1px solid #eee;
-`;
-
-const DepartmentCode = styled.span`
-  color: #800000;
-  font-weight: 500;
-  font-size: 0.9rem;
-`;
-
-const DepartmentActions = styled.div`
-  display: flex;
-  gap: 0.5rem;
-`;
-
-const ActionButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: ${props => props.color || '#333'};
-  padding: 0.25rem;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-  }
-`;
-
-const AddDepartmentButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background-color: #800000;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.25rem;
-  border-radius: 4px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  
-  &:hover {
-    background-color: #600000;
-  }
-`;
-
-const SearchBar = styled.input`
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  width: ${props => props.fullWidth ? '100%' : '300px'};
-  font-size: 0.9rem;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-  }
-  
-  @media (max-width: 768px) {
-    width: 100%;
-  }
-`;
-
-const TopControls = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  
-  @media (max-width: 768px) {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
-  }
-`;
-
-const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background-color: white;
-  padding: 2rem;
-  border-radius: 8px;
-  max-width: ${props => props.wide ? '800px' : '500px'};
-  width: 100%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-`;
-
-const ModalTitle = styled.h3`
-  margin-top: 0;
-  color: #333;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-`;
-
-const ModalButtons = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 2rem;
-`;
-
-const Button = styled.button`
-  padding: 0.75rem 1.25rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  
-  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
-  color: ${props => props.primary ? 'white' : '#333'};
-  
-  &:hover {
-    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
-  }
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`;
-
-const FormGroup = styled.div`
-  margin-bottom: 1.5rem;
-`;
-
-const Label = styled.label`
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #333;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-  }
-`;
-
-const TextArea = styled.textarea`
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 1rem;
-  min-height: 100px;
-  resize: vertical;
-  
-  &:focus {
-    outline: none;
-    border-color: #800000;
-  }
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 3rem;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  color: #666;
-`;
 
 function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
   // Both super admins and admins can manage departments
@@ -1047,3 +815,237 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
 }
 
 export default DepartmentManagementView;
+
+const Container = styled.div`
+  padding: 2rem;
+`;
+
+const Title = styled.h2`
+  color: #333;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const DepartmentsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+`;
+
+const DepartmentCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-left: 5px solid ${props => props.color || '#800000'};
+`;
+
+const DepartmentName = styled.h3`
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+`;
+
+const DepartmentDescription = styled.p`
+  color: #666;
+  margin-bottom: 1rem;
+  flex-grow: 1;
+`;
+
+const DepartmentMeta = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+`;
+
+const DepartmentCode = styled.span`
+  color: #800000;
+  font-weight: 500;
+  font-size: 0.9rem;
+`;
+
+const DepartmentActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+`;
+
+const ActionButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: ${props => props.color || '#333'};
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+`;
+
+const AddDepartmentButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #800000;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.25rem;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  
+  &:hover {
+    background-color: #600000;
+  }
+`;
+
+const SearchBar = styled.input`
+  padding: 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  width: ${props => props.fullWidth ? '100%' : '300px'};
+  font-size: 0.9rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+  }
+  
+  @media (max-width: 768px) {
+    width: 100%;
+  }
+`;
+
+const TopControls = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: ${props => props.wide ? '800px' : '500px'};
+  width: 100%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+`;
+
+const ModalTitle = styled.h3`
+  margin-top: 0;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+`;
+
+const Button = styled.button`
+  padding: 0.75rem 1.25rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
+  color: ${props => props.primary ? 'white' : '#333'};
+  
+  &:hover {
+    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const FormGroup = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
+const Label = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+`;
+
+const Input = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+  }
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  min-height: 100px;
+  resize: vertical;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 3rem;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  color: #666;
+`;

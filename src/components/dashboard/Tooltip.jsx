@@ -1,44 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 
-const TooltipContainer = styled.div`
-  position: relative;
-  display: inline-block;
-  cursor: help;
-  z-index: 100;
-`;
 
-const TooltipContent = styled.div`
-  position: fixed;
-  background-color: rgba(0, 0, 0, 0.8);
-  color: white;
-  text-align: center;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  z-index: 9999;
-  min-width: 200px;
-  max-width: 280px;
-  visibility: ${props => props.visible ? 'visible' : 'hidden'};
-  opacity: ${props => props.visible ? '1' : '0'};
-  transition: opacity 0.2s, visibility 0.2s;
-  white-space: normal;
-  pointer-events: none;
-`;
-
-const TooltipArrow = styled.div`
-  position: fixed;
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 6px solid rgba(0, 0, 0, 0.8);
-  visibility: ${props => props.visible ? 'visible' : 'hidden'};
-  opacity: ${props => props.visible ? '1' : '0'};
-  transition: opacity 0.2s, visibility 0.2s;
-  z-index: 9999;
-  pointer-events: none;
-`;
 
 const Tooltip = ({ text, children }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -125,3 +88,42 @@ const Tooltip = ({ text, children }) => {
 };
 
 export default Tooltip;
+
+const TooltipContainer = styled.div`
+  position: relative;
+  display: inline-block;
+  cursor: help;
+  z-index: 100;
+`;
+
+const TooltipContent = styled.div`
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  z-index: 9999;
+  min-width: 200px;
+  max-width: 280px;
+  visibility: ${props => props.visible ? 'visible' : 'hidden'};
+  opacity: ${props => props.visible ? '1' : '0'};
+  transition: opacity 0.2s, visibility 0.2s;
+  white-space: normal;
+  pointer-events: none;
+`;
+
+const TooltipArrow = styled.div`
+  position: fixed;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid rgba(0, 0, 0, 0.8);
+  visibility: ${props => props.visible ? 'visible' : 'hidden'};
+  opacity: ${props => props.visible ? '1' : '0'};
+  transition: opacity 0.2s, visibility 0.2s;
+  z-index: 9999;
+  pointer-events: none;
+`;

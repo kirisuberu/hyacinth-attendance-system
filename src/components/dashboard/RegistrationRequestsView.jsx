@@ -19,255 +19,6 @@ import {
   ClockCounterClockwise 
 } from 'phosphor-react';
 
-const RequestsContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-`;
-
-const RequestCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-  border-left: 4px solid #6e8efb;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px);
-  }
-`;
-
-const RequestHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-`;
-
-const RequestTitle = styled.h3`
-  font-size: 1.1rem;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const RequestDate = styled.span`
-  font-size: 0.85rem;
-  color: #666;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`;
-
-const RequestDetails = styled.div`
-  margin-bottom: 1.5rem;
-`;
-
-const DetailRow = styled.div`
-  display: flex;
-  margin-bottom: 0.75rem;
-  align-items: center;
-`;
-
-const DetailLabel = styled.span`
-  font-weight: 500;
-  width: 120px;
-  color: #555;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-`;
-
-const DetailValue = styled.span`
-  color: #333;
-`;
-
-const ActionButtons = styled.div`
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 1rem;
-`;
-
-const Button = styled.button`
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  border: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-  }
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
-`;
-
-const AcceptButton = styled(Button)`
-  background-color: #4caf50;
-  color: white;
-  
-  &:hover {
-    background-color: #43a047;
-  }
-`;
-
-const DeclineButton = styled(Button)`
-  background-color: #f44336;
-  color: white;
-  
-  &:hover {
-    background-color: #e53935;
-  }
-`;
-
-const EditButton = styled(Button)`
-  background-color: #2196f3;
-  color: white;
-  
-  &:hover {
-    background-color: #1e88e5;
-  }
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 3rem;
-  color: #666;
-`;
-
-const EditModal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  width: 500px;
-  max-width: 90%;
-  padding: 2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-`;
-
-const ModalTitle = styled.h3`
-  margin: 0;
-  font-size: 1.2rem;
-`;
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-  
-  &:hover {
-    color: #333;
-  }
-`;
-
-const Form = styled.form`
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-`;
-
-const FormGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-`;
-
-const Label = styled.label`
-  font-weight: 500;
-  color: #555;
-`;
-
-const Input = styled.input`
-  padding: 0.75rem;
-  border-radius: 4px;
-  border: 1px solid #ddd;
-  
-  &:focus {
-    outline: none;
-    border-color: #6e8efb;
-    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
-  }
-`;
-
-const Select = styled.select`
-  padding: 0.75rem;
-  border-radius: 4px;
-  border: 1px solid #ddd;
-  
-  &:focus {
-    outline: none;
-    border-color: #6e8efb;
-    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
-  }
-`;
-
-const ModalButtons = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
-  margin-top: 1.5rem;
-`;
-
-const SaveButton = styled(Button)`
-  background-color: #6e8efb;
-  color: white;
-  
-  &:hover {
-    background-color: #5a7df9;
-  }
-`;
-
-const CancelButton = styled(Button)`
-  background-color: #e0e0e0;
-  color: #333;
-  
-  &:hover {
-    background-color: #d5d5d5;
-  }
-`;
-
-const LoadingState = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 3rem;
-  color: #666;
-`;
-
 const formatDate = (timestamp) => {
   if (!timestamp) return 'N/A';
   
@@ -602,3 +353,252 @@ const RegistrationRequestsView = () => {
 };
 
 export default RegistrationRequestsView;
+
+const RequestsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+`;
+
+const RequestCard = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  border-left: 4px solid #6e8efb;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+  }
+`;
+
+const RequestHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+`;
+
+const RequestTitle = styled.h3`
+  font-size: 1.1rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const RequestDate = styled.span`
+  font-size: 0.85rem;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const RequestDetails = styled.div`
+  margin-bottom: 1.5rem;
+`;
+
+const DetailRow = styled.div`
+  display: flex;
+  margin-bottom: 0.75rem;
+  align-items: center;
+`;
+
+const DetailLabel = styled.span`
+  font-weight: 500;
+  width: 120px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const DetailValue = styled.span`
+  color: #333;
+`;
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+`;
+
+const Button = styled.button`
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+  }
+`;
+
+const AcceptButton = styled(Button)`
+  background-color: #4caf50;
+  color: white;
+  
+  &:hover {
+    background-color: #43a047;
+  }
+`;
+
+const DeclineButton = styled(Button)`
+  background-color: #f44336;
+  color: white;
+  
+  &:hover {
+    background-color: #e53935;
+  }
+`;
+
+const EditButton = styled(Button)`
+  background-color: #2196f3;
+  color: white;
+  
+  &:hover {
+    background-color: #1e88e5;
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+`;
+
+const EditModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  width: 500px;
+  max-width: 90%;
+  padding: 2rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+  font-size: 1.2rem;
+`;
+
+const CloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  
+  &:hover {
+    color: #333;
+  }
+`;
+
+const Form = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const Label = styled.label`
+  font-weight: 500;
+  color: #555;
+`;
+
+const Input = styled.input`
+  padding: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  
+  &:focus {
+    outline: none;
+    border-color: #6e8efb;
+    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
+  }
+`;
+
+const Select = styled.select`
+  padding: 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  
+  &:focus {
+    outline: none;
+    border-color: #6e8efb;
+    box-shadow: 0 0 0 2px rgba(110, 142, 251, 0.2);
+  }
+`;
+
+const ModalButtons = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+`;
+
+const SaveButton = styled(Button)`
+  background-color: #6e8efb;
+  color: white;
+  
+  &:hover {
+    background-color: #5a7df9;
+  }
+`;
+
+const CancelButton = styled(Button)`
+  background-color: #e0e0e0;
+  color: #333;
+  
+  &:hover {
+    background-color: #d5d5d5;
+  }
+`;
+
+const LoadingState = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+  color: #666;
+`;

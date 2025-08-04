@@ -4,174 +4,15 @@ import { Card, CardTitle, CardContent, Grid, StatusBadge, Button } from './Dashb
 import UserDashboardOverview from './UserDashboardOverview';
 import Tooltip from './Tooltip';
 import styled from 'styled-components';
-import { Clock, Calendar, ChartBar, ClockClockwise, Users, Bell, UserCircle, CheckCircle, XCircle, Warning, SignIn, SignOut } from 'phosphor-react';
+import { Clock, Calendar, ChartBar, ClockClockwise, Users, Bell, UserCircle, CheckCircle, XCircle, Warning, SignIn, SignOut, NotePencil, HourglassMedium, ArrowClockwise } from 'phosphor-react';
 import { collection, query, where, orderBy, limit, getDocs, doc, getDoc, Timestamp } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { format } from 'date-fns';
-import { recordAttendance, getAttendanceStatus } from '../../services/attendanceService';
+import { recordAttendance, getAttendanceStatus, determineTimeInStatus, determineTimeOutStatus } from '../../services/attendanceService';
 import { toast } from 'react-toastify';
 import QuarterlyAttendanceChart from './QuarterlyAttendanceChart';
 
-const HeaderGrid = styled(Grid)`
-  display: flex;
-  gap: 1.5rem;
-  margin-bottom: 0;
-`;
-const WelcomeCard = styled(Card)`
-  background: linear-gradient(135deg, #800000 0%, #330000 100%);
-  color: white;
-  margin-bottom: 1.5rem;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-`;
 
-const WelcomeTitle = styled.h2`
-  font-size: 1.5rem;
-  margin: 0 0 0.5rem 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const WelcomeContent = styled.div`
-  padding: 1.5rem;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-`;
-
-const AttendanceButtonsContainer = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-  justify-content: space-between;
-`;
-
-const AttendanceButton = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  width: 48%;
-  border: none;
-  background-color: ${props => props.variant === 'in' ? '#4caf50' : '#f44336'};
-  color: white;
-  
-  &:hover {
-    background-color: ${props => props.variant === 'in' ? '#43a047' : '#e53935'};
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-    background-color: #f0f0f0;
-    color: #666;
-  }
-`;
-
-const DashboardCardTitle = styled(CardTitle)`
-  background: #111111;
-  color: white;
-  font-weight: bold;
-`;
-
-const StatsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  margin-top: 1rem;
-  
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(4, 1fr);
-  }
-`;
-
-const StatItem = styled.div`
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  min-height: 170px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-`;
-
-const StatValue = styled.div`
-  font-size: 1.75rem;
-  font-weight: bold;
-  margin: 0.5rem 0;
-`;
-
-const StatLabel = styled.div`
-  font-size: 0.85rem;
-  opacity: 0.8;
-`;
-
-const IconContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.2);
-  margin-bottom: 0.5rem;
-`;
-
-const SectionTitle = styled.h2`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.25rem;
-  margin: 1.5rem 0 1rem 0;
-  color: #333;
-`;
-
-const NotificationList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-`;
-
-const NotificationItem = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  background-color: #f9f9f9;
-  border-radius: 6px;
-  border-left: 3px solid ${props => props.type === 'info' ? '#2196f3' : props.type === 'success' ? '#4caf50' : props.type === 'warning' ? '#ff9800' : '#f44336'};
-`;
-
-const NotificationIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: ${props => props.type === 'info' ? '#2196f3' : props.type === 'success' ? '#4caf50' : props.type === 'warning' ? '#ff9800' : '#f44336'};
-`;
-
-const NotificationContent = styled.div`
-  flex: 1;
-`;
-
-const NotificationTitle = styled.div`
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-`;
-
-const NotificationTime = styled.div`
-  font-size: 0.75rem;
-  color: #777;
-`;
 
 const DashboardHome = () => {
   const { attendanceStatus, setAttendanceStatus, lastRecord, setLastRecord } = useOutletContext();
@@ -191,6 +32,11 @@ const DashboardHome = () => {
   const [showOverview, setShowOverview] = useState(false);
   const [processingTimeIn, setProcessingTimeIn] = useState(false);
   const [processingTimeOut, setProcessingTimeOut] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [attendanceType, setAttendanceType] = useState('');
+  const [attendanceNotes, setAttendanceNotes] = useState('');
+  const [predictedStatus, setPredictedStatus] = useState('');
+  const [isLoadingPrediction, setIsLoadingPrediction] = useState(false);
   
   const handleTimeInOutClick = async (type) => {
     const user = auth.currentUser;
@@ -204,27 +50,68 @@ const DashboardHome = () => {
       if (type === 'In' && processingTimeIn) return;
       if (type === 'Out' && processingTimeOut) return;
       
-      // Set processing state
-      if (type === 'In') setProcessingTimeIn(true);
-      if (type === 'Out') setProcessingTimeOut(true);
+      // Set loading state
+      setIsLoadingPrediction(true);
       
-      // Record attendance
-      await recordAttendance(user.uid, type);
+      // Predict status before opening the modal
+      let status = '';
+      if (type === 'In') {
+        status = await determineTimeInStatus(user.uid);
+      } else if (type === 'Out') {
+        const result = await determineTimeOutStatus(user.uid);
+        status = result.status;
+      }
+      
+      setPredictedStatus(status);
+      
+      // Open modal with the selected type
+      setAttendanceType(type);
+      setAttendanceNotes('');
+      setShowModal(true);
+    } catch (error) {
+      console.error(`Error opening modal for Time ${type}:`, error);
+      toast.error(`Could not predict attendance status. Please try again.`);
+    } finally {
+      setIsLoadingPrediction(false);
+    }
+  };
+
+  const handleConfirmAttendance = async () => {
+    const user = auth.currentUser;
+    if (!user?.uid) {
+      toast.error('You must be logged in to record attendance');
+      return;
+    }
+    
+    try {
+      // Set processing state
+      if (attendanceType === 'In') setProcessingTimeIn(true);
+      if (attendanceType === 'Out') setProcessingTimeOut(true);
+      
+      // Record attendance with notes
+      await recordAttendance(user.uid, attendanceType, attendanceNotes.trim() || null);
       
       // Update attendance status
       const newStatus = await getAttendanceStatus(user.uid);
       setAttendanceStatus(newStatus.status);
       setLastRecord(newStatus.lastRecord);
       
-      toast.success(`Time ${type} recorded successfully`);
+      toast.success(`Time ${attendanceType} recorded successfully`);
+      
+      // Close the modal
+      setShowModal(false);
     } catch (error) {
-      console.error(`Error recording Time ${type}:`, error);
-      toast.error(`Failed to record Time ${type}`);
+      console.error(`Error recording Time ${attendanceType}:`, error);
+      toast.error(`Failed to record Time ${attendanceType}`);
     } finally {
       // Reset processing state
-      if (type === 'In') setProcessingTimeIn(false);
-      if (type === 'Out') setProcessingTimeOut(false);
+      if (attendanceType === 'In') setProcessingTimeIn(false);
+      if (attendanceType === 'Out') setProcessingTimeOut(false);
     }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
   };
 
   useEffect(() => {
@@ -685,9 +572,11 @@ const DashboardHome = () => {
                         } catch (error) {
                           console.error('Error creating time date:', error);
                           // Use default times as fallback
-                          return timeStr === todaySchedule?.timeIn ? 
-                            (() => { const d = new Date(today); d.setHours(9, 0, 0, 0); return d; })() : 
-                            (() => { const d = new Date(today); d.setHours(17, 0, 0, 0); return d; })();
+                          const defaultTime = !timeStr === todaySchedule?.timeIn ? '09:00' : '17:00';
+                          const [hours, minutes] = defaultTime.split(':').map(Number);
+                          const date = new Date();
+                          date.setHours(hours, minutes, 0, 0);
+                          return format(date, 'h:mm a') + ' (default)';
                         }
                       };
                       
@@ -1019,8 +908,427 @@ const DashboardHome = () => {
       </Grid>
         </>
       )}
+      
+      {/* Add a rotating animation for the loading indicator */}
+      <style>
+        {`
+          @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          .rotating {
+            animation: rotate 1.5s linear infinite;
+          }
+        `}
+      </style>
+      
+      {/* Attendance Confirmation Modal */}
+      {showModal && (
+        <ModalOverlay onClick={(e) => e.target === e.currentTarget && handleCloseModal()}>
+          <ModalContent>
+            <ModalTitle>
+              {attendanceType === 'In' ? (
+                <>
+                  <SignIn size={24} weight="bold" color="#4caf50" />
+                  Confirm Time In
+                </>
+              ) : (
+                <>
+                  <SignOut size={24} weight="bold" color="#f44336" />
+                  Confirm Time Out
+                </>
+              )}
+            </ModalTitle>
+            
+            <ModalInfo>
+
+              <InfoRow>
+                <InfoLabel>Current time:</InfoLabel>
+                <InfoValue>{format(new Date(), 'h:mm a')}</InfoValue>
+              </InfoRow>
+              <InfoRow>
+                <InfoLabel>Expected status:</InfoLabel>
+                <InfoValue>
+                  {isLoadingPrediction ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <ArrowClockwise size={16} className="rotating" />
+                      <span>Calculating...</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      {attendanceType === 'In' && (
+                        <StatusTag status={predictedStatus}>
+                          {predictedStatus}
+                        </StatusTag>
+                      )}
+                      {attendanceType === 'Out' && (
+                        <StatusTag status={predictedStatus}>
+                          {predictedStatus === 'Complete' ? 'Complete Shift' : 
+                           predictedStatus === 'Incomplete' ? 'Incomplete Shift' : 
+                           predictedStatus === 'Overtime' ? 'Overtime' : predictedStatus}
+                        </StatusTag>
+                      )}
+                    </div>
+                  )}
+                </InfoValue>
+              </InfoRow>
+            </ModalInfo>
+            
+            <div>
+              <label htmlFor="attendanceNotes" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.95rem', fontWeight: '500' }}>
+                <NotePencil size={18} />
+                Optional Notes:
+              </label>
+              <TextArea
+                id="attendanceNotes"
+                value={attendanceNotes}
+                onChange={(e) => setAttendanceNotes(e.target.value)}
+                placeholder="Enter any additional notes about this attendance record (optional)"
+              />
+            </div>
+            
+            <ButtonGroup>
+              <CancelButton onClick={handleCloseModal}>
+                Cancel
+              </CancelButton>
+              <ConfirmButton 
+                variant={attendanceType === 'In' ? 'in' : 'out'}
+                onClick={handleConfirmAttendance}
+                disabled={(attendanceType === 'In' && processingTimeIn) || (attendanceType === 'Out' && processingTimeOut)}
+              >
+                {(attendanceType === 'In' && processingTimeIn) || (attendanceType === 'Out' && processingTimeOut) ? (
+                  'Processing...'
+                ) : (
+                  <>
+                    {attendanceType === 'In' ? 'Confirm Time In' : 'Confirm Time Out'}
+                    {attendanceType === 'In' ? <SignIn size={18} weight="bold" /> : <SignOut size={18} weight="bold" />}
+                  </>
+                )}
+              </ConfirmButton>
+            </ButtonGroup>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </>
   );
 };
 
 export default DashboardHome;
+
+const HeaderGrid = styled(Grid)`
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 0;
+`;
+const WelcomeCard = styled(Card)`
+  background: linear-gradient(135deg, #800000 0%, #330000 100%);
+  color: white;
+  margin-bottom: 1.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+`;
+
+const WelcomeTitle = styled.h2`
+  font-size: 1.5rem;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const WelcomeContent = styled.div`
+  padding: 1.5rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+`;
+
+const AttendanceButtonsContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+  justify-content: space-between;
+`;
+
+const AttendanceButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 48%;
+  border: none;
+  background-color: ${props => props.variant === 'in' ? '#4caf50' : '#f44336'};
+  color: white;
+  
+  &:hover {
+    background-color: ${props => props.variant === 'in' ? '#43a047' : '#e53935'};
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    background-color: #f0f0f0;
+    color: #666;
+  }
+`;
+
+const DashboardCardTitle = styled(CardTitle)`
+  background: #111111;
+  color: white;
+  font-weight: bold;
+`;
+
+const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+  
+  @media (min-width: 768px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+`;
+
+const StatItem = styled.div`
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  min-height: 170px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+`;
+
+const StatValue = styled.div`
+  font-size: 1.75rem;
+  font-weight: bold;
+  margin: 0.5rem 0;
+`;
+
+const StatLabel = styled.div`
+  font-size: 0.85rem;
+  opacity: 0.8;
+`;
+
+const IconContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.2);
+  margin-bottom: 0.5rem;
+`;
+
+const SectionTitle = styled.h2`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.25rem;
+  margin: 1.5rem 0 1rem 0;
+  color: #333;
+`;
+
+const NotificationList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const NotificationItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background-color: #f9f9f9;
+  border-radius: 6px;
+  border-left: 3px solid ${props => props.type === 'info' ? '#2196f3' : props.type === 'success' ? '#4caf50' : props.type === 'warning' ? '#ff9800' : '#f44336'};
+`;
+
+const NotificationIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${props => props.type === 'info' ? '#2196f3' : props.type === 'success' ? '#4caf50' : props.type === 'warning' ? '#ff9800' : '#f44336'};
+`;
+
+const NotificationContent = styled.div`
+  flex: 1;
+`;
+
+const NotificationTitle = styled.div`
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+`;
+
+const NotificationTime = styled.div`
+  font-size: 0.75rem;
+  color: #777;
+`;
+
+const StatusTag = styled.span`
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background-color: ${props => {
+    if (props.status === 'Early') return '#e3f2fd';
+    if (props.status === 'On Time') return '#e8f5e9';
+    if (props.status === 'Late') return '#ffebee';
+    if (props.status === 'Complete') return '#e8f5e9';
+    if (props.status === 'Incomplete') return '#fff8e1';
+    if (props.status === 'Overtime') return '#e8f5e9';
+    return '#f5f5f5';
+  }};
+  color: ${props => {
+    if (props.status === 'Early') return '#1565c0';
+    if (props.status === 'On Time') return '#2e7d32';
+    if (props.status === 'Late') return '#c62828';
+    if (props.status === 'Complete') return '#2e7d32';
+    if (props.status === 'Incomplete') return '#ef6c00';
+    if (props.status === 'Overtime') return '#2e7d32';
+    return '#757575';
+  }};
+  border: 1px solid ${props => {
+    if (props.status === 'Early') return '#bbdefb';
+    if (props.status === 'On Time') return '#c8e6c9';
+    if (props.status === 'Late') return '#ffcdd2';
+    if (props.status === 'Complete') return '#c8e6c9';
+    if (props.status === 'Incomplete') return '#ffe0b2';
+    if (props.status === 'Overtime') return '#c8e6c9';
+    return '#e0e0e0';
+  }};
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 400px;
+  padding: 1.5rem;
+  position: relative;
+`;
+
+const ModalTitle = styled.h3`
+  margin-top: 0;
+  font-size: 1.4rem;
+  color: #333;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const ModalInfo = styled.div`
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+`;
+
+const InfoRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+`;
+
+const InfoLabel = styled.span`
+  color: #666;
+  font-weight: 500;
+`;
+
+const InfoValue = styled.span`
+  color: #333;
+  font-weight: 600;
+`;
+
+const TextArea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  resize: vertical;
+  min-height: 80px;
+  margin-bottom: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #800000;
+  }
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+`;
+
+const CancelButton = styled.button`
+  background-color: #f0f0f0;
+  color: #666;
+  border: none;
+  border-radius: 6px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+`;
+
+const ConfirmButton = styled.button`
+  background-color: ${props => props.variant === 'in' ? '#4caf50' : '#f44336'};
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.75rem 1.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  &:hover {
+    background-color: ${props => props.variant === 'in' ? '#43a047' : '#e53935'};
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;

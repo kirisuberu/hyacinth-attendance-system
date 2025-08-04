@@ -28,210 +28,6 @@ import { updateEmail, EmailAuthProvider, reauthenticateWithCredential, verifyBef
 import { db, auth } from '../../firebase';
 import { toast } from 'react-toastify';
 
-const ProfileSection = styled.div`
-  margin-bottom: 2rem;
-  background-color: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  
-  &:hover {
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-  }
-`;
-
-const ProfileField = styled.p`
-  margin: 0.75rem 0;
-  display: flex;
-  align-items: center;
-  padding: 0.75rem;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-  border-bottom: 1px solid #f0f0f0;
-  
-  &:hover {
-    background-color: #f9f9f9;
-  }
-  
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const FieldLabel = styled.strong`
-  min-width: 200px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #444;
-  font-weight: 500;
-  margin-right: 15px;
-`;
-
-const EditButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #800000;
-  display: flex;
-  align-items: center;
-  font-size: 0.85rem;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: rgba(128, 0, 0, 0.1);
-  }
-`;
-
-const SectionTitle = styled.h3`
-  font-size: 1.1rem;
-  color: #333;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #800000;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
-  position: relative;
-  
-  ${EditButton} {
-    position: absolute;
-    right: 0;
-    top: 0;
-  }
-`;
-
-const FieldValue = styled.span`
-  color: #333;
-  word-break: break-word;
-  font-weight: 400;
-  flex: 1;
-`;
-
-const Modal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
-`;
-
-const ModalTitle = styled.h3`
-  margin: 0;
-  color: #333;
-`;
-
-const ModalCloseButton = styled.button`
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #999;
-  
-  &:hover {
-    color: #333;
-  }
-`;
-
-const ModalForm = styled.form`
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-`;
-
-const FormGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-`;
-
-const FormLabel = styled.label`
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #555;
-`;
-
-const FormInput = styled.input`
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-`;
-
-const FormActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 15px;
-`;
-
-const CancelButton = styled.button`
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  background-color: #f0f0f0;
-  color: #333;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: #e0e0e0;
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-`;
-
-const SubmitButton = styled.button`
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  background-color: #800000;
-  color: white;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: #600000;
-  }
-  
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-`;
 
 const ProfileView = ({ user, userData, loadingUserData }) => {
   const [copied, setCopied] = useState(false);
@@ -1086,3 +882,208 @@ const ProfileRole = styled.div`
 };
 
 export default ProfileView;
+
+const ProfileSection = styled.div`
+  margin-bottom: 2rem;
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  }
+`;
+
+const ProfileField = styled.p`
+  margin: 0.75rem 0;
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f0f0f0;
+  
+  &:hover {
+    background-color: #f9f9f9;
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const FieldLabel = styled.strong`
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #444;
+  font-weight: 500;
+  margin-right: 15px;
+`;
+
+const EditButton = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #800000;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(128, 0, 0, 0.1);
+  }
+`;
+
+const SectionTitle = styled.h3`
+  font-size: 1.1rem;
+  color: #333;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #800000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  position: relative;
+  
+  ${EditButton} {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+`;
+
+const FieldValue = styled.span`
+  color: #333;
+  word-break: break-word;
+  font-weight: 400;
+  flex: 1;
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+  color: #333;
+`;
+
+const ModalCloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  
+  &:hover {
+    color: #333;
+  }
+`;
+
+const ModalForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`;
+
+const FormLabel = styled.label`
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #555;
+`;
+
+const FormInput = styled.input`
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+`;
+
+const FormActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 15px;
+`;
+
+const CancelButton = styled.button`
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background-color: #f0f0f0;
+  color: #333;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #e0e0e0;
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;
+
+const SubmitButton = styled.button`
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background-color: #800000;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #600000;
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+`;

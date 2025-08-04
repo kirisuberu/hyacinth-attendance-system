@@ -4,20 +4,6 @@ import { Card } from './DashboardComponents';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ChartBar } from 'phosphor-react';
 
-const ChartCard = styled(Card)`
-  padding: 1.5rem;
-  margin-top: 1.5rem;
-  height: 400px;
-`;
-
-const ChartTitle = styled.h3`
-  font-size: 1.2rem;
-  margin-top: 0;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
 
 /**
  * QuarterlyAttendanceChart - Displays a bar chart of quarterly attendance data
@@ -55,3 +41,18 @@ const QuarterlyAttendanceChart = ({ data }) => {
 };
 
 export default QuarterlyAttendanceChart;
+
+const ChartCard = styled(Card)`
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  height: 400px;
+`;
+
+const ChartTitle = styled.h3`
+  font-size: 1.2rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;

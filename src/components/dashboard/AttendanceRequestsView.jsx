@@ -17,375 +17,7 @@ import { toast } from 'react-toastify';
 import { Check, X, Clock, FileText, PencilSimple, Calendar, User, ClockClockwise, CaretDown, CaretUp, Eye, Trash } from 'phosphor-react';
 import { auth } from '../../firebase';
 
-const TabContainer = styled.div`
-  display: flex;
-  border-bottom: 1px solid #e0e0e0;
-  margin-bottom: 20px;
-`;
 
-const Tab = styled.button`
-  padding: 10px 20px;
-  background-color: ${props => props.active ? '#e91e63' : 'transparent'};
-  color: ${props => props.active ? 'white' : '#333'};
-  border: none;
-  border-bottom: 3px solid ${props => props.active ? '#c2185b' : 'transparent'};
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: ${props => props.active ? '#e91e63' : '#f5f5f5'};
-  }
-`;
-
-const RequestsTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  
-  th, td {
-    padding: 12px 15px;
-    text-align: left;
-    border-bottom: 1px solid #eee;
-  }
-  
-  th {
-    background-color: #f9f9f9;
-    font-weight: 600;
-    color: #333;
-  }
-  
-  tr:hover {
-    background-color: #f5f5f5;
-  }
-`;
-
-const StatusBadge = styled.span`
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  
-  background-color: ${props => {
-    switch (props.status) {
-      case REQUEST_STATUS.PENDING: return '#fff8e1';
-      case REQUEST_STATUS.APPROVED: return '#e8f5e9';
-      case REQUEST_STATUS.REJECTED: return '#ffebee';
-      default: return '#f5f5f5';
-    }
-  }};
-  
-  color: ${props => {
-    switch (props.status) {
-      case REQUEST_STATUS.PENDING: return '#f57c00';
-      case REQUEST_STATUS.APPROVED: return '#2e7d32';
-      case REQUEST_STATUS.REJECTED: return '#c62828';
-      default: return '#757575';
-    }
-  }};
-  
-  border: 1px solid ${props => {
-    switch (props.status) {
-      case REQUEST_STATUS.PENDING: return '#ffe082';
-      case REQUEST_STATUS.APPROVED: return '#a5d6a7';
-      case REQUEST_STATUS.REJECTED: return '#ef9a9a';
-      default: return '#e0e0e0';
-    }
-  }};
-`;
-
-const ActionButton = styled.button`
-  padding: 6px;
-  margin-right: 5px;
-  background-color: ${props => props.approve ? '#e8f5e9' : props.reject ? '#ffebee' : '#f5f5f5'};
-  color: ${props => props.approve ? '#2e7d32' : props.reject ? '#c62828' : '#757575'};
-  border: 1px solid ${props => props.approve ? '#a5d6a7' : props.reject ? '#ef9a9a' : '#e0e0e0'};
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    background-color: ${props => props.approve ? '#a5d6a7' : props.reject ? '#ef9a9a' : '#e0e0e0'};
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
-
-const EmptyState = styled.div`
-  text-align: center;
-  padding: 30px;
-  color: #757575;
-`;
-
-const FilterContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #f9f9f9;
-  border-radius: 8px;
-`;
-
-const FilterGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-width: 200px;
-`;
-
-const FilterLabel = styled.label`
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-bottom: 5px;
-  color: #555;
-`;
-
-const FilterSelect = styled.select`
-  padding: 8px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-`;
-
-const FilterInput = styled.input`
-  padding: 8px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-`;
-
-const FilterButton = styled.button`
-  padding: 8px 15px;
-  background-color: #e91e63;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 500;
-  align-self: flex-end;
-  margin-top: auto;
-  
-  &:hover {
-    background-color: #c2185b;
-  }
-`;
-
-const OverrideButton = styled(ActionButton)`
-  background-color: #e3f2fd;
-  color: #1976d2;
-  border: 1px solid #bbdefb;
-  
-  &:hover {
-    background-color: #bbdefb;
-  }
-`;
-
-const ViewHistoryButton = styled(ActionButton)`
-  background-color: #f3e5f5;
-  color: #7b1fa2;
-  border: 1px solid #e1bee7;
-  
-  &:hover {
-    background-color: #e1bee7;
-  }
-`;
-
-const Modal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  padding: 20px;
-  width: 90%;
-  max-width: 600px;
-  max-height: 90vh;
-  overflow-y: auto;
-`;
-
-const ModalHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
-`;
-
-const ModalTitle = styled.h3`
-  margin: 0;
-  color: #333;
-`;
-
-const ModalCloseButton = styled.button`
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #999;
-  
-  &:hover {
-    color: #333;
-  }
-`;
-
-const ModalForm = styled.form`
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-`;
-
-const FormGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-`;
-
-const FormLabel = styled.label`
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: #555;
-`;
-
-const FormInput = styled.input`
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-`;
-
-const FormSelect = styled.select`
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-`;
-
-const FormTextarea = styled.textarea`
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  min-height: 100px;
-  resize: vertical;
-`;
-
-const FormActions = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 10px;
-`;
-
-const FormButton = styled.button`
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-`;
-
-const CancelButton = styled(FormButton)`
-  background-color: #f5f5f5;
-  color: #333;
-  
-  &:hover:not(:disabled) {
-    background-color: #e0e0e0;
-  }
-`;
-
-const SubmitButton = styled(FormButton)`
-  background-color: #e91e63;
-  color: white;
-  
-  &:hover:not(:disabled) {
-    background-color: #c2185b;
-  }
-`;
-
-const HistoryContainer = styled.div`
-  margin-top: 20px;
-  border-top: 1px solid #eee;
-  padding-top: 15px;
-`;
-
-const HistoryTitle = styled.h4`
-  margin: 0 0 10px 0;
-  color: #555;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-`;
-
-const HistoryItem = styled.div`
-  padding: 10px;
-  border: 1px solid #eee;
-  border-radius: 4px;
-  margin-bottom: 10px;
-  background-color: #f9f9f9;
-`;
-
-const HistoryHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: #777;
-  margin-bottom: 5px;
-`;
-
-const HistoryContent = styled.div`
-  font-size: 0.9rem;
-`;
-
-const HistoryChanges = styled.div`
-  margin-top: 10px;
-  font-size: 0.85rem;
-  
-  ul {
-    margin: 5px 0;
-    padding-left: 20px;
-  }
-  
-  li {
-    margin-bottom: 3px;
-  }
-`;
-
-const ExpandButton = styled.button`
-  background: none;
-  border: none;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.85rem;
-  color: #666;
-  cursor: pointer;
-  padding: 5px;
-  margin-top: 5px;
-  
-  &:hover {
-    color: #333;
-  }
-`;
 
 const formatDate = (timestamp) => {
   try {
@@ -1329,3 +961,373 @@ const AttendanceRequestsView = () => {
 };
 
 export default AttendanceRequestsView;
+
+const TabContainer = styled.div`
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 20px;
+`;
+
+const Tab = styled.button`
+  padding: 10px 20px;
+  background-color: ${props => props.active ? '#e91e63' : 'transparent'};
+  color: ${props => props.active ? 'white' : '#333'};
+  border: none;
+  border-bottom: 3px solid ${props => props.active ? '#c2185b' : 'transparent'};
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.active ? '#e91e63' : '#f5f5f5'};
+  }
+`;
+
+const RequestsTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  
+  th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+  }
+  
+  th {
+    background-color: #f9f9f9;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  tr:hover {
+    background-color: #f5f5f5;
+  }
+`;
+
+const StatusBadge = styled.span`
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  
+  background-color: ${props => {
+    switch (props.status) {
+      case REQUEST_STATUS.PENDING: return '#fff8e1';
+      case REQUEST_STATUS.APPROVED: return '#e8f5e9';
+      case REQUEST_STATUS.REJECTED: return '#ffebee';
+      default: return '#f5f5f5';
+    }
+  }};
+  
+  color: ${props => {
+    switch (props.status) {
+      case REQUEST_STATUS.PENDING: return '#f57c00';
+      case REQUEST_STATUS.APPROVED: return '#2e7d32';
+      case REQUEST_STATUS.REJECTED: return '#c62828';
+      default: return '#757575';
+    }
+  }};
+  
+  border: 1px solid ${props => {
+    switch (props.status) {
+      case REQUEST_STATUS.PENDING: return '#ffe082';
+      case REQUEST_STATUS.APPROVED: return '#a5d6a7';
+      case REQUEST_STATUS.REJECTED: return '#ef9a9a';
+      default: return '#e0e0e0';
+    }
+  }};
+`;
+
+const ActionButton = styled.button`
+  padding: 6px;
+  margin-right: 5px;
+  background-color: ${props => props.approve ? '#e8f5e9' : props.reject ? '#ffebee' : '#f5f5f5'};
+  color: ${props => props.approve ? '#2e7d32' : props.reject ? '#c62828' : '#757575'};
+  border: 1px solid ${props => props.approve ? '#a5d6a7' : props.reject ? '#ef9a9a' : '#e0e0e0'};
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: ${props => props.approve ? '#a5d6a7' : props.reject ? '#ef9a9a' : '#e0e0e0'};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const EmptyState = styled.div`
+  text-align: center;
+  padding: 30px;
+  color: #757575;
+`;
+
+const FilterContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+`;
+
+const FilterGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+`;
+
+const FilterLabel = styled.label`
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: #555;
+`;
+
+const FilterSelect = styled.select`
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+`;
+
+const FilterInput = styled.input`
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+`;
+
+const FilterButton = styled.button`
+  padding: 8px 15px;
+  background-color: #e91e63;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  align-self: flex-end;
+  margin-top: auto;
+  
+  &:hover {
+    background-color: #c2185b;
+  }
+`;
+
+const OverrideButton = styled(ActionButton)`
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+  
+  &:hover {
+    background-color: #bbdefb;
+  }
+`;
+
+const ViewHistoryButton = styled(ActionButton)`
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+  border: 1px solid #e1bee7;
+  
+  &:hover {
+    background-color: #e1bee7;
+  }
+`;
+
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+`;
+
+const ModalContent = styled.div`
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+`;
+
+const ModalTitle = styled.h3`
+  margin: 0;
+  color: #333;
+`;
+
+const ModalCloseButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  
+  &:hover {
+    color: #333;
+  }
+`;
+
+const ModalForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+`;
+
+const FormGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`;
+
+const FormLabel = styled.label`
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #555;
+`;
+
+const FormInput = styled.input`
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+`;
+
+const FormSelect = styled.select`
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+`;
+
+const FormTextarea = styled.textarea`
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  min-height: 100px;
+  resize: vertical;
+`;
+
+const FormActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+`;
+
+const FormButton = styled.button`
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
+const CancelButton = styled(FormButton)`
+  background-color: #f5f5f5;
+  color: #333;
+  
+  &:hover:not(:disabled) {
+    background-color: #e0e0e0;
+  }
+`;
+
+const SubmitButton = styled(FormButton)`
+  background-color: #e91e63;
+  color: white;
+  
+  &:hover:not(:disabled) {
+    background-color: #c2185b;
+  }
+`;
+
+const HistoryContainer = styled.div`
+  margin-top: 20px;
+  border-top: 1px solid #eee;
+  padding-top: 15px;
+`;
+
+const HistoryTitle = styled.h4`
+  margin: 0 0 10px 0;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+`;
+
+const HistoryItem = styled.div`
+  padding: 10px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  background-color: #f9f9f9;
+`;
+
+const HistoryHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #777;
+  margin-bottom: 5px;
+`;
+
+const HistoryContent = styled.div`
+  font-size: 0.9rem;
+`;
+
+const HistoryChanges = styled.div`
+  margin-top: 10px;
+  font-size: 0.85rem;
+  
+  ul {
+    margin: 5px 0;
+    padding-left: 20px;
+  }
+  
+  li {
+    margin-bottom: 3px;
+  }
+`;
+
+const ExpandButton = styled.button`
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  color: #666;
+  cursor: pointer;
+  padding: 5px;
+  margin-top: 5px;
+  
+  &:hover {
+    color: #333;
+  }
+`;
