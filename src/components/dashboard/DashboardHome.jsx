@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { recordAttendance, getAttendanceStatus, determineTimeInStatus, determineTimeOutStatus } from '../../services/attendanceService';
 import { toast } from 'react-toastify';
 import QuarterlyAttendanceChart from './QuarterlyAttendanceChart';
+import { getCurrentTimeInZone, getCurrentTimestamp, timestampToZonedDate } from '../../utils/timeZoneUtils';
 
 
 
@@ -37,6 +38,21 @@ const DashboardHome = () => {
   const [attendanceNotes, setAttendanceNotes] = useState('');
   const [predictedStatus, setPredictedStatus] = useState('');
   const [isLoadingPrediction, setIsLoadingPrediction] = useState(false);
+  
+  // Avoid progress bar animating from 0% on first render
+  const [animateProgress, setAnimateProgress] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setAnimateProgress(true), 0);
+    return () => clearTimeout(t);
+  }, []);
+  
+  // Lightweight ticker to refresh time-based UI (e.g., progress) every minute
+  // This forces a re-render so the computed `now` updates and the bar progresses without manual refresh
+  const [__timeTick, __setTimeTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => __setTimeTick((v) => v + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
   
   const handleTimeInOutClick = async (type) => {
     const user = auth.currentUser;
@@ -127,10 +143,11 @@ const DashboardHome = () => {
             // Get user schedule
             if (userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
               setUserSchedule(userData.schedule);
-              
+               
               // Find today's schedule
-              const now = new Date();
-              const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+              const userTZ = userData.timeRegion || 'Asia/Manila';
+              const zoneNow = getCurrentTimeInZone(userTZ);
+              const currentDay = zoneNow.dayOfWeek;
               const todayScheduleItem = userData.schedule.find(s => s.dayOfWeek === currentDay);
               
               if (todayScheduleItem) {
@@ -148,8 +165,10 @@ const DashboardHome = () => {
                 
                 // For legacy schedule format
                 if (scheduleData.shifts && Array.isArray(scheduleData.shifts)) {
-                  const now = new Date();
-                  const currentDay = now.getDay(); // 0-6 (Sunday-Saturday)
+                  const userTZ = userData.timeRegion || 'Asia/Manila';
+                  const zoneNow = getCurrentTimeInZone(userTZ);
+                  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                  const currentDay = dayNames.indexOf(zoneNow.dayOfWeek); // 0-6 (Sunday-Saturday)
                   const todayShift = scheduleData.shifts.find(s => s.day === currentDay);
                   
                   if (todayShift) {
@@ -476,7 +495,7 @@ const DashboardHome = () => {
                       );
                     }
                     
-                    if (!todaySchedule) {
+                    if (!todaySchedule && (!userSchedule || (Array.isArray(userSchedule) && userSchedule.length === 0))) {
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px' }}>
@@ -513,18 +532,95 @@ const DashboardHome = () => {
                     }
                     
                     return (() => {
-                      // Get today's date for the base of our time calculations
-                      const today = new Date();
-                      const now = new Date();
+                      // Build "now" and day names in the user's time zone
+                      const userTZ = (userData && userData.timeRegion) ? userData.timeRegion : 'Asia/Manila';
+                      const zonedNow = timestampToZonedDate(getCurrentTimestamp(), userTZ);
+                      const today = new Date(zonedNow);
+                      const now = new Date(zonedNow);
                       
-                      // Check if we have valid schedule data
-                      if (!todaySchedule) {
-                        console.log('No schedule found for today');
+                      // Determine active schedule (today or previous day) to handle overnight shifts
+                      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                      const todayIdx = now.getDay();
+                      const yesterdayIdx = (todayIdx + 6) % 7;
+                      const todayName = dayNames[todayIdx];
+                      const yesterdayName = dayNames[yesterdayIdx];
+
+                      const schedToday = (Array.isArray(userSchedule) ? userSchedule.find(s => s.dayOfWeek === todayName) : null) || todaySchedule || null;
+                      const schedPrev = Array.isArray(userSchedule) ? userSchedule.find(s => s.dayOfWeek === yesterdayName) : null;
+
+                      // Helper to create Date from base date + time string
+                      const createTimeDateWithBase = (baseDate, timeStr, isTimeIn = false) => {
+                        if (!timeStr) {
+                          const d = new Date(baseDate);
+                          d.setHours(isTimeIn ? 9 : 17, 0, 0, 0);
+                          return d;
+                        }
+                        try {
+                          const [hours, minutes] = timeStr.split(':').map(Number);
+                          const d = new Date(baseDate);
+                          d.setHours(hours || 0, minutes || 0, 0, 0);
+                          return d;
+                        } catch (e) {
+                          const d = new Date(baseDate);
+                          d.setHours(isTimeIn ? 9 : 17, 0, 0, 0);
+                          return d;
+                        }
+                      };
+
+                      // Build windows for today candidate
+                      let candidate = null;
+                      let shiftStart = null;
+                      let shiftEnd = null;
+                      let activeDayOfWeek = null;
+
+                      if (schedToday) {
+                        const startToday = createTimeDateWithBase(today, schedToday.timeIn, true);
+                        let endToday;
+                        if (schedToday.timeOut) {
+                          endToday = createTimeDateWithBase(today, schedToday.timeOut, false);
+                          if (endToday <= startToday) endToday.setDate(endToday.getDate() + 1);
+                        } else {
+                          const dur = schedToday.shiftDuration || 8;
+                          endToday = new Date(startToday.getTime());
+                          endToday.setHours(endToday.getHours() + dur);
+                        }
+                        // If now falls in today's window, select it
+                        if (now >= startToday && now < endToday) {
+                          candidate = schedToday;
+                          shiftStart = startToday;
+                          shiftEnd = endToday;
+                          activeDayOfWeek = todayName;
+                        }
+                      }
+
+                      // If not within today's window, check previous day's window crossing midnight
+                      if (!candidate && schedPrev) {
+                        const basePrev = new Date(today);
+                        basePrev.setDate(basePrev.getDate() - 1);
+                        const startPrev = createTimeDateWithBase(basePrev, schedPrev.timeIn, true);
+                        let endPrev;
+                        if (schedPrev.timeOut) {
+                          endPrev = createTimeDateWithBase(basePrev, schedPrev.timeOut, false);
+                          if (endPrev <= startPrev) endPrev.setDate(endPrev.getDate() + 1); // spill to today
+                        } else {
+                          const durPrev = schedPrev.shiftDuration || 8;
+                          endPrev = new Date(startPrev.getTime());
+                          endPrev.setHours(endPrev.getHours() + durPrev);
+                        }
+                        if (now >= startPrev && now < endPrev) {
+                          candidate = schedPrev;
+                          shiftStart = startPrev;
+                          shiftEnd = endPrev;
+                          activeDayOfWeek = yesterdayName;
+                        }
+                      }
+
+                      // If we still don't have a candidate, fallback: if there's no schedule for either day, show default panel
+                      if (!candidate) {
                         // Create default schedule (9 AM - 5 PM)
                         const defaultTimeIn = '09:00';
                         const defaultTimeOut = '17:00';
                         
-                        // Format times for display
                         const formatDefaultTime = (timeStr) => {
                           const [hours, minutes] = timeStr.split(':').map(Number);
                           const date = new Date();
@@ -545,7 +641,6 @@ const DashboardHome = () => {
                                 No Schedule
                               </StatusBadge>
                             </div>
-                            
                             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px' }}>
                               <Warning size={20} style={{ marginRight: '10px', color: '#f57f17' }} />
                               <span>No schedule found for today. Using default values.</span>
@@ -555,54 +650,30 @@ const DashboardHome = () => {
                       }
                       
                       // Create proper Date objects for shift start and end times
-                      const createTimeDate = (timeStr) => {
-                        if (!timeStr) {
-                          // Use a default time if timeStr is undefined
-                          console.log('Missing time string, using default');
-                          return timeStr === todaySchedule?.timeIn ? 
-                            (() => { const d = new Date(today); d.setHours(9, 0, 0, 0); return d; })() : 
-                            (() => { const d = new Date(today); d.setHours(17, 0, 0, 0); return d; })();
-                        }
-                        
-                        try {
-                          const [hours, minutes] = timeStr.split(':').map(Number);
-                          const timeDate = new Date(today);
-                          timeDate.setHours(hours || 0, minutes || 0, 0, 0);
-                          return timeDate;
-                        } catch (error) {
-                          console.error('Error creating time date:', error);
-                          // Use default times as fallback
-                          const defaultTime = !timeStr === todaySchedule?.timeIn ? '09:00' : '17:00';
-                          const [hours, minutes] = defaultTime.split(':').map(Number);
-                          const date = new Date();
-                          date.setHours(hours, minutes, 0, 0);
-                          return format(date, 'h:mm a') + ' (default)';
-                        }
-                      };
-                      
-                      // Create proper Date object for shift start
-                      const shiftStart = createTimeDate(todaySchedule?.timeIn);
-                      
-                      // Calculate shift end time based on start time and duration
-                      let shiftEnd;
-                      if (todaySchedule?.timeOut) {
-                        // Use the provided time out if available
-                        shiftEnd = createTimeDate(todaySchedule.timeOut);
-                      } else {
-                        // Calculate time out by adding shift duration to time in
-                        const shiftDuration = todaySchedule?.shiftDuration || 8; // Default to 8 hours if not specified
-                        shiftEnd = new Date(shiftStart.getTime());
-                        shiftEnd.setHours(shiftEnd.getHours() + shiftDuration);
-                        console.log(`Calculated time out: ${shiftEnd.toLocaleTimeString()} (${shiftDuration} hours shift)`);
-                      }
-                      
-                      // Handle overnight shifts
-                      if (shiftEnd <= shiftStart) {
-                        shiftEnd.setDate(shiftEnd.getDate() + 1);
-                      }
+                       const createTimeDate = (timeStr, isTimeIn = false) => {
+                         if (!timeStr) {
+                           // Use a default time if timeStr is undefined
+                           const d = new Date(today);
+                           d.setHours(isTimeIn ? 9 : 17, 0, 0, 0);
+                           return d;
+                         }
+                         
+                         try {
+                           const [hours, minutes] = timeStr.split(':').map(Number);
+                           const timeDate = new Date(today);
+                           timeDate.setHours(hours || 0, minutes || 0, 0, 0);
+                           return timeDate;
+                         } catch (error) {
+                           console.error('Error creating time date:', error);
+                           // Use default times as fallback (return a Date, not a formatted string)
+                           const d = new Date(today);
+                           d.setHours(isTimeIn ? 9 : 17, 0, 0, 0);
+                           return d;
+                         }
+                       };
                       
                       // Calculate shift duration in milliseconds
-                      const totalShiftDuration = shiftEnd - shiftStart;
+                       const totalShiftDuration = shiftEnd - shiftStart;
                       
                       // Calculate progress percentage based on scheduled time and duration
                       let progressPercentage = 0;
@@ -619,107 +690,113 @@ const DashboardHome = () => {
                         progressPercentage = 100;
                         statusText = "Completed";
                         elapsedTime = totalShiftDuration;
-                      } else {
-                        // Shift is in progress
-                        // Calculate elapsed time since shift start
-                        elapsedTime = now - shiftStart;
-                        
-                        // Calculate progress as a percentage of the total shift duration
-                        // Make sure it doesn't exceed 100% or go below 0%
-                        progressPercentage = Math.min(100, Math.max(0, (elapsedTime / totalShiftDuration) * 100));
-                        statusText = "In Progress";
-                      }
-                      
-                      // Format times for display
-                      const formatTimeDisplay = (timeStr, isTimeOut = false) => {
-                        // For time out, if we don't have the string but have calculated the end time
-                        if (isTimeOut && !timeStr && shiftEnd) {
-                          // Use the calculated shift end time
-                          return format(shiftEnd, 'h:mm a') + ' (calculated)';
-                        }
-                        
-                        if (!timeStr) {
-                          // Use default times instead of showing N/A
-                          const defaultTime = !isTimeOut ? '09:00' : '17:00';
-                          const [hours, minutes] = defaultTime.split(':').map(Number);
-                          const date = new Date();
-                          date.setHours(hours, minutes, 0, 0);
-                          return format(date, 'h:mm a') + ' (default)';
-                        }
-                        
-                        try {
-                          const [hours, minutes] = timeStr.split(':').map(Number);
-                          const date = new Date();
-                          date.setHours(hours || 0, minutes || 0, 0, 0);
-                          return format(date, 'h:mm a');
-                        } catch (error) {
-                          console.error('Error formatting time for display:', error);
-                          // Use default times as fallback
-                          const defaultTime = !isTimeOut ? '09:00' : '17:00';
-                          const [hours, minutes] = defaultTime.split(':').map(Number);
-                          const date = new Date();
-                          date.setHours(hours, minutes, 0, 0);
-                          return format(date, 'h:mm a') + ' (default)';
-                        }
-                      };
-                      
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
-                            <div>
-                              <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>{todaySchedule?.dayOfWeek || 'Today'}</div>
-                              <div style={{ fontSize: '1rem', color: '#555' }}>
-                                {formatTimeDisplay(todaySchedule?.timeIn, false)} - {formatTimeDisplay(todaySchedule?.timeOut, true)}
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* Progress Bar */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#666' }}>
-                              <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>Shift Progress</span>
-                              <span style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{Math.round(progressPercentage)}%</span>
-                            </div>
-                            <div style={{ height: '12px', backgroundColor: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div 
-                                style={{ 
-                                  height: '100%', 
-                                  width: `${progressPercentage}%`, 
-                                  backgroundColor: progressPercentage < 30 ? '#42a5f5' : progressPercentage < 70 ? '#66bb6a' : '#8d6e63',
-                                  borderRadius: '6px',
-                                  transition: 'width 0.5s ease-in-out'
-                                }}
-                              />
-                            </div>
-                          </div>
-                          
-                          {/* Attendance Button */}
-                          <AttendanceButtonsContainer>
-                            {attendanceStatus === 'Checked In' ? (
-                              <AttendanceButton 
-                                variant="out" 
-                                onClick={() => handleTimeInOutClick('Out')}
-                                disabled={processingTimeOut}
-                                style={{ width: '100%' }}
-                              >
-                                <SignOut size={18} />
-                                TIME OUT
-                              </AttendanceButton>
-                            ) : (
-                              <AttendanceButton 
-                                variant="in" 
-                                onClick={() => handleTimeInOutClick('In')}
-                                disabled={processingTimeIn}
-                                style={{ width: '100%' }}
-                              >
-                                <SignIn size={18} />
-                                TIME IN
-                              </AttendanceButton>
-                            )}
-                          </AttendanceButtonsContainer>
-                        </div>
-                      );
-                    })()
+                       } else {
+                         // Shift is in progress
+                         // Calculate elapsed time since shift start
+                         elapsedTime = now - shiftStart;
+                         // Calculate progress as a percentage of the total shift duration
+                         // Make sure it doesn't exceed 100% or go below 0%
+                         progressPercentage = Math.min(100, Math.max(0, (elapsedTime / totalShiftDuration) * 100));
+                         statusText = 'In Progress';
+                       }
+                       
+                       // Format times for display
+                       const formatTimeDisplay = (timeStr, isTimeOut = false) => {
+                         // For time out, if we don't have the string but have calculated the end time
+                         if (isTimeOut && !timeStr && shiftEnd) {
+                           return format(shiftEnd, 'h:mm a') + ' (calculated)';
+                         }
+                         
+                         if (!timeStr) {
+                           // Use default times instead of showing N/A
+                           const defaultTime = !isTimeOut ? '09:00' : '17:00';
+                           const [hours, minutes] = defaultTime.split(':').map(Number);
+                           const date = new Date();
+                           date.setHours(hours, minutes, 0, 0);
+                           return format(date, 'h:mm a') + ' (default)';
+                         }
+                         
+                         try {
+                           const [hours, minutes] = timeStr.split(':').map(Number);
+                           const date = new Date();
+                           date.setHours(hours || 0, minutes || 0, 0, 0);
+                           return format(date, 'h:mm a');
+                         } catch (error) {
+                           console.error('Error formatting time for display:', error);
+                           const defaultTime = !isTimeOut ? '09:00' : '17:00';
+                           const [hours, minutes] = defaultTime.split(':').map(Number);
+                           const date = new Date();
+                           date.setHours(hours, minutes, 0, 0);
+                           return format(date, 'h:mm a') + ' (default)';
+                         }
+                       };
+                       
+                       // Only show shift progress after the user has actually timed in
+                       const hasTimedIn = attendanceStatus === 'Checked In';
+                       
+                       return (
+                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '6px' }}>
+                             <div>
+                               <div style={{ fontWeight: 'bold', fontSize: '1.5rem' }}>{activeDayOfWeek || 'Today'}</div>
+                               <div style={{ fontSize: '1rem', color: '#555' }}>
+                                 {formatTimeDisplay(candidate?.timeIn, false)} - {formatTimeDisplay(candidate?.timeOut, true)}
+                               </div>
+                             </div>
+                           </div>
+                           
+                           {/* Progress Bar */}
+                           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#666' }}>
+                               <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>Shift Progress</span>
+                               <span style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{hasTimedIn ? Math.round(progressPercentage) + '%' : '--'}</span>
+                             </div>
+                             {hasTimedIn ? (
+                               <div style={{ height: '12px', backgroundColor: '#e0e0e0', borderRadius: '4px', overflow: 'hidden' }}>
+                                 <div 
+                                   style={{ 
+                                     height: '100%', 
+                                     width: `${progressPercentage}%`, 
+                                     backgroundColor: progressPercentage < 30 ? '#42a5f5' : progressPercentage < 70 ? '#66bb6a' : '#8d6e63',
+                                     borderRadius: '6px',
+                                     transition: animateProgress ? 'width 0.5s ease-in-out' : 'none'
+                                   }}
+                                 />
+                               </div>
+                             ) : (
+                               <div style={{ padding: '10px', backgroundColor: '#f5f5f5', borderRadius: '6px', color: '#666' }}>
+                                 Progress appears after you time in.
+                               </div>
+                             )}
+                           </div>
+                           
+                           {/* Attendance Button */}
+                           <AttendanceButtonsContainer>
+                             {attendanceStatus === 'Checked In' ? (
+                               <AttendanceButton 
+                                 variant="out" 
+                                 onClick={() => handleTimeInOutClick('Out')}
+                                 disabled={processingTimeOut}
+                                 style={{ width: '100%' }}
+                               >
+                                 <SignOut size={18} />
+                                 TIME OUT
+                               </AttendanceButton>
+                             ) : (
+                               <AttendanceButton 
+                                 variant="in" 
+                                 onClick={() => handleTimeInOutClick('In')}
+                                 disabled={processingTimeIn}
+                                 style={{ width: '100%' }}
+                               >
+                                 <SignIn size={18} />
+                                 TIME IN
+                               </AttendanceButton>
+                             )}
+                           </AttendanceButtonsContainer>
+                         </div>
+                       );
+                     })()
                   })()}
                 </CardContent>
               </Card>

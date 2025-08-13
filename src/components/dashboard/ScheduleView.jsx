@@ -21,22 +21,81 @@ const ScheduleView = ({ user, userData }) => {
   const [departmentUsers, setDepartmentUsers] = useState([]);
   const [departmentUsersLoading, setDepartmentUsersLoading] = useState(false);
   const [departmentUsersError, setDepartmentUsersError] = useState(null);
+  const [availableDepartments, setAvailableDepartments] = useState([]); // {id, name}
+  const [selectedDepartmentIds, setSelectedDepartmentIds] = useState([]);
   const { use24HourFormat } = useTimeFormat();
   const userTimeRegion = userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila';
 
   // No need to update userTimeRegion as it's now derived from userData directly
 
+  // Handlers for department filter toggles
+  const handleToggleDepartment = (id) => {
+    setSelectedDepartmentIds((prev) => {
+      if (!Array.isArray(prev)) return [id];
+      return prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    });
+  };
+  const handleSelectAllDepartments = () => {
+    setSelectedDepartmentIds(availableDepartments.map(d => d.id));
+  };
+  const handleClearAllDepartments = () => {
+    setSelectedDepartmentIds([]);
+  };
+
+  // Load departments this user can filter by (their affiliations)
+  useEffect(() => {
+    const loadUserDepartments = async () => {
+      const ids = Array.isArray(userData?.departments)
+        ? userData.departments.filter(Boolean)
+        : (userData?.departmentId ? [userData.departmentId] : []);
+      if (ids.length === 0) {
+        setAvailableDepartments([]);
+        setSelectedDepartmentIds([]);
+        return;
+      }
+      try {
+        // Fetch each department doc to get names
+        const results = [];
+        for (const id of ids) {
+          try {
+            const depDoc = await getDoc(doc(db, 'departments', id));
+            if (depDoc.exists()) {
+              const data = depDoc.data();
+              results.push({ id, name: data.name || data.departmentName || 'Unnamed Department' });
+            } else {
+              results.push({ id, name: id });
+            }
+          } catch (e) {
+            console.warn('Failed to fetch department', id, e);
+            results.push({ id, name: id });
+          }
+        }
+        setAvailableDepartments(results);
+        setSelectedDepartmentIds(ids);
+      } catch (e) {
+        console.warn('Error loading user departments', e);
+        setAvailableDepartments(ids.map(id => ({ id, name: id })));
+        setSelectedDepartmentIds(ids);
+      }
+    };
+    loadUserDepartments();
+  }, [user?.uid, userData?.departmentId, JSON.stringify(userData?.departments)]);
+
   // Fetch schedules of users in the same department
   useEffect(() => {
     const fetchDepartmentUsers = async () => {
-      console.log('Attempting to fetch department users with:', {
+      console.log('Attempting to fetch department users with selection:', {
         userUid: user?.uid,
-        departmentId: userData?.departmentId,
-        userData
+        selectedDepartmentIds,
       });
       
-      if (!user?.uid || !userData?.departmentId) {
-        console.log('Missing required data to fetch department users');
+      if (!user?.uid) {
+        setDepartmentUsers([]);
+        return;
+      }
+      if (!Array.isArray(selectedDepartmentIds) || selectedDepartmentIds.length === 0) {
+        // Nothing selected
+        setDepartmentUsers([]);
         return;
       }
 
@@ -44,37 +103,121 @@ const ScheduleView = ({ user, userData }) => {
         setDepartmentUsersLoading(true);
         setDepartmentUsersError(null);
         
-        // Query users with the same departmentId as the current user
+        // Query users with the same department (support both schemas)
         const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('departmentId', '==', userData.departmentId));
-        console.log('Firestore query created:', { departmentId: userData.departmentId });
-        const querySnapshot = await getDocs(q);
-        console.log('Department users query result:', { 
-          resultCount: querySnapshot.size,
-          empty: querySnapshot.empty
-        });
+        // Use 'in' and 'array-contains-any' for multi-select (limit 10 ids)
+        const idsForQuery = selectedDepartmentIds.slice(0, 10);
+        const qByDeptId = query(usersRef, where('departmentId', 'in', idsForQuery));
+        const qByDeptArray = query(usersRef, where('departments', 'array-contains-any', idsForQuery));
+        console.log('Firestore queries created:', { selectedDepartmentIds: idsForQuery });
+        const [snapById, snapByArray] = await Promise.all([
+          getDocs(qByDeptId),
+          getDocs(qByDeptArray)
+        ]);
+        // Merge unique docs by id
+        const docMap = new Map();
+        for (const d of snapById.docs) docMap.set(d.id, d);
+        for (const d of snapByArray.docs) docMap.set(d.id, d);
+        const mergedDocs = Array.from(docMap.values());
+        console.log('Department users query result (merged):', { byIdCount: snapById.size, byArrayCount: snapByArray.size, mergedCount: mergedDocs.length });
         
+        // Helper: convert legacy schedule object with shifts to array format
+        const legacyToArray = (legacy) => {
+          if (!legacy) return [];
+          const shifts = Array.isArray(legacy.shifts) ? legacy.shifts : [];
+          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const toHours = (t) => {
+            const [h, m] = (t || '00:00').split(':').map(Number);
+            return h + (m || 0) / 60;
+          };
+          return shifts.map(s => {
+            const start = toHours(s.timeIn);
+            const end = toHours(s.timeOut);
+            let dur = end - start;
+            if (isNaN(dur)) dur = 8;
+            if (dur < 0) dur += 24; // overnight
+            const duration = Math.round(dur); // use whole hours for addHours()
+            return {
+              dayOfWeek: dayNames[s.day] || 'Monday',
+              timeIn: s.timeIn || '09:00',
+              shiftDuration: duration,
+              timeRegion: legacy.timeRegion || 'Asia/Manila'
+            };
+          });
+        };
+
         // Map users with their schedules
         const departmentMembersData = [];
         
-        // Process each user
-        for (const docSnapshot of querySnapshot.docs) {
-          const userData = docSnapshot.data();
+        // Process each user (include current user as well)
+        for (const docSnapshot of mergedDocs) {
+          const memberData = docSnapshot.data();
           
-          // Skip current user
-          if (docSnapshot.id === user.uid) continue;
-          
-          // Add user with their schedule
+          // Add user with their schedule (include current user)
+          const displayName = (memberData.name && memberData.name.trim())
+            || (memberData.displayName && memberData.displayName.trim())
+            || (`${memberData.firstName || ''} ${memberData.lastName || ''}`.trim())
+            || 'Unknown User';
+
+          let memberSchedule = [];
+          if (Array.isArray(memberData.schedule) && memberData.schedule.length > 0) {
+            memberSchedule = memberData.schedule;
+          } else if (memberData.scheduleId) {
+            try {
+              const scheduleDocRef = doc(db, 'schedules', memberData.scheduleId);
+              const scheduleDoc = await getDoc(scheduleDocRef);
+              if (scheduleDoc.exists()) {
+                const schedData = scheduleDoc.data();
+                // If already array, use it; if legacy object, convert
+                if (Array.isArray(schedData)) {
+                  memberSchedule = schedData;
+                } else if (schedData && Array.isArray(schedData.shifts)) {
+                  memberSchedule = legacyToArray(schedData);
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to fetch schedule by scheduleId for user', docSnapshot.id, e);
+            }
+          }
+
+          // For current user, fallback to their personal schedule if still empty
+          if (memberSchedule.length === 0 && docSnapshot.id === user.uid) {
+            if (Array.isArray(userData?.schedule) && userData.schedule.length > 0) {
+              memberSchedule = userData.schedule;
+            } else if (Array.isArray(schedule)) {
+              memberSchedule = schedule;
+            }
+          }
+
           departmentMembersData.push({
             id: docSnapshot.id,
-            name: userData.name || userData.displayName || 'Unknown User',
-            email: userData.email || 'No email',
-            position: userData.position || 'Staff',
-            schedule: userData.schedule || [],
-            timeRegion: userData.timeRegion || 'Asia/Manila'
+            name: displayName,
+            email: memberData.email || 'No email',
+            position: memberData.position || 'Staff',
+            schedule: memberSchedule,
+            timeRegion: memberData.timeRegion || 'Asia/Manila'
           });
         }
         
+        // Ensure current user is included even if not returned by queries
+        const hasCurrentUser = departmentMembersData.some(u => u.id === user.uid);
+        if (!hasCurrentUser) {
+          console.log('Current user not returned by department queries; injecting self with fallback schedule');
+          departmentMembersData.push({
+            id: user.uid,
+            name: userData?.name || userData?.displayName || 'You',
+            email: userData?.email || user?.email || 'No email',
+            position: userData?.position || 'Staff',
+            schedule: (Array.isArray(userData?.schedule) && userData.schedule.length > 0)
+              ? userData.schedule
+              : (Array.isArray(schedule) ? schedule : []),
+            timeRegion: userData?.timeRegion || 'Asia/Manila'
+          });
+        }
+
+        // Optional: place current user on top
+        departmentMembersData.sort((a, b) => (a.id === user.uid ? -1 : b.id === user.uid ? 1 : 0));
+
         setDepartmentUsers(departmentMembersData);
         console.log('Department members data set:', departmentMembersData);
       } catch (error) {
@@ -90,7 +233,7 @@ const ScheduleView = ({ user, userData }) => {
       console.log('Fetching department users...');
       fetchDepartmentUsers();
     }
-  }, [user, userData, activeTab]);
+  }, [user, userData, activeTab, schedule, JSON.stringify(selectedDepartmentIds)]);
 
   useEffect(() => {
     const fetchUserSchedule = async () => {
@@ -508,95 +651,119 @@ const ScheduleView = ({ user, userData }) => {
         )
       ) : (
           // Department Schedule Tab Content
-          departmentUsersLoading ? (
-            <p>Loading department schedules...</p>
-          ) : departmentUsersError ? (
-            <EmptyState>
-              <div style={{ marginBottom: '1rem' }}>
-                <Users size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
-              </div>
-              <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>Error Loading Department Schedules</h3>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>{departmentUsersError}</p>
-            </EmptyState>
-          ) : departmentUsers.length === 0 ? (
-            <EmptyState>
-              <div style={{ marginBottom: '1rem' }}>
-                <Users size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
-              </div>
-              <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>No Department Members Found</h3>
-              <p style={{ margin: '0 0 1rem 0' }}>There are no other users in your department.</p>
-              <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>Department members and their schedules will appear here.</p>
-            </EmptyState>
-          ) : (
-            <div>
-              <h3 style={{ marginBottom: '1.5rem', fontSize: '1.1rem', color: '#555', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Users size={18} />
-                Department: {userData?.departmentName || 'Your Department'}
-              </h3>
-              
-              {departmentUsers.map((deptUser, userIndex) => (
-                <div key={deptUser.id} style={{ marginBottom: '2rem', padding: '1.25rem', borderRadius: '8px', backgroundColor: '#f9f9f9', border: '1px solid #eee' }}>
-                  <h4 style={{ marginTop: 0, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span>{deptUser.name} <span style={{ fontSize: '0.85rem', color: '#666', fontWeight: 'normal' }}>({deptUser.position})</span></span>
-                  </h4>
-                  
-                  {deptUser.schedule && deptUser.schedule.length > 0 ? (
-                    <ScheduleTable>
-                      <thead>
-                        <tr>
-                          <th>Day</th>
-                          <th>Time In</th>
-                          <th>Time Out</th>
-                          <th>Duration</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...deptUser.schedule]
-                          .sort((a, b) => getDayIndex(a.dayOfWeek) - getDayIndex(b.dayOfWeek))
-                          .map((scheduleItem, index) => {
-                          const today = new Date();
-                          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                          const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
-                          const isToday = today.getDay() === dayIndex;
-                          
-                          // Get the schedule's time region
-                          const scheduleTimeRegion = scheduleItem.timeRegion || deptUser.timeRegion || 'Asia/Manila';
-                          
-                          // Format the time in the user's preferred time region
-                          const formattedTimeIn = formatTime(scheduleItem.timeIn, scheduleTimeRegion, userTimeRegion);
-                          const duration = scheduleItem.shiftDuration || 8;
-                          
-                          // Calculate end time based on start time and duration
-                          const endTime = calculateEndTime(scheduleItem.timeIn, duration, scheduleTimeRegion);
-                          const formattedEndTime = formatTime(endTime, scheduleTimeRegion, userTimeRegion);
-                          
-                          return (
-                            <tr key={index} style={{ backgroundColor: isToday ? '#f0f7ff' : 'transparent' }}>
-                              <td style={{ fontWeight: isToday ? '600' : '400', color: isToday ? '#1a73e8' : 'inherit' }}>
-                                {scheduleItem.dayOfWeek}
-                                {isToday && <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', backgroundColor: '#1a73e8', color: 'white', padding: '2px 6px', borderRadius: '10px' }}>TODAY</span>}
-                              </td>
-                              <td>{formattedTimeIn}</td>
-                              <td>{formattedEndTime}</td>
-                              <td>{scheduleItem.shiftDuration} hours</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </ScheduleTable>
+          <div>
+            <FiltersBar>
+              <div className="left">
+                <div className="label"><Users size={18} /> Departments</div>
+                <div className="chips">
+                  {availableDepartments.length === 0 ? (
+                    <span className="hint">No departments assigned</span>
                   ) : (
-                    <p style={{ color: '#666', fontSize: '0.9rem', fontStyle: 'italic', padding: '1rem', backgroundColor: '#f5f5f5', borderRadius: '6px', margin: 0 }}>
-                      No schedule information available for this user.
-                    </p>
+                    availableDepartments.map(dep => (
+                      <label key={dep.id} className={`chip ${selectedDepartmentIds.includes(dep.id) ? 'active' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={selectedDepartmentIds.includes(dep.id)}
+                          onChange={() => handleToggleDepartment(dep.id)}
+                        />
+                        <span>{dep.name}</span>
+                      </label>
+                    ))
                   )}
                 </div>
-              ))}
-              
-              <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#666', textAlign: 'right' }}>
-                All times shown in your local time zone: <strong>{userTimeRegion}</strong>
               </div>
-            </div>
-          )
+              <div className="right">
+                <button type="button" className="link" onClick={handleSelectAllDepartments}>Select all</button>
+                <span className="sep">•</span>
+                <button type="button" className="link" onClick={handleClearAllDepartments}>Clear</button>
+              </div>
+            </FiltersBar>
+
+            {departmentUsersLoading ? (
+              <p>Loading department schedules...</p>
+            ) : departmentUsersError ? (
+              <EmptyState>
+                <div style={{ marginBottom: '1rem' }}>
+                  <Users size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
+                </div>
+                <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>Error Loading Department Schedules</h3>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>{departmentUsersError}</p>
+              </EmptyState>
+            ) : (selectedDepartmentIds.length === 0) ? (
+              <EmptyState>
+                <div style={{ marginBottom: '1rem' }}>
+                  <Users size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
+                </div>
+                <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>No Departments Selected</h3>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>Use the filters above to select one or more departments to display schedules.</p>
+              </EmptyState>
+            ) : departmentUsers.length === 0 ? (
+              <EmptyState>
+                <div style={{ marginBottom: '1rem' }}>
+                  <Users size={48} weight="duotone" style={{ color: '#999', marginBottom: '1rem' }} />
+                </div>
+                <h3 style={{ margin: '0 0 0.5rem 0', color: '#555' }}>No Department Members Found</h3>
+                <p style={{ margin: '0 0 1rem 0' }}>There are no other users in your department.</p>
+                <p style={{ margin: 0, fontSize: '0.9rem', color: '#777' }}>Department members and their schedules will appear here.</p>
+              </EmptyState>
+            ) : (
+              <>
+                <ScheduleTable>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Sun</th>
+                      <th>Mon</th>
+                      <th>Tue</th>
+                      <th>Wed</th>
+                      <th>Thu</th>
+                      <th>Fri</th>
+                      <th>Sat</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {departmentUsers.map((deptUser) => {
+                      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                      const cells = days.map((dayName) => {
+                        const items = Array.isArray(deptUser.schedule) ? deptUser.schedule.filter(s => s.dayOfWeek === dayName) : [];
+                        if (items.length === 0) {
+                          return (
+                            <td key={dayName} style={{ color: '#999' }}>—</td>
+                          );
+                        }
+                        return (
+                          <td key={dayName}>
+                            {items.map((s, idx) => {
+                              const tz = s.timeRegion || deptUser.timeRegion || 'Asia/Manila';
+                              const tin = formatTime(s.timeIn, tz, userTimeRegion);
+                              const end = calculateEndTime(s.timeIn, s.shiftDuration || 8, tz);
+                              const tout = formatTime(end, tz, userTimeRegion);
+                              return (
+                                <div key={idx} style={{ whiteSpace: 'nowrap' }}>{tin} - {tout}</div>
+                              );
+                            })}
+                          </td>
+                        );
+                      });
+                      return (
+                        <tr key={deptUser.id}>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{deptUser.name}</div>
+                            <div style={{ fontSize: '0.8rem', color: '#666' }}>{deptUser.position || 'Staff'}</div>
+                          </td>
+                          {cells}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </ScheduleTable>
+
+                <div style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#666', textAlign: 'right' }}>
+                  All times shown in your local time zone: <strong>{userTimeRegion}</strong>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -665,6 +832,28 @@ const ScheduleTable = styled.table`
       font-size: 0.9rem;
     }
   }
+`;
+
+const FiltersBar = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  .left { display: flex; flex-direction: column; gap: 0.5rem; }
+  .label { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #555; }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .hint { color: #999; font-size: 0.9rem; }
+
+  .chip { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem; border: 1px solid #ddd; border-radius: 999px; background: #fff; cursor: pointer; user-select: none; }
+  .chip.active { border-color: #1a73e8; background: #f0f7ff; }
+  .chip input { accent-color: #1a73e8; }
+
+  .right { display: flex; align-items: center; gap: 0.5rem; }
+  .link { background: none; border: none; padding: 0; color: #1a73e8; cursor: pointer; }
+  .link:hover { text-decoration: underline; }
+  .sep { color: #aaa; }
 `;
 
 const DayCard = styled.div`

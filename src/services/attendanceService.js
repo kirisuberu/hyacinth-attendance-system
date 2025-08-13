@@ -193,7 +193,19 @@ export const determineTimeOutStatus = async (userId) => {
     
     querySnapshot.forEach(doc => {
       const data = doc.data();
-      const recordTime = data.timestamp?.toDate() || new Date(0);
+      // Safely handle timestamp conversion with error handling
+      let recordTime = new Date(0); // Default to oldest date
+      try {
+        if (data.timestamp) {
+          recordTime = typeof data.timestamp.toDate === 'function' ? 
+            data.timestamp.toDate() : 
+            data.timestamp instanceof Date ? 
+              data.timestamp : 
+              new Date(data.timestamp) || new Date(0);
+        }
+      } catch (error) {
+        console.error('Error converting timestamp:', error, data);
+      }
       
       if (recordTime > latestTimestamp) {
         latestTimestamp = recordTime;
@@ -210,8 +222,20 @@ export const determineTimeOutStatus = async (userId) => {
     const userData = userDoc.exists() ? userDoc.data() : {};
     const userTimeRegion = userData.timeRegion || 'Asia/Manila';
     
-    // Convert timestamps to the user's time zone
-    const lastTimeInZoned = timestampToZonedDate(latestTimeIn.timestamp, userTimeRegion);
+    // Check if timestamp exists before proceeding
+    if (!latestTimeIn.timestamp) {
+      console.error('Timestamp is null or undefined in latest time-in record:', latestTimeIn);
+      return { status: 'Error', timeDiff: null };
+    }
+    
+    // Convert timestamps to the user's time zone - with error handling
+    let lastTimeInZoned;
+    try {
+      lastTimeInZoned = timestampToZonedDate(latestTimeIn.timestamp, userTimeRegion);
+    } catch (error) {
+      console.error('Error converting timestamp to zoned date:', error, latestTimeIn);
+      return { status: 'Error', timeDiff: null };
+    }
     
     // Get current time in user's time zone
     const now = new Date();
@@ -611,8 +635,26 @@ export const getAllAttendanceRecords = async (options = {}) => {
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
-      // Add a formatted date string for easier display
-      formattedDate: doc.data().timestamp ? doc.data().timestamp.toDate().toLocaleString() : 'N/A'
+      // Add a formatted date string for easier display with robust error handling
+      formattedDate: (() => {
+        try {
+          const timestamp = doc.data().timestamp;
+          if (!timestamp) return 'N/A';
+          
+          if (typeof timestamp.toDate === 'function') {
+            return timestamp.toDate().toLocaleString();
+          } else if (timestamp instanceof Date) {
+            return timestamp.toLocaleString();
+          } else if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+            return new Date(timestamp.seconds * 1000).toLocaleString();
+          } else {
+            return new Date(timestamp).toLocaleString();
+          }
+        } catch (error) {
+          console.error('Error formatting timestamp:', error, doc.data());
+          return 'N/A';
+        }
+      })()
     }));
   } catch (error) {
     console.error('Error getting attendance records:', error);
@@ -695,11 +737,40 @@ export const getAttendanceOverrideHistory = async (recordId) => {
     
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp ? doc.data().timestamp.toDate() : null
-    }));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      let convertedTimestamp = null;
+      
+      try {
+        const timestamp = data.timestamp;
+        if (timestamp) {
+          if (typeof timestamp.toDate === 'function') {
+            convertedTimestamp = timestamp.toDate();
+          } else if (timestamp instanceof Date) {
+            convertedTimestamp = timestamp;
+          } else if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+            convertedTimestamp = new Date(timestamp.seconds * 1000);
+          } else {
+            convertedTimestamp = new Date(timestamp);
+          }
+          
+          // Verify we have a valid date
+          if (isNaN(convertedTimestamp.getTime())) {
+            console.error('Invalid date created from timestamp in attendance override history:', timestamp);
+            convertedTimestamp = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error converting timestamp in attendance override history:', error, data);
+        convertedTimestamp = null;
+      }
+      
+      return {
+        id: doc.id,
+        ...data,
+        timestamp: convertedTimestamp
+      };
+    });
   } catch (error) {
     console.error('Error getting attendance override history:', error);
     throw error;
@@ -747,11 +818,40 @@ export const getAllOverrideHistory = async (options = {}) => {
     const querySnapshot = await getDocs(q);
     
     // Process the results
-    return querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      timestamp: doc.data().timestamp ? doc.data().timestamp.toDate() : null
-    }));
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      let convertedTimestamp = null;
+      
+      try {
+        const timestamp = data.timestamp;
+        if (timestamp) {
+          if (typeof timestamp.toDate === 'function') {
+            convertedTimestamp = timestamp.toDate();
+          } else if (timestamp instanceof Date) {
+            convertedTimestamp = timestamp;
+          } else if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+            convertedTimestamp = new Date(timestamp.seconds * 1000);
+          } else {
+            convertedTimestamp = new Date(timestamp);
+          }
+          
+          // Verify we have a valid date
+          if (isNaN(convertedTimestamp.getTime())) {
+            console.error('Invalid date created from timestamp in override history:', timestamp);
+            convertedTimestamp = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error converting timestamp in override history:', error, data);
+        convertedTimestamp = null;
+      }
+      
+      return {
+        id: doc.id,
+        ...data,
+        timestamp: convertedTimestamp
+      };
+    });
   } catch (error) {
     console.error('Error getting override history:', error);
     throw error;
@@ -837,6 +937,12 @@ export const getAttendanceStatus = async (userId) => {
     const docData = querySnapshot.docs[0].data();
     const timestamp = docData.timestamp;
     
+    // Check if timestamp exists before proceeding
+    if (!timestamp) {
+      console.error('Timestamp is null or undefined in attendance record:', docData);
+      return { status: 'Error', lastRecord: null };
+    }
+    
     // Create the lastRecord object with a safely converted timestamp
     const lastRecord = {
       id: querySnapshot.docs[0].id,
@@ -857,6 +963,12 @@ export const getAttendanceStatus = async (userId) => {
       const today = new Date();
       const recordDate = lastRecord.timestamp;
       
+      // Ensure recordDate is valid before accessing its methods
+      if (!recordDate || !(recordDate instanceof Date) || isNaN(recordDate)) {
+        console.error('Invalid timestamp in attendance record:', lastRecord);
+        return { status: 'Error', lastRecord };
+      }
+      
       if (recordDate.getDate() === today.getDate() && 
           recordDate.getMonth() === today.getMonth() && 
           recordDate.getFullYear() === today.getFullYear()) {
@@ -868,6 +980,12 @@ export const getAttendanceStatus = async (userId) => {
       // Check if this is from today
       const today = new Date();
       const recordDate = lastRecord.timestamp;
+      
+      // Ensure recordDate is valid before accessing its methods
+      if (!recordDate || !(recordDate instanceof Date) || isNaN(recordDate)) {
+        console.error('Invalid timestamp in attendance record:', lastRecord);
+        return { status: 'Error', lastRecord };
+      }
       
       if (recordDate.getDate() === today.getDate() && 
           recordDate.getMonth() === today.getMonth() && 
@@ -911,8 +1029,21 @@ export const checkAndHandleFailedTimeOut = async (userId) => {
       return true;
     }
     
+    // Check if timestamp exists
+    if (!latestRecord.timestamp) {
+      console.error('Timestamp is null or undefined in attendance record:', latestRecord);
+      return true; // Allow time in to avoid blocking the user
+    }
+    
     // Get the time-in timestamp
-    const timeInDate = latestRecord.timestamp.toDate();
+    let timeInDate;
+    try {
+      timeInDate = latestRecord.timestamp.toDate();
+    } catch (error) {
+      console.error('Error converting timestamp:', error);
+      return true; // Allow time in to avoid blocking the user
+    }
+    
     const now = new Date();
     
     // Get user's schedule to determine expected time out

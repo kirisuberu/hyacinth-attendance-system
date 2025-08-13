@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Users, Buildings, Calendar, Clock, Briefcase, Bank } from 'phosphor-react';
+import { Users, Buildings, Briefcase, Bank } from 'phosphor-react';
 
 
 
@@ -14,6 +14,7 @@ import { Users, Buildings, Calendar, Clock, Briefcase, Bank } from 'phosphor-rea
 function UserDashboard({ isSuperAdmin }) {
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch users from Firestore
@@ -47,6 +48,19 @@ function UserDashboard({ isSuperAdmin }) {
     return () => unsubscribe();
   }, []);
 
+  // Fetch companies from Firestore
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "companies"), (snapshot) => {
+      const compData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setCompanies(compData);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Calculate statistics
   const totalUsers = users.length;
   const adminUsers = users.filter(user => user.role === 'admin').length;
@@ -57,12 +71,19 @@ function UserDashboard({ isSuperAdmin }) {
   const regularUsers = users.filter(user => user.employmentStatus === 'regular').length;
   const totalDepartments = departments.length;
 
-  // Calculate users by role
-  const usersByRole = users.reduce((acc, user) => {
-    const role = user.role || 'unknown';
-    acc[role] = (acc[role] || 0) + 1;
-    return acc;
-  }, {});
+  // Calculate users by role (not used in charts)
+
+  // Status counts (active/inactive/pending)
+  const statusCounts = useMemo(() => {
+    const counts = { active: 0, inactive: 0, pending: 0 };
+    users.forEach(u => {
+      const s = (u.status || '').toLowerCase();
+      if (s === 'active') counts.active += 1;
+      else if (s === 'inactive') counts.inactive += 1;
+      else if (s === 'pending') counts.pending += 1;
+    });
+    return counts;
+  }, [users]);
 
   // Calculate users by employment status
   const usersByEmploymentStatus = users.reduce((acc, user) => {
@@ -83,26 +104,28 @@ function UserDashboard({ isSuperAdmin }) {
     return acc;
   }, {});
 
-  // Calculate users by company
+  // Calculate users by company (supports multiple companies per user)
   const usersByCompany = users.reduce((acc, user) => {
-    const company = user.company || 'unassigned';
-    acc[company] = (acc[company] || 0) + 1;
+    const assigned = Array.isArray(user.companies)
+      ? user.companies
+      : (user.company ? [user.company] : []);
+    
+    if (!assigned.length) {
+      acc['unassigned'] = (acc['unassigned'] || 0) + 1;
+    } else {
+      assigned.forEach((companyId) => {
+        acc[companyId] = (acc[companyId] || 0) + 1;
+      });
+    }
     return acc;
   }, {});
   
   const totalCompanies = Object.keys(usersByCompany).filter(c => c !== 'unassigned').length;
 
-  // Get top 3 departments by user count
-  const top3Departments = Object.entries(usersByDepartment)
-    .map(([deptId, count]) => ({ deptId, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
-    
-  // Get top 3 companies by user count
-  const top3Companies = Object.entries(usersByCompany)
-    .map(([company, count]) => ({ company, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
+  // Lightweight chart data helpers
+  const getPercent = (value, total) => (total ? Math.round((value / total) * 100) : 0);
+
+  // (charts below sort inline; no precomputed top lists needed)
 
   // Get department names for each department ID
   const getDepartmentName = (deptId) => {
@@ -110,10 +133,74 @@ function UserDashboard({ isSuperAdmin }) {
     return dept ? dept.name : 'Unassigned';
   };
   
-  // Get company name (or use the company ID if no formatting needed)
+  // Get company name from companies collection
   const getCompanyName = (companyId) => {
     if (companyId === 'unassigned') return 'Unassigned';
-    return companyId.charAt(0).toUpperCase() + companyId.slice(1).replace('_', ' ');
+    const company = companies.find(c => c.id === companyId);
+    return company ? company.name : companyId;
+  };
+
+  // Simple distinct color generator for multi-slice pies
+  const pieColor = (i) => `hsl(${(i * 47) % 360}, 70%, 55%)`;
+
+  // Build pie data for employment status, departments, and companies
+  const employmentStatusPieData = useMemo(() => (
+    Object.entries(usersByEmploymentStatus)
+      .map(([status, count], idx) => ({
+        key: status === 'unknown' ? 'Unknown' : status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' '),
+        value: count,
+        color: pieColor(idx)
+      }))
+      .sort((a, b) => b.value - a.value)
+  ), [usersByEmploymentStatus]);
+
+  const departmentPieData = useMemo(() => (
+    Object.entries(usersByDepartment)
+      .sort((a, b) => b[1] - a[1])
+      .map(([deptId, count], idx) => ({ key: getDepartmentName(deptId), value: count, color: pieColor(idx) }))
+  ), [usersByDepartment, departments]);
+
+  const companyPieData = useMemo(() => (
+    Object.entries(usersByCompany)
+      .sort((a, b) => b[1] - a[1])
+      .map(([company, count], idx) => ({ key: getCompanyName(company), value: count, color: pieColor(idx) }))
+  ), [usersByCompany, companies]);
+
+  // Donut chart helper: conic-gradient based
+  const buildConicGradient = (data, total) => {
+    let acc = 0;
+    const parts = data.map(({ color, value }) => {
+      const start = total ? (acc / total) * 100 : 0;
+      const end = total ? ((acc + value) / total) * 100 : 0;
+      acc += value;
+      return `${color} ${start}% ${end}%`;
+    });
+    // Fallback to a light gray if no data
+    return parts.length ? parts.join(', ') : '#eee 0% 100%';
+  };
+
+  const PieDonut = ({ data, size = 180, thickness = 28 }) => {
+    const total = data.reduce((s, d) => s + (d.value || 0), 0) || 1;
+    const gradient = buildConicGradient(data, total);
+    const innerSize = Math.max(0, size - thickness * 2);
+    return (
+      <PieLayout>
+        <PieSide>
+          <PieCanvas style={{ width: size, height: size, background: `conic-gradient(${gradient})` }}>
+            <PieInner style={{ width: innerSize, height: innerSize }} />
+          </PieCanvas>
+        </PieSide>
+        <LegendList>
+          {data.filter(d => d.value > 0).map(d => (
+            <LegendItem key={d.key}>
+              <Swatch style={{ backgroundColor: d.color }} />
+              <LegendText>{d.key}</LegendText>
+              <LegendValue>{d.value} ({getPercent(d.value, total)}%)</LegendValue>
+            </LegendItem>
+          ))}
+        </LegendList>
+      </PieLayout>
+    );
   };
 
   if (loading) {
@@ -132,200 +219,55 @@ function UserDashboard({ isSuperAdmin }) {
           </StatHeader>
           <StatValue>{totalUsers}</StatValue>
         </StatCard>
-        
+        <StatCard>
+          <StatHeader>
+            <StatIcon bgColor="#fff3e0" iconColor="#fb8c00">
+              <Users size={24} />
+            </StatIcon>
+            <StatTitle>Admins</StatTitle>
+          </StatHeader>
+          <StatValue>{adminUsers}</StatValue>
+        </StatCard>
+
+        <StatCard>
+          <StatHeader>
+            <StatIcon bgColor="#e8f5e9" iconColor="#4caf50">
+              <Users size={24} />
+            </StatIcon>
+            <StatTitle>Active</StatTitle>
+          </StatHeader>
+          <StatValue>{statusCounts.active}</StatValue>
+        </StatCard>
       </StatsGrid>
+      {/* Status Overview removed as requested */}
+
       
-      <StatsGrid>
-        <StatCard>
-          <StatusContainer>
-            <StatusHeader>
-              <Briefcase size={18} />
-              Employment Status
-            </StatusHeader>
-            <StatusGrid>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0.25rem 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <StatIcon bgColor="#fff8e1" iconColor="#ffa000" style={{ width: '1.5rem', height: '1.5rem' }}>
-                <Users size={12} />
-              </StatIcon>
-              <span style={{ fontWeight: '500', fontSize: '0.9rem' }}>Intern</span>
-            </div>
-            <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{internUsers}</span>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0.25rem 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <StatIcon bgColor="#e8f5e9" iconColor="#4caf50" style={{ width: '1.5rem', height: '1.5rem' }}>
-                <Users size={12} />
-              </StatIcon>
-              <span style={{ fontWeight: '500', fontSize: '0.9rem' }}>Probationary</span>
-            </div>
-            <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{probationaryUsers}</span>
-          </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0.25rem 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <StatIcon bgColor="#e3f2fd" iconColor="#1976d2" style={{ width: '1.5rem', height: '1.5rem' }}>
-                <Users size={12} />
-              </StatIcon>
-              <span style={{ fontWeight: '500', fontSize: '0.9rem' }}>Regular</span>
-            </div>
-            <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{regularUsers}</span>
-          </div>
-            </StatusGrid>
-          </StatusContainer>
-        </StatCard>
-        <StatCard>
-          <StatHeader>
-            <StatIcon bgColor="#ede7f6" iconColor="#673ab7">
-              <Buildings size={24} />
-            </StatIcon>
-            <StatTitle>Departments</StatTitle>
-          </StatHeader>
-          <StatValue>{totalDepartments}</StatValue>
-          
-          <StatusContainer>
-            <StatusHeader>
-              <Buildings size={18} />
-              Top 3 Departments
-            </StatusHeader>
-            <StatusGrid>
-              {top3Departments.map(dept => (
-                <div key={dept.deptId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0.25rem 0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <StatIcon bgColor="#e8f5e9" iconColor="#4caf50" style={{ width: '1.5rem', height: '1.5rem' }}>
-                      <Buildings size={12} />
-                    </StatIcon>
-                    <span style={{ fontWeight: '500', fontSize: '0.9rem' }}>{getDepartmentName(dept.deptId)}</span>
-                  </div>
-                  <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{dept.count}</span>
-                </div>
-              ))}
-            </StatusGrid>
-          </StatusContainer>
-        </StatCard>
-        <StatCard>
-          <StatHeader>
-            <StatIcon bgColor="#fff8e1" iconColor="#ffa000">
-              <Bank size={24} />
-            </StatIcon>
-            <StatTitle>Companies</StatTitle>
-          </StatHeader>
-          <StatValue>{totalCompanies}</StatValue>
-          
-          <StatusContainer>
-            <StatusHeader>
-              <Bank size={18} />
-              Top 3 Companies
-            </StatusHeader>
-            <StatusGrid>
-              {top3Companies.map(item => (
-                <div key={item.company} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0.25rem 0' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <StatIcon bgColor="#ffecb3" iconColor="#ff8f00" style={{ width: '1.5rem', height: '1.5rem' }}>
-                      <Bank size={12} />
-                    </StatIcon>
-                    <span style={{ fontWeight: '500', fontSize: '0.9rem' }}>{getCompanyName(item.company)}</span>
-                  </div>
-                  <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{item.count}</span>
-                </div>
-              ))}
-            </StatusGrid>
-          </StatusContainer>
-        </StatCard>
-      </StatsGrid>
 
+      <ChartsGrid>
+      <StatusContainer>
       <SectionTitle>
-        <Users size={20} />
-        Users by Role
+        <Briefcase size={20} />
+        Employment Status
       </SectionTitle>
-      <SummaryTable>
-        <thead>
-          <tr>
-            <TableHeader>Role</TableHeader>
-            <TableHeader>Count</TableHeader>
-            <TableHeader>Percentage</TableHeader>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(usersByRole).map(([role, count]) => (
-            <TableRow key={role}>
-              <TableCell>{role.charAt(0).toUpperCase() + role.slice(1).replace('_', ' ')}</TableCell>
-              <TableCell>{count}</TableCell>
-              <TableCell>{((count / totalUsers) * 100).toFixed(1)}%</TableCell>
-            </TableRow>
-          ))}
-        </tbody>
-      </SummaryTable>
+      <PieDonut data={employmentStatusPieData} />
+      </StatusContainer>
 
-      <SectionTitle>
-        <Calendar size={20} />
-        Users by Employment Status
-      </SectionTitle>
-      <SummaryTable>
-        <thead>
-          <tr>
-            <TableHeader>Employment Status</TableHeader>
-            <TableHeader>Count</TableHeader>
-            <TableHeader>Percentage</TableHeader>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(usersByEmploymentStatus).map(([status, count]) => (
-            <TableRow key={status}>
-              <TableCell>{status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}</TableCell>
-              <TableCell>{count}</TableCell>
-              <TableCell>{((count / totalUsers) * 100).toFixed(1)}%</TableCell>
-            </TableRow>
-          ))}
-        </tbody>
-      </SummaryTable>
+        <StatusContainer>
+          <SectionTitle>
+            <Buildings size={20} />
+            Users by Department
+          </SectionTitle>
+          <PieDonut data={departmentPieData} />
+        </StatusContainer>
 
-      <SectionTitle>
-        <Buildings size={20} />
-        Users by Department
-      </SectionTitle>
-      <SummaryTable>
-        <thead>
-          <tr>
-            <TableHeader>Department</TableHeader>
-            <TableHeader>Count</TableHeader>
-            <TableHeader>Percentage</TableHeader>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(usersByDepartment).map(([deptId, count]) => (
-            <TableRow key={deptId}>
-              <TableCell>{getDepartmentName(deptId)}</TableCell>
-              <TableCell>{count}</TableCell>
-              <TableCell>{((count / totalUsers) * 100).toFixed(1)}%</TableCell>
-            </TableRow>
-          ))}
-        </tbody>
-      </SummaryTable>
-
-      <SectionTitle>
-        <Bank size={20} />
-        Users by Company
-      </SectionTitle>
-      <SummaryTable>
-        <thead>
-          <tr>
-            <TableHeader>Company</TableHeader>
-            <TableHeader>Count</TableHeader>
-            <TableHeader>Percentage</TableHeader>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(usersByCompany).map(([company, count]) => (
-            <TableRow key={company}>
-              <TableCell>{getCompanyName(company)}</TableCell>
-              <TableCell>{count}</TableCell>
-              <TableCell>{((count / totalUsers) * 100).toFixed(1)}%</TableCell>
-            </TableRow>
-          ))}
-        </tbody>
-      </SummaryTable>
+        <StatusContainer>
+          <SectionTitle>
+            <Bank size={20} />
+            Users by Company
+          </SectionTitle>
+          <PieDonut data={companyPieData} />
+        </StatusContainer>
+      </ChartsGrid>
     </DashboardContainer>
   );
 }
@@ -343,6 +285,17 @@ const StatsGrid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+`;
+
+const ChartsGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+
+  @media (min-width: 900px) {
+    grid-template-columns: 1fr 1fr;
+  }
 `;
 
 const StatCard = styled.div`
@@ -426,51 +379,74 @@ const StatusHeader = styled.div`
 
 const StatusGrid = styled.div`
   display: flex;
-  flex-direction: column;
+  margin-bottom: 1.5rem;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const PieLayout = styled.div`
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const PieSide = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const PieCanvas = styled.div`
+  border-radius: 50%;
+  position: relative;
+`;
+
+const PieInner = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #fff;
+`;
+
+const LegendList = styled.ul`
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 0.5rem;
-  flex-grow: 1;
 `;
 
-const SummaryTable = styled.table`
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-  margin-bottom: 2.5rem;
+const LegendItem = styled.li`
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
 `;
 
-const TableHeader = styled.th`
-  padding: 1.25rem 1.5rem;
-  text-align: left;
-  font-weight: 600;
+const Swatch = styled.span`
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+`;
+
+const LegendText = styled.span`
   color: #333;
-  background-color: #f5f5f5;
-  border-bottom: 1px solid #ddd;
   font-size: 0.95rem;
 `;
 
-const TableCell = styled.td`
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid #eee;
-  
-  &:first-child {
-    font-weight: 500;
-  }
-`;
-
-const TableRow = styled.tr`
-  &:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-  
-  &:hover {
-    background-color: #f0f0f0;
-  }
-  
-  &:last-child td {
-    border-bottom: none;
-  }
+const LegendValue = styled.span`
+  color: #666;
+  font-variant-numeric: tabular-nums;
 `;

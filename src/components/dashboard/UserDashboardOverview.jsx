@@ -43,6 +43,7 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
     todayStatus: 'Not Checked In',
     todayTimeIn: null,
     todayTimeOut: null,
+    todayWorkedHours: 0,
     weekOnTimeRate: 0,
     weekLateRate: 0,
     weekEarlyRate: 0,
@@ -135,6 +136,14 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
       const todayTimeOut = todayRecords.find(record => record.type === 'Out');
       const isTodayAbsent = todayRecords.some(record => record.status === 'Absent');
       
+      // Calculate today's worked hours if both time in and time out exist
+      let computedTodayHours = 0;
+      if (todayTimeIn && todayTimeOut) {
+        const timeInMs = todayTimeIn.timestamp.getTime();
+        const timeOutMs = todayTimeOut.timestamp.getTime();
+        computedTodayHours = Math.round(((timeOutMs - timeInMs) / (1000 * 60 * 60)) * 10) / 10; // 1 decimal place
+      }
+      
       // Calculate weekly stats
       const weekRecords = records.filter(record => record.timestamp >= startOfWeek);
       const weekTimeInRecords = weekRecords.filter(record => record.type === 'In');
@@ -176,6 +185,7 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
         todayStatus: todayTimeIn ? todayTimeIn.status : (isTodayAbsent ? 'Absent' : 'Not Checked In'),
         todayTimeIn: todayTimeIn ? todayTimeIn.timestamp : null,
         todayTimeOut: todayTimeOut ? todayTimeOut.timestamp : null,
+        todayWorkedHours: computedTodayHours,
         weekOnTimeRate: weekTimeInRecords.length > 0 ? Math.round((weekOnTimeCount / weekTimeInRecords.length) * 100) : 0,
         weekLateRate: weekTimeInRecords.length > 0 ? Math.round((weekLateCount / weekTimeInRecords.length) * 100) : 0,
         weekEarlyRate: weekTimeInRecords.length > 0 ? Math.round((weekEarlyCount / weekTimeInRecords.length) * 100) : 0,
@@ -269,7 +279,7 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
   return (
     <SummaryContainer>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Dashboard Overview</h2>
+        <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Attendance Summary</h2>
         <button 
           onClick={() => setShowOverview(false)}
           style={{
@@ -352,6 +362,18 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
             <StatCard>
               <StatCardHeader>
                 <StatCardTitle>
+                  <Clock size={16} />
+                  Time Out
+                </StatCardTitle>
+              </StatCardHeader>
+              <StatCardValue>
+                {stats.todayTimeOut ? format(stats.todayTimeOut, 'h:mm a') : '--:--'}
+              </StatCardValue>
+            </StatCard>
+            
+            <StatCard>
+              <StatCardHeader>
+                <StatCardTitle>
                   <Hourglass size={16} />
                   Hours Worked
                 </StatCardTitle>
@@ -361,18 +383,6 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
                   ? `${stats.todayWorkedHours}h` 
                   : '--:--'}
               </StatCardValue>
-            </StatCard>
-            
-            <StatCard>
-              <StatCardHeader>
-                <StatCardTitle>
-                  <ArrowsClockwise size={16} />
-                  On-Time Streak
-                </StatCardTitle>
-              </StatCardHeader>
-              <Tooltip text="Consecutive days you've been on time. This counter resets when you're late or absent.">
-                <StatCardValue>{stats.onTimeStreak} days</StatCardValue>
-              </Tooltip>
             </StatCard>
           </StatsGrid>
         </CardContent>
@@ -390,7 +400,7 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
               <StatCardHeader>
                 <StatCardTitle>Month On-Time</StatCardTitle>
               </StatCardHeader>
-              <Tooltip text="Calculated as: (days attended this month ÷ working days in month so far) × 100">
+              <Tooltip text="Calculated as: on-time check-ins ÷ total check-ins this month">
                 <StatCardValue>{stats.monthOnTimeRate}%</StatCardValue>
               </Tooltip>
               <ProgressBar>
@@ -422,7 +432,7 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
               <StatCardHeader>
                 <StatCardTitle>Week On-Time</StatCardTitle>
               </StatCardHeader>
-              <Tooltip text="Calculated as: (days attended this week ÷ 5 working days) × 100">
+              <Tooltip text="Calculated as: on-time check-ins ÷ total check-ins this week">
                 <StatCardValue>{stats.weekOnTimeRate}%</StatCardValue>
               </Tooltip>
               <ProgressBar>
@@ -433,6 +443,15 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
                   }} 
                 />
               </ProgressBar>
+            </StatCard>
+            
+            <StatCard>
+              <StatCardHeader>
+                <StatCardTitle>On-Time Streak</StatCardTitle>
+              </StatCardHeader>
+              <Tooltip text="Consecutive days you've been on time. This counter resets when you're late or absent.">
+                <StatCardValue>{stats.onTimeStreak} days</StatCardValue>
+              </Tooltip>
             </StatCard>
             
             <StatCard>
@@ -539,64 +558,66 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
             <div style={{ padding: '2rem', textAlign: 'center' }}>Loading report data...</div>
           ) : monthlyReports.length > 0 ? (
             <ReportPreview>
-              <ReportTable>
-                <TableHead>
-                  <tr>
-                    <TableHeader>Date</TableHeader>
-                    <TableHeader>Time In</TableHeader>
-                    <TableHeader>Time Out</TableHeader>
-                    <TableHeader>Status</TableHeader>
-                    <TableHeader>
-                  <Tooltip text="Total hours worked each day, calculated as the duration between clock-in and clock-out times">
-                    <span>Hours Worked</span>
-                  </Tooltip>
-                </TableHeader>
-                  </tr>
-                </TableHead>
-                <tbody>
-                  {monthlyReports.slice(0, 7).map((report, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{format(report.date, 'EEE, MMM d')}</TableCell>
-                      <TableCell>
-                        {report.timeIn 
-                          ? (
-                            <>
-                              {format(report.timeIn, 'h:mm a')}
-                              {report.timeInStatus && (
-                                <StatusTag status={report.timeInStatus} style={{ marginLeft: '8px' }}>
-                                  {report.timeInStatus}
-                                </StatusTag>
-                              )}
-                            </>
-                          ) 
-                          : (report.status === 'Absent' ? 'N/A' : '--:--')}
-                      </TableCell>
-                      <TableCell>
-                        {report.timeOut 
-                          ? format(report.timeOut, 'h:mm a') 
-                          : (report.status === 'Absent' ? 'N/A' : '--:--')}
-                      </TableCell>
-                      <TableCell>
-                        <StatusTag status={report.status}>
-                          {report.status}
-                        </StatusTag>
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip text="Calculated as the duration between clock-in and clock-out times">
-                          <span>
-                            {report.hoursWorked > 0 
-                              ? `${report.hoursWorked}h` 
-                              : (report.status === 'Absent' ? 'N/A' : '--')}
-                          </span>
+              <ReportTableWrapper>
+                <ReportTable>
+                  <TableHead>
+                    <tr>
+                      <TableHeader>Date</TableHeader>
+                      <TableHeader>Time In</TableHeader>
+                      <TableHeader>Time Out</TableHeader>
+                      <TableHeader>Status</TableHeader>
+                      <TableHeader>
+                        <Tooltip text="Total hours worked each day, calculated as the duration between clock-in and clock-out times">
+                          <span>Hours Worked</span>
                         </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </tbody>
-              </ReportTable>
+                      </TableHeader>
+                    </tr>
+                  </TableHead>
+                  <tbody>
+                    {monthlyReports.slice(0, 7).map((report, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{format(report.date, 'EEE, MMM d')}</TableCell>
+                        <TableCell>
+                          {report.timeIn 
+                            ? (
+                              <>
+                                {format(report.timeIn, 'h:mm a')}
+                                {report.timeInStatus && (
+                                  <StatusTag status={report.timeInStatus} style={{ marginLeft: '8px' }}>
+                                    {report.timeInStatus}
+                                  </StatusTag>
+                                )}
+                              </>
+                            ) 
+                            : (report.status === 'Absent' ? 'N/A' : '--:--')}
+                        </TableCell>
+                        <TableCell>
+                          {report.timeOut 
+                            ? format(report.timeOut, 'h:mm a') 
+                            : (report.status === 'Absent' ? 'N/A' : '--:--')}
+                        </TableCell>
+                        <TableCell>
+                          <StatusTag status={report.status}>
+                            {report.status}
+                          </StatusTag>
+                        </TableCell>
+                        <TableCell>
+                          <Tooltip text="Calculated as the duration between clock-in and clock-out times">
+                            <span>
+                              {report.hoursWorked > 0 
+                                ? `${report.hoursWorked}h` 
+                                : (report.status === 'Absent' ? 'N/A' : '--')}
+                            </span>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </tbody>
+                </ReportTable>
+              </ReportTableWrapper>
               {monthlyReports.length > 7 && (
                 <div style={{ textAlign: 'center', padding: '1rem', color: '#666' }}>
-                  Showing 7 of {monthlyReports.length} entries
+                  Showing 7 of {monthlyReports.length} entries. Scroll to see more.
                 </div>
               )}
             </ReportPreview>
@@ -773,6 +794,13 @@ const ReportPreview = styled.div`
   margin-top: 1rem;
 `;
 
+const ReportTableWrapper = styled.div`
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #eee;
+  border-radius: 8px;
+`;
+
 const ReportTable = styled.table`
   width: 100%;
   border-collapse: collapse;
@@ -799,6 +827,10 @@ const TableHeader = styled.th`
   font-weight: 600;
   color: #333;
   border-bottom: 1px solid #ddd;
+  position: sticky;
+  top: 0;
+  background-color: #f5f5f5;
+  z-index: 1;
 `;
 
 const TableCell = styled.td`

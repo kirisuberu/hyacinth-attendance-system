@@ -19,9 +19,35 @@ export const getCurrentTimestamp = () => {
  * @returns {Date} Date object adjusted for the specified time zone
  */
 export const timestampToZonedDate = (timestamp, timeZone) => {
-  if (!timestamp) return null;
+  if (!timestamp) {
+    console.error('Null or undefined timestamp passed to timestampToZonedDate');
+    return new Date(); // Return current date as fallback
+  }
   
-  const date = timestamp.toDate();
+  let date;
+  try {
+    // Handle different timestamp formats
+    if (typeof timestamp.toDate === 'function') {
+      date = timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+      date = timestamp;
+    } else if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+      // Handle Firestore timestamp object format
+      date = new Date(timestamp.seconds * 1000);
+    } else {
+      // Try to convert whatever we got to a date
+      date = new Date(timestamp);
+    }
+    
+    // Verify we have a valid date
+    if (isNaN(date.getTime())) {
+      console.error('Invalid date created from timestamp:', timestamp);
+      return new Date(); // Return current date as fallback
+    }
+  } catch (error) {
+    console.error('Error converting timestamp to date:', error, timestamp);
+    return new Date(); // Return current date as fallback
+  }
   
   // If no specific time zone is requested, return local browser time
   if (!timeZone) return date;

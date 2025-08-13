@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { collection, getDocs } from 'firebase/firestore';
 import { 
   getAllRequests, 
   updateRequestStatus, 
@@ -15,7 +16,7 @@ import {
 import { Card, CardTitle, CardContent } from './DashboardComponents';
 import { toast } from 'react-toastify';
 import { Check, X, Clock, FileText, PencilSimple, Calendar, User, ClockClockwise, CaretDown, CaretUp, Eye, Trash } from 'phosphor-react';
-import { auth } from '../../firebase';
+import { auth, db } from '../../firebase';
 
 
 
@@ -56,8 +57,34 @@ const formatDateTime = (timestamp) => {
   }
 };
 
+// Convert a JS Date to a value suitable for <input type="datetime-local">
+// Ensures we use LOCAL time (not UTC) and keep minutes precision
+const toLocalInputDateTime = (date) => {
+  const pad = (n) => String(n).padStart(2, '0');
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+};
+
+// Safely convert various timestamp shapes to a JS Date
+const toJsDate = (ts) => {
+  try {
+    if (!ts) return null;
+    if (typeof ts.toDate === 'function') return ts.toDate();
+    if (ts instanceof Date) return ts;
+    if (typeof ts === 'object' && ts.seconds !== undefined) return new Date(ts.seconds * 1000);
+    return new Date(ts);
+  } catch (e) {
+    console.error('Error converting to JS Date:', e, ts);
+    return null;
+  }
+};
+
 const AttendanceRequestsView = () => {
-  const [activeTab, setActiveTab] = useState('absence');
+  const [activeTab, setActiveTab] = useState('override');
   const [requests, setRequests] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -82,6 +109,7 @@ const AttendanceRequestsView = () => {
     startDate: '',
     endDate: '',
     type: '',
+    status: '',
     nameFilter: ''
   });
   const [overrideHistory, setOverrideHistory] = useState([]);
@@ -113,26 +141,85 @@ const AttendanceRequestsView = () => {
     }
   };
   
-  const fetchAttendanceRecords = async () => {
+  const fetchAttendanceRecords = async (filtersOverride = null) => {
     try {
       setLoading(true);
-      // Remove nameFilter from the API call since it's handled client-side
-      const { nameFilter, ...apiFilters } = attendanceFilters;
-      const records = await getAllAttendanceRecords({
-        ...apiFilters,
-        limit: 50
-      });
-      
-      // Apply name filter client-side if specified
-      let filteredRecords = records;
+      const effectiveFilters = filtersOverride || attendanceFilters;
+      const { nameFilter, status, ...apiFilters } = effectiveFilters;
+
+      const applyStatusFilterLocal = (arr) => {
+        if (!status) return arr;
+        const s = status.toLowerCase();
+        return arr.filter(r => {
+          const rs = (r.status || '').toLowerCase();
+          if (s === 'on time') return rs === 'on time';
+          return rs === s;
+        });
+      };
+
+      // If an employee name is provided, resolve it to one or more userIds and
+      // fetch records server-side by userId to avoid client-only filtering on a capped dataset.
       if (nameFilter && nameFilter.trim() !== '') {
         const searchTerm = nameFilter.toLowerCase().trim();
-        filteredRecords = records.filter(record => 
-          record.name && record.name.toLowerCase().includes(searchTerm)
+
+        // Fetch users and match locally by name/email (Firestore lacks substring search)
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const matchedUsers = usersSnap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(u => {
+            const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim().toLowerCase();
+            const displayName = (u.displayName || '').toLowerCase();
+            const nameField = (u.name || '').toLowerCase();
+            const email = (u.email || '').toLowerCase();
+            return (
+              (fullName && fullName.includes(searchTerm)) ||
+              (displayName && displayName.includes(searchTerm)) ||
+              (nameField && nameField.includes(searchTerm)) ||
+              (email && email.includes(searchTerm))
+            );
+          });
+
+        if (matchedUsers.length === 0) {
+          setAttendanceRecords([]);
+          return;
+        }
+
+        // Fetch records for matched users (limit to first 5 to cap requests)
+        const fetches = matchedUsers.slice(0, 5).map(u =>
+          getAllAttendanceRecords({
+            ...apiFilters,
+            userId: u.id,
+            limit: 500
+          })
         );
+
+        const results = await Promise.all(fetches);
+        const merged = results.flat();
+
+        // Sort by timestamp desc safely
+        const getMillis = (ts) => {
+          try {
+            if (!ts) return 0;
+            if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+            if (ts instanceof Date) return ts.getTime();
+            if (typeof ts === 'object' && ts.seconds !== undefined) return ts.seconds * 1000;
+          } catch (_) { /* noop */ }
+          return 0;
+        };
+
+        merged.sort((a, b) => getMillis(b.timestamp) - getMillis(a.timestamp));
+        const filtered = applyStatusFilterLocal(merged);
+        setAttendanceRecords(filtered);
+        return;
       }
-      
-      setAttendanceRecords(filteredRecords);
+
+      // No name filter: fall back to normal fetch with a slightly higher cap
+      const records = await getAllAttendanceRecords({
+        ...apiFilters,
+        limit: 100
+      });
+      const filtered = applyStatusFilterLocal(records);
+      setAttendanceRecords(filtered);
     } catch (error) {
       console.error('Error getting attendance records:', error);
       toast.error('Failed to load attendance records');
@@ -151,6 +238,19 @@ const AttendanceRequestsView = () => {
   
   const applyFilters = () => {
     fetchAttendanceRecords();
+  };
+  
+  const clearFilters = () => {
+    const reset = {
+      userId: '',
+      startDate: '',
+      endDate: '',
+      type: '',
+      status: '',
+      nameFilter: ''
+    };
+    setAttendanceFilters(reset);
+    fetchAttendanceRecords(reset);
   };
   
   const handleTabChange = (tab) => {
@@ -176,7 +276,11 @@ const AttendanceRequestsView = () => {
     setOverrideData({
       type: record.type || '',
       status: record.status || '',
-      timestamp: record.timestamp ? new Date(record.timestamp.seconds * 1000).toISOString().slice(0, 16) : '',
+      // Use local time string for datetime-local to avoid UTC offset issues
+      timestamp: record.timestamp ? (() => {
+        const dt = toJsDate(record.timestamp);
+        return dt ? toLocalInputDateTime(dt) : '';
+      })() : '',
       reason: ''
     });
     setShowOverrideModal(true);
@@ -572,8 +676,30 @@ const AttendanceRequestsView = () => {
           </FilterGroup>
           
           <FilterGroup>
+            <FilterLabel>Status</FilterLabel>
+            <FilterSelect 
+              name="status" 
+              value={attendanceFilters.status} 
+              onChange={handleFilterChange}
+            >
+              <option value="">All Statuses</option>
+              <option value="Early">Early</option>
+              <option value="On Time">On Time</option>
+              <option value="Late">Late</option>
+              <option value="Complete">Complete</option>
+              <option value="Incomplete">Incomplete</option>
+            </FilterSelect>
+          </FilterGroup>
+          
+          <FilterGroup>
             <FilterButton onClick={applyFilters}>
               Apply Filters
+            </FilterButton>
+          </FilterGroup>
+          
+          <FilterGroup>
+            <FilterButton onClick={clearFilters} type="button">
+              Clear Filters
             </FilterButton>
           </FilterGroup>
         </FilterContainer>
@@ -654,6 +780,12 @@ const AttendanceRequestsView = () => {
       <CardContent>
         <TabContainer>
           <Tab 
+            active={activeTab === 'override'} 
+            onClick={() => handleTabChange('override')}
+          >
+            Attendance Override
+          </Tab>
+          <Tab 
             active={activeTab === 'absence'} 
             onClick={() => handleTabChange('absence')}
           >
@@ -665,17 +797,11 @@ const AttendanceRequestsView = () => {
           >
             Overtime Requests
           </Tab>
-          <Tab 
-            active={activeTab === 'override'} 
-            onClick={() => handleTabChange('override')}
-          >
-            Attendance Override
-          </Tab>
         </TabContainer>
         
+        {activeTab === 'override' && renderAttendanceOverride()}
         {activeTab === 'absence' && renderAbsencePetitions()}
         {activeTab === 'overtime' && renderOvertimeRequests()}
-        {activeTab === 'override' && renderAttendanceOverride()}
         
         {/* Action Modal */}
         {showModal && (

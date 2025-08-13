@@ -96,8 +96,35 @@ const AttendanceView = ({ user }) => {
   const processAttendanceRecords = (records) => {
     // Sort records by timestamp (oldest first)
     const sortedRecords = [...records].sort((a, b) => {
-      if (!a.timestamp || !b.timestamp) return 0;
-      return a.timestamp.toDate() - b.timestamp.toDate();
+      // Handle missing timestamps
+      if (!a.timestamp && !b.timestamp) return 0;
+      if (!a.timestamp) return 1; // b comes first
+      if (!b.timestamp) return -1; // a comes first
+      
+      try {
+        // Safely convert timestamps to Date objects
+        const dateA = typeof a.timestamp.toDate === 'function' ? 
+          a.timestamp.toDate() : 
+          a.timestamp instanceof Date ? 
+            a.timestamp : 
+            new Date(a.timestamp);
+            
+        const dateB = typeof b.timestamp.toDate === 'function' ? 
+          b.timestamp.toDate() : 
+          b.timestamp instanceof Date ? 
+            b.timestamp : 
+            new Date(b.timestamp);
+            
+        // Verify dates are valid
+        if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+        if (isNaN(dateA.getTime())) return 1;
+        if (isNaN(dateB.getTime())) return -1;
+        
+        return dateA - dateB;
+      } catch (error) {
+        console.error('Error comparing timestamps:', error, { a, b });
+        return 0;
+      }
     });
     
     // Separate in, out, and absent records
@@ -136,29 +163,124 @@ const AttendanceView = ({ user }) => {
       const matchingInRecord = [...inRecords]
         .reverse()
         .find(inRecord => {
-          const inTime = inRecord.timestamp.toDate();
-          const outTime = outRecord.timestamp.toDate();
-          return inTime < outTime && !processedInRecords.has(inRecord.id);
+          try {
+            // Skip records with missing timestamps
+            if (!inRecord.timestamp || !outRecord.timestamp) return false;
+            
+            // Safely convert timestamps to Date objects
+            let inTime, outTime;
+            
+            try {
+              inTime = typeof inRecord.timestamp.toDate === 'function' ?
+                inRecord.timestamp.toDate() :
+                inRecord.timestamp instanceof Date ?
+                  inRecord.timestamp :
+                  new Date(inRecord.timestamp);
+            } catch (error) {
+              console.error('Error converting inRecord timestamp:', error, inRecord);
+              return false;
+            }
+            
+            try {
+              outTime = typeof outRecord.timestamp.toDate === 'function' ?
+                outRecord.timestamp.toDate() :
+                outRecord.timestamp instanceof Date ?
+                  outRecord.timestamp :
+                  new Date(outRecord.timestamp);
+            } catch (error) {
+              console.error('Error converting outRecord timestamp:', error, outRecord);
+              return false;
+            }
+            
+            // Verify dates are valid
+            if (isNaN(inTime.getTime()) || isNaN(outTime.getTime())) return false;
+            
+            return inTime < outTime && !processedInRecords.has(inRecord.id);
+          } catch (error) {
+            console.error('Error comparing in/out timestamps:', error, { inRecord, outRecord });
+            return false;
+          }
         });
       
       if (matchingInRecord) {
         processedInRecords.add(matchingInRecord.id);
         
-        const inDate = matchingInRecord.timestamp.toDate();
+        // Safely convert timestamp to date
+        let inDate;
+        try {
+          inDate = typeof matchingInRecord.timestamp.toDate === 'function' ?
+            matchingInRecord.timestamp.toDate() :
+            matchingInRecord.timestamp instanceof Date ?
+              matchingInRecord.timestamp :
+              new Date(matchingInRecord.timestamp);
+              
+          // Verify date is valid
+          if (isNaN(inDate.getTime())) {
+            console.error('Invalid date from timestamp:', matchingInRecord.timestamp);
+            inDate = new Date(); // Fallback to current date
+          }
+        } catch (error) {
+          console.error('Error getting inDate:', error, matchingInRecord);
+          inDate = new Date(); // Fallback to current date
+        }
         
         pairedRecords.push({
           date: inDate,
-          day: getDayOfWeek(matchingInRecord.timestamp),
+          day: getDayOfWeek(inDate),
           inRecord: matchingInRecord,
           outRecord: outRecord,
-          isMultiDay: inDate.toDateString() !== outRecord.timestamp.toDate().toDateString()
+          isMultiDay: (() => {
+            try {
+              // Safely get outDate string
+              let outDate;
+              try {
+                outDate = typeof outRecord.timestamp.toDate === 'function' ?
+                  outRecord.timestamp.toDate() :
+                  outRecord.timestamp instanceof Date ?
+                    outRecord.timestamp :
+                    new Date(outRecord.timestamp);
+                    
+                // Verify date is valid
+                if (isNaN(outDate.getTime())) {
+                  console.error('Invalid outDate from timestamp:', outRecord.timestamp);
+                  return false;
+                }
+              } catch (error) {
+                console.error('Error getting outDate for isMultiDay check:', error, outRecord);
+                return false;
+              }
+              
+              return inDate.toDateString() !== outDate.toDateString();
+            } catch (error) {
+              console.error('Error in isMultiDay calculation:', error);
+              return false;
+            }
+          })()
         });
       } else {
         // If no matching in record found, create an entry with just the out record
-        const outDate = outRecord.timestamp.toDate();
+        // Safely convert timestamp to date
+        let outDate;
+        try {
+          outDate = typeof outRecord.timestamp.toDate === 'function' ?
+            outRecord.timestamp.toDate() :
+            outRecord.timestamp instanceof Date ?
+              outRecord.timestamp :
+              new Date(outRecord.timestamp);
+              
+          // Verify date is valid
+          if (isNaN(outDate.getTime())) {
+            console.error('Invalid outDate from timestamp in unpaired record:', outRecord.timestamp);
+            outDate = new Date(); // Fallback to current date
+          }
+        } catch (error) {
+          console.error('Error getting outDate for unpaired record:', error, outRecord);
+          outDate = new Date(); // Fallback to current date
+        }
+        
         pairedRecords.push({
           date: outDate,
-          day: getDayOfWeek(outRecord.timestamp),
+          day: getDayOfWeek(outDate),
           inRecord: null,
           outRecord: outRecord,
           isMultiDay: false
@@ -169,10 +291,22 @@ const AttendanceView = ({ user }) => {
     // Add any remaining in records that don't have matching out records
     inRecords.forEach(inRecord => {
       if (!processedInRecords.has(inRecord.id)) {
-        const inDate = inRecord.timestamp.toDate();
+        // Safely convert timestamp to Date
+        let inDate;
+        try {
+          inDate = typeof inRecord.timestamp?.toDate === 'function'
+            ? inRecord.timestamp.toDate()
+            : (inRecord.timestamp instanceof Date
+                ? inRecord.timestamp
+                : new Date(inRecord.timestamp));
+          if (isNaN(inDate.getTime())) inDate = new Date();
+        } catch (e) {
+          console.error('Error converting inRecord timestamp:', e, inRecord);
+          inDate = new Date();
+        }
         pairedRecords.push({
           date: inDate,
-          day: getDayOfWeek(inRecord.timestamp),
+          day: getDayOfWeek(inDate),
           inRecord: inRecord,
           outRecord: null,
           isMultiDay: false
@@ -180,12 +314,35 @@ const AttendanceView = ({ user }) => {
       }
     });
     
-    // Add absent records
+    // Build set of dates that already have IN/OUT to avoid duplicate Absent on same day
+    const occupiedDates = new Set(
+      pairedRecords
+        .map(pr => (pr.date instanceof Date ? pr.date.toDateString() : null))
+        .filter(Boolean)
+    );
+    
+    // Add absent records (skip if same day already has IN/OUT)
     absentRecords.forEach(absentRecord => {
-      const absentDate = absentRecord.timestamp.toDate();
+      // Safely convert timestamp to Date
+      let absentDate;
+      try {
+        absentDate = typeof absentRecord.timestamp?.toDate === 'function'
+          ? absentRecord.timestamp.toDate()
+          : (absentRecord.timestamp instanceof Date
+              ? absentRecord.timestamp
+              : new Date(absentRecord.timestamp));
+        if (isNaN(absentDate.getTime())) absentDate = new Date();
+      } catch (e) {
+        console.error('Error converting absentRecord timestamp:', e, absentRecord);
+        absentDate = new Date();
+      }
+      // Skip if this date already has an IN/OUT entry
+      if (occupiedDates.has(absentDate.toDateString())) {
+        return;
+      }
       pairedRecords.push({
         date: absentDate,
-        day: getDayOfWeek(absentRecord.timestamp),
+        day: getDayOfWeek(absentDate),
         absentRecord: absentRecord,
         inRecord: null,
         outRecord: null,
@@ -193,9 +350,37 @@ const AttendanceView = ({ user }) => {
       });
     });
     
+    // Deduplicate by calendar day, keep the most relevant (prefer later OUT time, else latest date)
+    const byDate = new Map();
+    const toJsDate = (ts) => {
+      if (!ts) return null;
+      try {
+        return (ts instanceof Date) ? ts : (typeof ts.toDate === 'function') ? ts.toDate() : new Date(ts);
+      } catch {
+        return null;
+      }
+    };
+    const getOutTime = (rec) => toJsDate(rec?.outRecord?.timestamp);
+    pairedRecords.forEach(pr => {
+      const key = pr.date instanceof Date ? pr.date.toDateString() : String(pr.date);
+      const existing = byDate.get(key);
+      if (!existing) {
+        byDate.set(key, pr);
+      } else {
+        const aOut = getOutTime(existing);
+        const bOut = getOutTime(pr);
+        if (aOut && bOut) {
+          if (bOut > aOut) byDate.set(key, pr);
+        } else {
+          // fallback to latest date
+          if (toJsDate(pr.date) > toJsDate(existing.date)) byDate.set(key, pr);
+        }
+      }
+    });
+    const deduped = Array.from(byDate.values());
     // Sort by date (most recent first)
-    const result = pairedRecords.sort((a, b) => b.date - a.date);
-    console.log('Processed attendance records:', result);
+    const result = deduped.sort((a, b) => toJsDate(b.date) - toJsDate(a.date));
+    console.log('Processed attendance records (deduped):', result);
     return result;
   };
 
@@ -227,11 +412,17 @@ const AttendanceView = ({ user }) => {
   
   const formatTime = (timestamp, timeZone = null) => {
     if (!timestamp) return '';
-  
+
     try {
-      // Use TimeZoneDisplay for formatting, but this is kept for backward compatibility
-      const date = timestamp.toDate();
-      
+      // Normalize to a Date instance
+      const date = (timestamp instanceof Date)
+        ? timestamp
+        : (typeof timestamp.toDate === 'function')
+          ? timestamp.toDate()
+          : new Date(timestamp);
+
+      if (isNaN(date.getTime())) return '';
+
       if (timeZone) {
         const options = {
           hour: 'numeric',
@@ -239,7 +430,6 @@ const AttendanceView = ({ user }) => {
           hour12: true,
           timeZone: timeZone
         };
-        
         return new Intl.DateTimeFormat('en-US', options).format(date);
       } else {
         // Format time as HH:MM AM/PM
@@ -248,11 +438,10 @@ const AttendanceView = ({ user }) => {
         const ampm = hours >= 12 ? 'PM' : 'AM';
         const formattedHours = hours % 12 || 12; // Convert 24h to 12h format and handle 0 as 12
         const formattedMinutes = minutes < 10 ? `0${minutes}` : minutes;
-        
         return `${formattedHours}:${formattedMinutes} ${ampm}`;
       }
     } catch (error) {
-      console.error('Error formatting time:', error);
+      console.error('Error formatting time:', error, timestamp);
       return '';
     }
   };
@@ -300,6 +489,39 @@ const AttendanceView = ({ user }) => {
     } catch (error) {
       console.error('Error calculating time-in status:', error, record);
       return 'On Time'; // Default fallback
+    }
+  };
+  
+  // Calculate signed difference in minutes between actual time-in and scheduled time-in
+  // Negative => Early, 0 => On Time (within exact comparison), Positive => Late
+  const getTimeInDiffMinutes = (inRecord) => {
+    if (!inRecord || inRecord.type !== 'In' || !inRecord.timestamp) return null;
+    try {
+      // Normalize actual in time
+      const inTime = (typeof inRecord.timestamp.toDate === 'function')
+        ? inRecord.timestamp.toDate()
+        : (inRecord.timestamp instanceof Date
+            ? inRecord.timestamp
+            : new Date(inRecord.timestamp));
+      if (isNaN(inTime.getTime())) return null;
+
+      // Find schedule for the same weekday
+      const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][inTime.getDay()];
+      const userSchedule = userData?.schedule || [];
+      const daySchedule = userSchedule.find(s => s.dayOfWeek === dayOfWeek);
+      if (!daySchedule || !daySchedule.timeIn) return null;
+
+      // Build the scheduled Date on the same calendar day as inTime
+      const [scheduledHour, scheduledMinute] = daySchedule.timeIn.split(':').map(Number);
+      const scheduleDate = new Date(inTime);
+      scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+
+      // Signed minutes: positive means late, negative means early
+      const diffMinutes = Math.round((inTime - scheduleDate) / (1000 * 60));
+      return diffMinutes;
+    } catch (e) {
+      console.error('Error calculating time-in difference:', e, inRecord);
+      return null;
     }
   };
   
@@ -428,7 +650,7 @@ const AttendanceView = ({ user }) => {
                     ) : (
                       <>
                         {/* IN record */}
-                        <td><TimeZoneDisplay timestamp={record.inRecord.timestamp} timeZone={userTimeZone} /></td>
+                        <td>{record.inRecord ? <TimeZoneDisplay timestamp={record.inRecord.timestamp} timeZone={userTimeZone} /> : '-'}</td>
                         <td>
                           {record.inRecord ? (
                             <StatusTag status={calculateTimeInStatus(record.inRecord, record.date)}>
@@ -437,14 +659,15 @@ const AttendanceView = ({ user }) => {
                           ) : '-'}
                         </td>
                         <td>
-                          {record.inRecord && record.inRecord.timeDiff !== undefined && ['Early', 'Late'].includes(calculateTimeInStatus(record.inRecord, record.date)) ? (
-                            <>
-                              {Math.abs(record.inRecord.timeDiff) >= 60 ? 
-                                `${Math.floor(Math.abs(record.inRecord.timeDiff) / 60)}h ${Math.abs(record.inRecord.timeDiff) % 60}m` : 
-                                `${Math.abs(record.inRecord.timeDiff)}m`
-                              }
-                            </>
-                          ) : '-'}
+                          {(() => {
+                            const diff = getTimeInDiffMinutes(record.inRecord);
+                            if (diff === null) return '-';
+                            const abs = Math.abs(diff);
+                            if (abs >= 60) {
+                              return `${Math.floor(abs / 60)}h ${abs % 60}m`;
+                            }
+                            return `${abs}m`;
+                          })()}
                         </td>
                         
                         {/* OUT record */}
@@ -454,7 +677,7 @@ const AttendanceView = ({ user }) => {
                               <TimeZoneDisplay timestamp={record.outRecord.timestamp} timeZone={userTimeZone} />
                               {record.isMultiDay && (
                                 <div style={{ fontSize: '0.8rem', color: '#7b1fa2' }}>
-                                  {formatDate(record.outRecord.timestamp.toDate())}
+                                  {formatDate(record.outRecord.timestamp)}
                                 </div>
                               )}
                             </>
@@ -471,10 +694,18 @@ const AttendanceView = ({ user }) => {
                           {record.inRecord && record.outRecord ? (
                             <>
                               {(() => {
-                                // Calculate time difference between in and out
-                                const inTime = record.inRecord.timestamp.toDate();
-                                const outTime = record.outRecord.timestamp.toDate();
-                                const diffMinutes = Math.round((outTime - inTime) / (1000 * 60));
+                                // Calculate time difference between in and out safely
+                                const inTime = (typeof record.inRecord.timestamp?.toDate === 'function')
+                                  ? record.inRecord.timestamp.toDate()
+                                  : (record.inRecord.timestamp instanceof Date
+                                      ? record.inRecord.timestamp
+                                      : new Date(record.inRecord.timestamp));
+                                const outTime = (typeof record.outRecord.timestamp?.toDate === 'function')
+                                  ? record.outRecord.timestamp.toDate()
+                                  : (record.outRecord.timestamp instanceof Date
+                                      ? record.outRecord.timestamp
+                                      : new Date(record.outRecord.timestamp));
+                                const diffMinutes = (isNaN(inTime) || isNaN(outTime)) ? 0 : Math.round((outTime - inTime) / (1000 * 60));
                                 
                                 if (diffMinutes >= 60) {
                                   const hours = Math.floor(diffMinutes / 60);
@@ -582,7 +813,7 @@ const AttendanceView = ({ user }) => {
                 <div>
                   <p>Please provide a reason for requesting the removal of this absence record:</p>
                   <p>
-                    <strong>Date:</strong> {selectedAbsence && formatDate(selectedAbsence.timestamp.toDate())}<br/>
+                    <strong>Date:</strong> {selectedAbsence && formatDate(selectedAbsence.timestamp)}<br/>
                     <strong>Time:</strong> {selectedAbsence && formatTime(selectedAbsence.timestamp)}
                   </p>
                 </div>

@@ -3,6 +3,8 @@ import styled from 'styled-components';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { Button, Card, CardTitle, CardContent } from '../dashboard/DashboardComponents';
 import { toast } from 'react-toastify';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 // List of common time zones - expand as needed
 const COMMON_TIME_ZONES = [
@@ -59,10 +61,13 @@ const ButtonContainer = styled.div`
   margin-top: 1rem;
 `;
 
-const TimeZoneSettings = () => {
-  const { timeZone, systemTimeZone, updateTimeZone } = useTimeFormat();
+const TimeZoneSettings = ({ userId: propUserId, initialTimeZone: propTimeZone }) => {
+  const { timeZone: contextTimeZone, use24HourFormat, updateTimeZone, systemTimeZone } = useTimeFormat();
+  // Use props if provided, otherwise use context
+  const timeZone = propTimeZone || contextTimeZone;
   const [selectedTimeZone, setSelectedTimeZone] = useState(timeZone || 'Asia/Manila');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isSaving, setIsSaving] = useState(false);
 
   // Update current time every second
   useEffect(() => {
@@ -78,11 +83,28 @@ const TimeZoneSettings = () => {
   };
 
   const handleSave = async () => {
-    const success = await updateTimeZone(selectedTimeZone);
-    if (success) {
-      toast.success('Time zone settings updated successfully');
-    } else {
-      toast.error('Failed to update time zone settings');
+    try {
+      setIsSaving(true);
+      
+      if (!propUserId) {
+        toast.error('User ID is required to update time zone settings');
+        setIsSaving(false);
+        return;
+      }
+      
+      // Update in Firestore
+      await updateDoc(doc(db, 'users', propUserId), { 
+        timeRegion: selectedTimeZone // Using timeRegion to match existing data structure
+      });
+      
+      // Also update in context for immediate effect
+      updateTimeZone(selectedTimeZone);
+      toast.success('Time zone updated successfully');
+    } catch (error) {
+      console.error('Error updating time zone:', error);
+      toast.error('Failed to update time zone: ' + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -126,7 +148,6 @@ const TimeZoneSettings = () => {
                   {tz.label}
                 </option>
               ))}
-              {/* Show current time zone if not in list */}
               {timeZone && !COMMON_TIME_ZONES.some(tz => tz.value === timeZone) && (
                 <option value={timeZone}>{timeZone}</option>
               )}
@@ -147,8 +168,12 @@ const TimeZoneSettings = () => {
           </FormGroup>
           
           <ButtonContainer>
-            <Button onClick={handleSave} primary>Save Settings</Button>
-            <Button onClick={handleDetectSystem}>Use System Time Zone</Button>
+            <Button onClick={handleSave} primary disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Settings'}
+            </Button>
+            <Button onClick={handleDetectSystem} disabled={isSaving}>
+              Use System Time Zone
+            </Button>
           </ButtonContainer>
         </SettingsContainer>
       </CardContent>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Users, Bank, Pencil, Trash, X, Check, Plus } from 'phosphor-react';
 import styled from 'styled-components';
@@ -25,6 +25,13 @@ function CompanyManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
     website: '',
     phone: ''
   });
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [companyMembers, setCompanyMembers] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [loadingAllUsers, setLoadingAllUsers] = useState(false);
+  const [membersSearchTerm, setMembersSearchTerm] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Fetch companies from Firestore
   useEffect(() => {
@@ -52,6 +59,99 @@ function CompanyManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
       setLoading(false);
       toast.error("Failed to load companies data");
       return () => {};
+    }
+  };
+
+  // Members management
+  const fetchCompanyMembers = async (companyId) => {
+    try {
+      setLoadingMembers(true);
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('companies', 'array-contains', companyId));
+      const querySnapshot = await getDocs(q);
+      const members = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setCompanyMembers(members);
+      setLoadingMembers(false);
+    } catch (error) {
+      console.error('Error fetching company members:', error);
+      toast.error('Failed to load company members');
+      setLoadingMembers(false);
+      setCompanyMembers([]);
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    try {
+      setLoadingAllUsers(true);
+      const usersRef = collection(db, 'users');
+      const snapshot = await getDocs(usersRef);
+      const users = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setAllUsers(users);
+      setLoadingAllUsers(false);
+    } catch (error) {
+      console.error('Error loading users:', error);
+      toast.error('Failed to load users');
+      setLoadingAllUsers(false);
+      setAllUsers([]);
+    }
+  };
+
+  const handleAddUserToCompany = async (userId) => {
+    if (!selectedCompany || isProcessing) return;
+    try {
+      setIsProcessing(true);
+      const userRef = doc(db, 'users', userId);
+      const user = allUsers.find(u => u.id === userId);
+      if (!user) {
+        toast.error('User not found');
+        setIsProcessing(false);
+        return;
+      }
+      const userCompanies = user.companies || (user.company ? [user.company] : []);
+      if (userCompanies.includes(selectedCompany.id)) {
+        toast.info('User is already in this company');
+        setIsProcessing(false);
+        return;
+      }
+      const updatedCompanies = [...userCompanies, selectedCompany.id];
+      await updateDoc(userRef, {
+        companies: updatedCompanies,
+        updatedAt: serverTimestamp()
+      });
+      await fetchCompanyMembers(selectedCompany.id);
+      toast.success(`User added to ${selectedCompany.name}`);
+      setIsProcessing(false);
+    } catch (error) {
+      console.error('Error adding user to company:', error);
+      toast.error('Failed to add user to company');
+      setIsProcessing(false);
+    }
+  };
+
+  const handleRemoveUserFromCompany = async (userId) => {
+    if (!selectedCompany || isProcessing) return;
+    try {
+      setIsProcessing(true);
+      const userRef = doc(db, 'users', userId);
+      const user = companyMembers.find(m => m.id === userId);
+      if (!user) {
+        toast.error('User not found');
+        setIsProcessing(false);
+        return;
+      }
+      const userCompanies = user.companies || (user.company ? [user.company] : []);
+      const updatedCompanies = (userCompanies || []).filter(id => id !== selectedCompany.id);
+      await updateDoc(userRef, {
+        companies: updatedCompanies,
+        updatedAt: serverTimestamp()
+      });
+      await fetchCompanyMembers(selectedCompany.id);
+      toast.success(`User removed from ${selectedCompany.name}`);
+      setIsProcessing(false);
+    } catch (error) {
+      console.error('Error removing user from company:', error);
+      toast.error('Failed to remove user from company');
+      setIsProcessing(false);
     }
   };
 
@@ -161,6 +261,25 @@ function CompanyManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
         (company.description && company.description.toLowerCase().includes(searchQuery.toLowerCase()))
       );
 
+  // Derived lists for Members Modal
+  const normalizedMembersSearch = membersSearchTerm.trim().toLowerCase();
+  const filteredCompanyMembers = companyMembers.filter(u => {
+    const name = (u.name || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const position = (u.position || '').toLowerCase();
+    if (!normalizedMembersSearch) return true;
+    return name.includes(normalizedMembersSearch) || email.includes(normalizedMembersSearch) || position.includes(normalizedMembersSearch);
+  });
+  const memberIdSet = new Set(companyMembers.map(u => u.id));
+  const usersNotInCompany = allUsers.filter(u => !memberIdSet.has(u.id));
+  const filteredUserCandidates = usersNotInCompany.filter(u => {
+    const name = (u.name || '').toLowerCase();
+    const email = (u.email || '').toLowerCase();
+    const position = (u.position || '').toLowerCase();
+    if (!normalizedMembersSearch) return true;
+    return name.includes(normalizedMembersSearch) || email.includes(normalizedMembersSearch) || position.includes(normalizedMembersSearch);
+  });
+
   return (
     <Container>
       <Title>
@@ -200,12 +319,23 @@ function CompanyManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
               {company.description && (
                 <CompanyDescription>{company.description}</CompanyDescription>
               )}
-              
               <CompanyMeta>
                 <CompanyCode>{company.code}</CompanyCode>
                 
                 {(isSuperAdmin || isAdmin || canEdit) && (
                   <CompanyActions>
+                    <ActionButton
+                      onClick={() => {
+                        setSelectedCompany(company);
+                        setShowMembersModal(true);
+                        fetchCompanyMembers(company.id);
+                        fetchAllUsers();
+                      }}
+                      color="#ffa000"
+                      title="See details"
+                    >
+                      <Users size={18} />
+                    </ActionButton>
                     <ActionButton onClick={() => handleEditClick(company)} color="#2196f3">
                       <Pencil size={18} />
                     </ActionButton>
@@ -507,6 +637,97 @@ function CompanyManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
           </ModalContent>
         </ModalOverlay>
       )}
+
+      {/* Members Modal */}
+      {showMembersModal && selectedCompany && (
+        <ModalOverlay>
+          <ModalContent wide>
+            <ModalTitle>
+              <Users size={24} />
+              {selectedCompany.name} Members
+            </ModalTitle>
+            
+            <MembersSearch
+              type="text"
+              placeholder="Search by name, email, or position..."
+              value={membersSearchTerm}
+              onChange={(e) => setMembersSearchTerm(e.target.value)}
+            />
+            
+            <MembersLayout>
+              <MembersPane>
+                <PaneHeader>
+                  <PaneTitle>Current Members</PaneTitle>
+                  <SmallNote>{companyMembers.length} total</SmallNote>
+                </PaneHeader>
+                {loadingMembers ? (
+                  <EmptyState>Loading members...</EmptyState>
+                ) : filteredCompanyMembers.length === 0 ? (
+                  <EmptyState>No members found.</EmptyState>
+                ) : (
+                  <MembersList>
+                    {filteredCompanyMembers.map(user => (
+                      <MemberItem key={user.id}>
+                        <MemberInfo>
+                          <MemberName>{user.name || 'Unnamed User'}</MemberName>
+                          <MemberEmail>{user.email || 'No email'}</MemberEmail>
+                        </MemberInfo>
+                        {(isSuperAdmin || isAdmin || canEdit) && (
+                          <ActionButton
+                            onClick={() => handleRemoveUserFromCompany(user.id)}
+                            color="#f44336"
+                            title="Remove from company"
+                            disabled={isProcessing}
+                          >
+                            <X size={16} />
+                          </ActionButton>
+                        )}
+                      </MemberItem>
+                    ))}
+                  </MembersList>
+                )}
+              </MembersPane>
+              
+              <MembersPane>
+                <PaneHeader>
+                  <PaneTitle>Add Members</PaneTitle>
+                  <SmallNote>{filteredUserCandidates.length} available</SmallNote>
+                </PaneHeader>
+                {loadingAllUsers ? (
+                  <EmptyState>Loading users...</EmptyState>
+                ) : filteredUserCandidates.length === 0 ? (
+                  <EmptyState>No users available to add.</EmptyState>
+                ) : (
+                  <MembersList>
+                    {filteredUserCandidates.map(user => (
+                      <MemberItem key={user.id}>
+                        <MemberInfo>
+                          <MemberName>{user.name || 'Unnamed User'}</MemberName>
+                          <MemberEmail>{user.email || 'No email'}</MemberEmail>
+                        </MemberInfo>
+                        {(isSuperAdmin || isAdmin || canEdit) && (
+                          <ActionButton
+                            onClick={() => handleAddUserToCompany(user.id)}
+                            color="#ffa000"
+                            title="Add to company"
+                            disabled={isProcessing}
+                          >
+                            <Plus size={16} />
+                          </ActionButton>
+                        )}
+                      </MemberItem>
+                    ))}
+                  </MembersList>
+                )}
+              </MembersPane>
+            </MembersLayout>
+            
+            <MembersFooter>
+              <Button onClick={() => setShowMembersModal(false)}>Close</Button>
+            </MembersFooter>
+          </ModalContent>
+        </ModalOverlay>
+      )}
     </Container>
   );
 }
@@ -657,7 +878,7 @@ const ModalContent = styled.div`
   background-color: white;
   padding: 2rem;
   border-radius: 8px;
-  max-width: 500px;
+  max-width: ${props => props.wide ? '950px' : '500px'};
   width: 100%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 `;
@@ -677,6 +898,7 @@ const ModalButtons = styled.div`
   margin-top: 2rem;
 `;
 
+// Shared form and UI components
 const Button = styled.button`
   padding: 0.75rem 1.25rem;
   border: none;
@@ -745,4 +967,94 @@ const EmptyState = styled.div`
   background-color: #f9f9f9;
   border-radius: 8px;
   color: #666;
+`;
+
+// Members modal specific components
+const MembersLayout = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-top: 1rem;
+  
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const MembersPane = styled.div`
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 1rem;
+`;
+
+const PaneHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+`;
+
+const PaneTitle = styled.h4`
+  margin: 0;
+  color: #333;
+`;
+
+const SmallNote = styled.span`
+  color: #777;
+  font-size: 0.85rem;
+`;
+
+const MembersList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 360px;
+  overflow: auto;
+`;
+
+const MemberItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background: white;
+  border: 1px solid #eee;
+  border-radius: 6px;
+`;
+
+const MemberInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+`;
+
+const MemberName = styled.span`
+  font-weight: 600;
+  color: #333;
+`;
+
+const MemberEmail = styled.span`
+  color: #777;
+  font-size: 0.9rem;
+`;
+
+const MembersSearch = styled.input`
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  margin-top: 0.5rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #ffa000;
+  }
+`;
+
+const MembersFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
 `;

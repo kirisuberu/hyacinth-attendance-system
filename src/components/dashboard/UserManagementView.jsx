@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings } from 'phosphor-react';
 import * as XLSX from 'xlsx';
 import styled from 'styled-components';
+import { Card, CardTitle, CardContent, Grid } from './DashboardComponents';
 
 
 function UserManagementView({ isSuperAdmin }) {
@@ -775,13 +776,57 @@ function UserManagementView({ isSuperAdmin }) {
     );
   });
 
+  // Summary statistics and distributions
+  const totalUsers = users.length;
+  const statusCounts = useMemo(() => {
+    const counts = { active: 0, inactive: 0, pending: 0 };
+    users.forEach(u => {
+      const s = (u.status || '').toLowerCase();
+      if (s === 'active') counts.active += 1;
+      else if (s === 'inactive') counts.inactive += 1;
+      else if (s === 'pending') counts.pending += 1;
+    });
+    return counts;
+  }, [users]);
+
+  const roleCounts = useMemo(() => {
+    const counts = { superadmin: 0, admin: 0, member: 0 };
+    users.forEach(u => {
+      const r = (u.role || '').toLowerCase();
+      if (r === 'superadmin') counts.superadmin += 1;
+      else if (r === 'admin') counts.admin += 1;
+      else counts.member += 1; // default bucket
+    });
+    return counts;
+  }, [users]);
+
+  const companiesCount = companies?.length || 0;
+  const departmentsCount = departments?.length || 0;
+
+  const statusData = [
+    { key: 'Active', value: statusCounts.active, color: '#4caf50' },
+    { key: 'Inactive', value: statusCounts.inactive, color: '#f44336' },
+    { key: 'Pending', value: statusCounts.pending, color: '#ff9800' },
+  ];
+
+  const roleData = [
+    { key: 'Superadmin', value: roleCounts.superadmin, color: '#800000' },
+    { key: 'Admin', value: roleCounts.admin, color: '#ff9800' },
+    { key: 'Member', value: roleCounts.member, color: '#9e9e9e' },
+  ];
+
+  const getPercent = (value, total) => {
+    if (!total) return 0;
+    return Math.round((value / total) * 100);
+  };
+
   return (
     <Container>
       <Title>
         <Users size={24} weight="bold" />
         User Management
       </Title>
-      
+       
       <TopActions>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <SearchBar
@@ -1796,24 +1841,40 @@ function UserManagementView({ isSuperAdmin }) {
 export default UserManagementView;
 
 const Container = styled.div`
+  /* Local theme tokens */
+  --primary: #800000;
+  --primary-600: #600000;
+  --primary-700: #4a0000;
+  --accent: #4caf50;
+  --bg: #f7f8fa;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --muted: #667085;
+  --text: #1f2937;
+
   padding: 2rem;
+  background: var(--bg);
+  min-height: 100%;
 `;
 
 const Title = styled.h2`
-  color: #333;
-  margin-bottom: 1.5rem;
+  color: var(--text);
+  margin-bottom: 1.25rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
 `;
 
 const TableContainer = styled.div`
   width: 100%;
   overflow-x: auto;
   margin-top: 1rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background-color: var(--card);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
   position: relative;
   max-height: calc(100vh - 250px);
   overflow-y: auto;
@@ -1827,19 +1888,20 @@ const UserTable = styled.table`
 `;
 
 const TableHead = styled.thead`
-  background-color: #f5f5f5;
+  background-color: #fafafa;
   position: sticky;
   top: 0;
   z-index: 10;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.04);
 `;
 
 const TableRow = styled.tr`
   &:nth-child(even) {
-    background-color: #f9f9f9;
+    background-color: #fbfbfb;
   }
   
   &:hover {
-    background-color: #f0f0f0;
+    background-color: #f5f7fb;
   }
 `;
 
@@ -1847,9 +1909,9 @@ const TableHeader = styled.th`
   padding: 1rem;
   text-align: left;
   font-weight: 600;
-  color: #333;
-  border-bottom: 1px solid #ddd;
-  background-color: #f5f5f5;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  background-color: #fafafa;
   white-space: nowrap;
   position: relative;
   
@@ -1878,7 +1940,7 @@ const TableHeader = styled.th`
     left: 0;
     z-index: 20;
     box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-    background-color: #f5f5f5 !important;
+    background-color: #fafafa !important;
   }
   
   &.sticky-right {
@@ -1886,7 +1948,7 @@ const TableHeader = styled.th`
     right: 0;
     z-index: 20;
     box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
-    background-color: #f5f5f5 !important;
+    background-color: #fafafa !important;
   }
   
   /* Resizer handle */
@@ -1895,8 +1957,8 @@ const TableHeader = styled.th`
     right: 0;
     top: 0;
     height: 100%;
-    width: 5px;
-    background: rgba(0, 0, 0, 0.1);
+    width: 6px;
+    background: rgba(0, 0, 0, 0.08);
     cursor: col-resize;
     user-select: none;
     touch-action: none;
@@ -1913,16 +1975,16 @@ const TableHeader = styled.th`
     
     .resizer {
       opacity: 1;
-      background: rgba(128, 0, 0, 0.5);
+      background: rgba(128, 0, 0, 0.4);
     }
   }
 `;
 
 const TableCell = styled.td`
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
-  background-color: white;
+  background-color: var(--card);
   
   /* Match the widths from TableHeader */
   &.col-name { min-width: 200px; }
@@ -1950,7 +2012,7 @@ const TableCell = styled.td`
     position: sticky;
     left: 0;
     z-index: 10;
-    background-color: white !important;
+    background-color: var(--card) !important;
     box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
   }
   
@@ -1958,7 +2020,7 @@ const TableCell = styled.td`
     position: sticky;
     right: 0;
     z-index: 10;
-    background-color: white !important;
+    background-color: var(--card) !important;
     box-shadow: -2px 0 5px -2px rgba(0,0,0,0.1);
   }
 `;
@@ -1967,7 +2029,7 @@ const ActionButton = styled.button`
   background: none;
   border: none;
   cursor: pointer;
-  color: ${props => props.color || '#333'};
+  color: ${props => props.color || 'var(--text)'};
   margin-right: 0.5rem;
   padding: 0.25rem;
   border-radius: 4px;
@@ -1977,6 +2039,12 @@ const ActionButton = styled.button`
   
   &:hover {
     background-color: rgba(0, 0, 0, 0.05);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 `;
 
@@ -1989,7 +2057,7 @@ const RoleTag = styled.span`
   text-transform: uppercase;
   
   &.superadmin {
-    background-color: #800000;
+    background-color: var(--primary);
     color: white;
   }
   
@@ -2072,14 +2140,15 @@ const StatusTag = styled.span`
 
 const SearchBar = styled.input`
   padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 4px;
   width: 300px;
   font-size: 0.9rem;
   
   &:focus {
     outline: none;
-    border-color: #800000;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(128, 0, 0, 0.1);
   }
   
   @media (max-width: 768px) {
@@ -2097,15 +2166,15 @@ const ColumnControlButton = styled.button`
   align-items: center;
   gap: 8px;
   padding: 0.75rem 1rem;
-  background-color: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
   transition: all 0.2s ease;
   
   &:hover {
-    background-color: #e5e5e5;
+    background-color: #f3f4f6;
   }
 `;
 
@@ -2114,10 +2183,10 @@ const ColumnControlDropdown = styled.div`
   top: 100%;
   right: 0;
   width: 250px;
-  background-color: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   z-index: 100;
   padding: 0.75rem;
   margin-top: 5px;
@@ -2153,16 +2222,16 @@ const ColumnControlActions = styled.div`
 
 const ColumnControlButton2 = styled.button`
   padding: 6px 12px;
-  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
-  color: ${props => props.primary ? 'white' : '#333'};
-  border: 1px solid ${props => props.primary ? '#800000' : '#ddd'};
-  border-radius: 4px;
+  background-color: ${props => props.primary ? 'var(--primary)' : 'var(--card)'};
+  color: ${props => props.primary ? 'white' : 'var(--text)'};
+  border: 1px solid ${props => props.primary ? 'var(--primary)' : 'var(--border)'};
+  border-radius: 8px;
   cursor: pointer;
   font-size: 0.85rem;
   transition: all 0.2s ease;
   
   &:hover {
-    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
+    background-color: ${props => props.primary ? 'var(--primary-600)' : '#f3f4f6'};
   }
 `;
 
@@ -2171,10 +2240,10 @@ const ExportButton = styled.button`
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  background-color: #4caf50;
+  background-color: var(--accent);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   font-size: 1rem;
   font-weight: 500;
@@ -2203,9 +2272,9 @@ const ConfirmationModal = styled.div`
 `;
 
 const ModalContent = styled.div`
-  background-color: white;
+  background-color: var(--card);
   padding: 2rem;
-  border-radius: 8px;
+  border-radius: 12px;
   max-width: 800px;
   width: 100%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -2215,12 +2284,12 @@ const ModalContent = styled.div`
 
 const ModalTitle = styled.h3`
   margin-top: 0;
-  color: #333;
+  color: var(--text);
 `;
 
 const ModalText = styled.p`
   margin-bottom: 1.5rem;
-  color: #666;
+  color: var(--muted);
 `;
 
 const ModalButtons = styled.div`
@@ -2232,18 +2301,24 @@ const ModalButtons = styled.div`
 const Button = styled.button`
   padding: 0.5rem 1rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   font-weight: 500;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   
-  background-color: ${props => props.primary ? '#800000' : '#f5f5f5'};
-  color: ${props => props.primary ? 'white' : '#333'};
+  background-color: ${props => props.primary ? 'var(--primary)' : 'var(--card)'};
+  color: ${props => props.primary ? 'white' : 'var(--text)'};
+  border: 1px solid ${props => props.primary ? 'var(--primary)' : 'var(--border)'};
   
   &:hover {
-    background-color: ${props => props.primary ? '#600000' : '#e5e5e5'};
+    background-color: ${props => props.primary ? 'var(--primary-600)' : '#f3f4f6'};
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 `;
 
@@ -2255,14 +2330,14 @@ const FormGroup = styled.div`
 const DayCheckbox = styled.div`
   display: inline-flex;
   align-items: center;
-  background-color: #f5f5f5;
+  background-color: var(--bg);
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
   
   &:hover {
-    background-color: #e0e0e0;
+    background-color: #f0f2f5;
   }
   
   input {
@@ -2271,7 +2346,7 @@ const DayCheckbox = styled.div`
   
   input:checked + label {
     font-weight: 600;
-    color: #800000;
+    color: var(--primary);
   }
 `;
 
@@ -2279,19 +2354,19 @@ const Label = styled.label`
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
 `;
 
 const Input = styled.input`
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 0.9rem;
   
   &:focus {
     outline: none;
-    border-color: #800000;
+    border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
   }
 `;
@@ -2299,14 +2374,14 @@ const Input = styled.input`
 const Select = styled.select`
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 4px;
   font-size: 0.9rem;
   background-color: white;
   
   &:focus {
     outline: none;
-    border-color: #800000;
+    border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(128, 0, 0, 0.1);
   }
 `;
@@ -2319,9 +2394,10 @@ const ScheduleGrid = styled.div`
 `;
 
 const ScheduleCard = styled.div`
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  background-color: var(--card);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   padding: 1rem;
   display: flex;
   flex-direction: column;
@@ -2336,12 +2412,12 @@ const ScheduleHeader = styled.div`
 
 const ScheduleDay = styled.h4`
   margin: 0;
-  color: #333;
+  color: var(--text);
 `;
 
 const ScheduleTime = styled.div`
   font-size: 0.9rem;
-  color: #666;
+  color: var(--muted);
   margin-bottom: 0.5rem;
 `;
 
@@ -2363,4 +2439,53 @@ const Icon = styled.span`
   display: inline-flex;
   align-items: center;
   margin-right: 0.5rem;
+`;
+
+// Summary tiles
+const StatTileValue = styled.div`
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text);
+`;
+
+const StatTileLabel = styled.div`
+  color: var(--muted);
+`;
+
+// Lightweight bar charts
+const ChartContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+`;
+
+const ChartRow = styled.div`
+  display: grid;
+  grid-template-columns: 110px 1fr 48px;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const ChartLabel = styled.div`
+  color: var(--text);
+  font-size: 0.9rem;
+`;
+
+const ChartBarTrack = styled.div`
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #eee;
+  overflow: hidden;
+`;
+
+const ChartBarFill = styled.div`
+  height: 100%;
+  border-radius: 999px;
+`;
+
+const ChartValue = styled.div`
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 `;

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext, Link, useLocation, Outlet } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { isMobile } from 'react-device-detect';
+import TimeZoneMismatchNotification from '../common/TimeZoneMismatchNotification';
 import { recordAttendance, getAttendanceStatus } from '../../services/attendanceService';
 import styled from 'styled-components';
 import { 
@@ -349,6 +350,15 @@ function DashboardLayout() {
       
       <Content>
         <Header>
+          {/* Time Zone Mismatch Notification */}
+          {userData?.timeRegion && (
+            <NotificationArea>
+              <TimeZoneMismatchNotification 
+                userTimeZone={userData.timeRegion} 
+                compact={true} 
+              />
+            </NotificationArea>
+          )}
           <UserInfo>
             <AppUpdatesButton to="/changelog">
               <Bell size={16} />
@@ -534,6 +544,11 @@ const LogoutButton = styled.button`
   &:hover {
     background-color: #e53935;
   }
+`;
+
+const NotificationArea = styled.div`
+  flex: 1;
+  padding: 0 1rem;
 `;
 
 const MainContentArea = styled.div`
