@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { ArrowLeft, User as UserIcon, Stack, Buildings } from 'phosphor-react';
+import styled from 'styled-components';
+import { ArrowLeft, User as UserIcon, Stack, Buildings, PencilSimple } from 'phosphor-react';
 import { format } from 'date-fns';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 
@@ -227,12 +228,25 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
       <Card>
         {activeTab === 'personal' && (
           <>
-            <CardTitle>Personal Information</CardTitle>
+            <CardTitleWrapper>
+              <CardTitle>Personal Information</CardTitle>
+              <EditProfileButton onClick={() => {
+                // Find the PersonalInfoSection component and call its handleOpenModal method
+                document.querySelector('[data-edit-profile]').click();
+              }}>
+                <PencilSimple size={18} />
+                Edit Profile
+              </EditProfileButton>
+            </CardTitleWrapper>
             <CardContent>
               <ThreeColumnGrid>
                 {/* First Column - Personal Info */}
                 <div>
-                  <PersonalInfoSection userData={propUserData} userId={user?.uid || propUserData.id} />
+                  <PersonalInfoSection 
+                    userData={propUserData} 
+                    userId={user?.uid || propUserData.id} 
+                    formatTimestamp={formatTimestamp}
+                  />
                 </div>
                 
                 {/* Second Column - Additional Info */}
@@ -280,5 +294,42 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
     </ProfileContainer>
   );
 };
+
+// Styled components for the Edit Profile button
+const CardTitleWrapper = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #eaeaea;
+`;
+
+const EditProfileButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid #ffe1e1;
+  border-radius: 8px;
+  background: linear-gradient(to bottom, #fff6f6, #ffe1e1);
+  color: #800000;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 4px rgba(128,0,0,0.1);
+  
+  &:hover {
+    background: linear-gradient(to bottom, #ffe1e1, #ffd6d6);
+    box-shadow: 0 3px 6px rgba(128,0,0,0.15);
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(128,0,0,0.1);
+  }
+`;
 
 export default ProfileView;

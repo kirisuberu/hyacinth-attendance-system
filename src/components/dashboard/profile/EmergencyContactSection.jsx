@@ -95,13 +95,6 @@ const EmergencyContactSection = ({ userData, userId }) => {
               <TileLabel>Contact Name</TileLabel>
               <TileValue>
                 {userData?.emergencyContactName || 'Not specified'}
-                <InlineEdit
-                  aria-label="Edit emergency contact name"
-                  onClick={() => { setName(userData?.emergencyContactName || ''); setShowNameModal(true); }}
-                >
-                  <PencilSimple size={14} />
-                  <span>{userData?.emergencyContactName ? ' Edit' : ' Add'}</span>
-                </InlineEdit>
               </TileValue>
             </TileBody>
           </InfoTile>
@@ -114,13 +107,6 @@ const EmergencyContactSection = ({ userData, userId }) => {
               <TileLabel>Relationship</TileLabel>
               <TileValue>
                 {userData?.emergencyContactRelationship || 'Not specified'}
-                <InlineEdit
-                  aria-label="Edit relationship"
-                  onClick={() => { setRelationship(userData?.emergencyContactRelationship || ''); setShowRelationshipModal(true); }}
-                >
-                  <PencilSimple size={14} />
-                  <span>{userData?.emergencyContactRelationship ? ' Edit' : ' Add'}</span>
-                </InlineEdit>
               </TileValue>
             </TileBody>
           </InfoTile>
@@ -133,13 +119,6 @@ const EmergencyContactSection = ({ userData, userId }) => {
               <TileLabel>Phone</TileLabel>
               <TileValue>
                 {userData?.emergencyContactPhone || 'Not specified'}
-                <InlineEdit
-                  aria-label="Edit emergency contact phone"
-                  onClick={() => { setPhone(userData?.emergencyContactPhone || ''); setShowPhoneModal(true); }}
-                >
-                  <PencilSimple size={14} />
-                  <span>{userData?.emergencyContactPhone ? ' Edit' : ' Add'}</span>
-                </InlineEdit>
               </TileValue>
             </TileBody>
           </InfoTile>

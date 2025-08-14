@@ -93,13 +93,6 @@ const AdditionalInfoSection = ({ userData, userId, formatTimestamp }) => {
             <TileLabel>Date of Birth</TileLabel>
             <TileValue>
               {userData?.dateOfBirth ? formatTimestamp(userData.dateOfBirth) : 'Not specified'}
-              <InlineEdit
-                aria-label="Edit date of birth"
-                onClick={() => { setDobValue(initialDob); setShowDobModal(true); }}
-              >
-                <PencilSimple size={14} />
-                <span>{userData?.dateOfBirth ? ' Edit' : ' Add'}</span>
-              </InlineEdit>
             </TileValue>
           </TileBody>
         </InfoTile>

@@ -148,3 +148,69 @@ exports.declineRegistration = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * Cloud function to disable/enable a user in Firebase Authentication
+ * This function is triggered by an HTTP request
+ * It requires the caller to be authenticated as an admin or super_admin
+ */
+exports.toggleUserEnabled = functions.https.onCall(async (data, context) => {
+  // Check if the user is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'The function must be called while authenticated.'
+    );
+  }
+
+  try {
+    // Check if the caller is an admin or super_admin
+    const callerUid = context.auth.uid;
+    const callerDoc = await admin.firestore().collection('users').doc(callerUid).get();
+    
+    if (!callerDoc.exists || (callerDoc.data().role !== 'admin' && callerDoc.data().role !== 'super_admin')) {
+      throw new functions.https.HttpsError(
+        'permission-denied',
+        'Only admins can disable/enable users.'
+      );
+    }
+
+    // Get the user ID and disabled status
+    const { userId, disabled } = data;
+    if (!userId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'The function must be called with a userId.'
+      );
+    }
+
+    if (typeof disabled !== 'boolean') {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'The disabled parameter must be a boolean.'
+      );
+    }
+
+    // Update the user in Firebase Authentication
+    await admin.auth().updateUser(userId, {
+      disabled: disabled
+    });
+    
+    // Log the action
+    await admin.firestore().collection('system_logs').add({
+      action: disabled ? 'disable_user' : 'enable_user',
+      userId: userId,
+      updatedBy: callerUid,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, message: `User ${disabled ? 'disabled' : 'enabled'} successfully` };
+  } catch (error) {
+    console.error('Error updating user enabled status:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'An error occurred while updating the user status.',
+      error.message
+    );
+  }
+});

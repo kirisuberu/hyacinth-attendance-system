@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
 import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings } from 'phosphor-react';
 import * as XLSX from 'xlsx';
@@ -284,15 +285,55 @@ function UserManagementView({ isSuperAdmin }) {
 
   const toggleUserStatus = async (user, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+    let firebaseAuthUpdateSuccessful = true;
     
     try {
       // Use the userId field if available, otherwise fall back to id
       const documentId = user.userId || user.id;
       
+      // Update user status in Firestore
       const userRef = doc(db, 'users', documentId);
       await updateDoc(userRef, {
         status: newStatus
       });
+      
+      // If deactivating user (status changing to 'inactive'), disable the user in Firebase Auth
+      if (newStatus === 'inactive') {
+        try {
+          const functions = getFunctions();
+          const toggleUserEnabled = httpsCallable(functions, 'toggleUserEnabled');
+          
+          // Call the Cloud Function to disable the user in Firebase Auth
+          const result = await toggleUserEnabled({
+            userId: documentId,
+            disabled: true // disable the user
+          });
+          
+          console.log('Firebase Auth user disabled:', result.data);
+          // Success! No need for warning toast
+        } catch (authError) {
+          console.error('Error disabling user in Firebase Auth:', authError);
+          firebaseAuthUpdateSuccessful = false;
+        }
+      } else if (newStatus === 'active') {
+        // If activating user, enable them in Firebase Auth
+        try {
+          const functions = getFunctions();
+          const toggleUserEnabled = httpsCallable(functions, 'toggleUserEnabled');
+          
+          // Call the Cloud Function to enable the user in Firebase Auth
+          const result = await toggleUserEnabled({
+            userId: documentId,
+            disabled: false // enable the user
+          });
+          
+          console.log('Firebase Auth user enabled:', result.data);
+          // Success! No need for warning toast
+        } catch (authError) {
+          console.error('Error enabling user in Firebase Auth:', authError);
+          firebaseAuthUpdateSuccessful = false;
+        }
+      }
       
       // Update the local state
       setUsers(users.map(u => {
@@ -302,7 +343,13 @@ function UserManagementView({ isSuperAdmin }) {
         return isMatch ? { ...u, status: newStatus } : u;
       }));
       
-      toast.success(`User status updated to ${newStatus}`);
+      // Show appropriate success message, with warning if Firebase Auth update failed
+      if (firebaseAuthUpdateSuccessful) {
+        toast.success(`User status updated to ${newStatus}`);
+      } else {
+        // Only show this if Firestore was updated but Firebase Auth failed
+        toast.warning(`User status updated to ${newStatus} in database, but there was an issue updating login access.`);
+      }
     } catch (error) {
       console.error('Error updating user status:', error);
       toast.error(`Failed to update user status: ${error.message}`);

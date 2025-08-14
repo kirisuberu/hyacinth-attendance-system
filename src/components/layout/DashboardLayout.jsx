@@ -75,6 +75,40 @@ function DashboardLayout() {
     return location.pathname === path;
   };
 
+  // Force inactive users out of the dashboard
+  useEffect(() => {
+    const checkUserActiveStatus = async () => {
+      if (user?.uid) {
+        try {
+          // Check if user is inactive in Firestore
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          // Debug: Log user document and status information
+          console.log('Checking user status in dashboard:', user.uid);
+          console.log('Document exists:', userDoc.exists());
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            console.log('User status from Firestore:', userData.status || 'not set');
+            
+            if (userData.status === 'inactive') {
+              console.log('Detected inactive user in dashboard, forcing logout:', user.uid);
+              await signOut(auth);
+              toast.error('Your account has been deactivated. Please contact an administrator.');
+              navigate('/', { replace: true });
+              return;
+            }
+          }
+        } catch (error) {
+          console.error('Error checking user active status:', error);
+        }
+      }
+    };
+    
+    checkUserActiveStatus();
+  }, [user?.uid, navigate]);
+
   // Initialize attendance status when component loads
   useEffect(() => {
     const initializeAttendanceStatus = async () => {

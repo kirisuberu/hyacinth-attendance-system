@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, SignIn, UserPlus, Eye, EyeSlash, ArrowCounterClockwise } from 'phosphor-react';
@@ -292,14 +292,14 @@ function Login() {
           toast.error('Access denied: Registration declined');
           return;
         }
-        
+
         // Check if the user has a pending registration request
         const pendingQuery = query(
           collection(db, 'registration_requests'),
           where('userId', '==', user.uid)
         );
         const pendingSnapshot = await getDocs(pendingQuery);
-        
+
         if (!pendingSnapshot.empty) {
           // User has a pending request, sign them out and show message
           await auth.signOut();
@@ -307,7 +307,31 @@ function Login() {
           toast.info('Registration pending approval');
           return;
         }
+
+        // Check if the user's account is inactive in Firestore
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
         
+        // Debug logs to track user status check
+        console.log('Login check - User doc exists:', userDoc.exists());
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          console.log('Login check - User data:', userData);
+          console.log('Login check - User status:', userData.status || 'not set');
+          
+          // Only block if explicitly set to inactive
+          if (userData.status === 'inactive') {
+            // User account is inactive, sign them out and show error
+            console.log('Blocking login attempt by inactive user:', user.uid);
+            await auth.signOut();
+            setError('Your account has been deactivated. Please contact an administrator.');
+            toast.error('Access denied: Account deactivated');
+            setLoading(false);
+            return;
+          }
+        }
+
         // Check if we're in development mode and Firebase emulator is not available
         const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
         if (isEmulatorMode) {

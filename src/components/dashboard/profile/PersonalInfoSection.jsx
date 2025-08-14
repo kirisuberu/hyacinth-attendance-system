@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
-import { User, Phone, MapPin, EnvelopeSimple, PencilSimple } from 'phosphor-react';
-import { updateDoc, doc } from 'firebase/firestore';
+import { User, Phone, MapPin, EnvelopeSimple, PencilSimple, FloppyDisk, Calendar, UsersThree } from 'phosphor-react';
+import { updateDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-toastify';
 import { 
@@ -18,16 +18,48 @@ import {
   SubmitButton
 } from '../ProfileStyles';
 
-const PersonalInfoSection = ({ userData, userId }) => {
-  const [showPhoneModal, setShowPhoneModal] = useState(false);
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showPreferredNameModal, setShowPreferredNameModal] = useState(false);
-  const [phoneNumber, setPhoneNumber] = useState(userData?.phoneNumber || '');
-  const [address, setAddress] = useState(userData?.address || '');
-  const [email, setEmail] = useState(userData?.email || '');
-  const [preferredName, setPreferredName] = useState(userData?.preferredName || '');
+const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
+  const [showEditModal, setShowEditModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // Derive input-friendly YYYY-MM-DD value for date of birth
+  const initialDob = useMemo(() => {
+    const ts = userData?.dateOfBirth;
+    if (!ts) return '';
+    try {
+      let d;
+      if (ts?.toDate) d = ts.toDate();
+      else if (typeof ts === 'object' && (typeof ts.seconds === 'number' || typeof ts._seconds === 'number')) {
+        const secs = typeof ts.seconds === 'number' ? ts.seconds : ts._seconds;
+        d = new Date(secs * 1000);
+      } else if (typeof ts === 'number') {
+        d = new Date(ts > 1e12 ? ts : ts * 1000);
+      } else if (typeof ts === 'string') {
+        d = new Date(ts);
+      } else if (ts instanceof Date) {
+        d = ts;
+      }
+      if (!d || isNaN(d.getTime())) return '';
+      // Convert to YYYY-MM-DD in local time
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    } catch {
+      return '';
+    }
+  }, [userData?.dateOfBirth]);
+
+  const [formData, setFormData] = useState({
+    preferredName: userData?.preferredName || '',
+    email: userData?.email || '',
+    phoneNumber: userData?.phoneNumber || '',
+    address: userData?.address || '',
+    dateOfBirth: initialDob || '',
+    emergencyContactName: userData?.emergencyContactName || '',
+    emergencyContactRelationship: userData?.emergencyContactRelationship || '',
+    emergencyContactPhone: userData?.emergencyContactPhone || ''
+  });
 
   // Helper: Compute a robust full name/display name with fallbacks
   const getFullName = () => {
@@ -41,51 +73,39 @@ const PersonalInfoSection = ({ userData, userId }) => {
     );
   };
 
-  const handlePhoneChange = (e) => setPhoneNumber(e.target.value);
-  const handleAddressChange = (e) => setAddress(e.target.value);
-
-  const handleEmailChange = (e) => {
-    setEmail(e.target.value);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
-  const updatePhone = async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { phoneNumber });
-      toast.success('Phone number updated successfully!');
-      setShowPhoneModal(false);
-    } catch (error) {
-      console.error('Error updating phone number:', error);
-      toast.error('Failed to update phone number.');
-    } finally {
-      setLoading(false);
-    }
+  const handleOpenModal = () => {
+    // Reset form data to current values when opening the modal
+    setFormData({
+      preferredName: userData?.preferredName || '',
+      email: userData?.email || '',
+      phoneNumber: userData?.phoneNumber || '',
+      address: userData?.address || '',
+      dateOfBirth: initialDob || '',
+      emergencyContactName: userData?.emergencyContactName || '',
+      emergencyContactRelationship: userData?.emergencyContactRelationship || '',
+      emergencyContactPhone: userData?.emergencyContactPhone || ''
+    });
+    setShowEditModal(true);
   };
 
-  const updateAddress = async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { address });
-      toast.success('Address updated successfully!');
-      setShowAddressModal(false);
-    } catch (error) {
-      console.error('Error updating address:', error);
-      toast.error('Failed to update address.');
-    } finally {
-      setLoading(false);
-    }
+  const handleCancelEdit = () => {
+    setShowEditModal(false);
   };
 
-  const updateEmail = async () => {
+  const updatePersonalInfo = async () => {
     if (!userId) return;
     
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(formData.email)) {
       toast.error('Please enter a valid email address.');
       return;
     }
@@ -93,28 +113,32 @@ const PersonalInfoSection = ({ userData, userId }) => {
     setLoading(true);
     try {
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { email });
-      toast.success('Email updated successfully!');
-      setShowEmailModal(false);
+      
+      // Create the update object
+      const updateData = { 
+        preferredName: formData.preferredName,
+        email: formData.email,
+        phoneNumber: formData.phoneNumber,
+        address: formData.address,
+        emergencyContactName: formData.emergencyContactName,
+        emergencyContactRelationship: formData.emergencyContactRelationship,
+        emergencyContactPhone: formData.emergencyContactPhone
+      };
+      
+      // Handle date of birth conversion to Timestamp if provided
+      if (formData.dateOfBirth) {
+        const d = new Date(formData.dateOfBirth);
+        if (!isNaN(d.getTime())) {
+          updateData.dateOfBirth = Timestamp.fromDate(d);
+        }
+      }
+      
+      await updateDoc(userRef, updateData);
+      toast.success('Personal information updated successfully!');
+      setShowEditModal(false);
     } catch (error) {
-      console.error('Error updating email:', error);
-      toast.error('Failed to update email.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updatePreferredName = async () => {
-    if (!userId) return;
-    setLoading(true);
-    try {
-      const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { preferredName });
-      toast.success('Preferred name updated successfully!');
-      setShowPreferredNameModal(false);
-    } catch (error) {
-      console.error('Error updating preferred name:', error);
-      toast.error('Failed to update preferred name.');
+      console.error('Error updating personal information:', error);
+      toast.error('Failed to update personal information.');
     } finally {
       setLoading(false);
     }
@@ -122,7 +146,14 @@ const PersonalInfoSection = ({ userData, userId }) => {
 
   return (
     <>
+      {/* Hidden button that can be triggered from parent component */}
+      <HiddenTriggerButton 
+        data-edit-profile 
+        onClick={handleOpenModal} 
+        aria-hidden="true"
+      />
       <PersonalSectionWrapper>
+        
         <InfoHeader>
           <div>
             <SectionKicker>Basics</SectionKicker>
@@ -149,13 +180,6 @@ const PersonalInfoSection = ({ userData, userId }) => {
               <TileLabel>Preferred Name</TileLabel>
               <TileValue>
                 {userData?.preferredName || 'Not specified'}
-                <InlineEdit
-                  aria-label="Edit preferred name"
-                  onClick={() => { setPreferredName(userData?.preferredName || ''); setShowPreferredNameModal(true); }}
-                >
-                  <PencilSimple size={14} />
-                  <span>{userData?.preferredName ? ' Edit' : ' Add'}</span>
-                </InlineEdit>
               </TileValue>
             </TileBody>
           </InfoTile>
@@ -168,10 +192,6 @@ const PersonalInfoSection = ({ userData, userId }) => {
               <TileLabel>Email</TileLabel>
               <TileValue>
                 {userData?.email || 'Not specified'}
-                <InlineEdit aria-label="Edit email" onClick={() => setShowEmailModal(true)}>
-                  <PencilSimple size={14} />
-                  <span>{userData?.email ? ' Edit' : ' Add'}</span>
-                </InlineEdit>
               </TileValue>
             </TileBody>
           </InfoTile>
@@ -184,13 +204,6 @@ const PersonalInfoSection = ({ userData, userId }) => {
               <TileLabel>Phone Number</TileLabel>
               <TileValue>
                 {userData?.phoneNumber || 'Not specified'}
-                <InlineEdit
-                  aria-label="Edit phone number"
-                  onClick={() => { setPhoneNumber(userData?.phoneNumber || ''); setShowPhoneModal(true); }}
-                >
-                  <PencilSimple size={14} />
-                  <span>{userData?.phoneNumber ? ' Edit' : ' Add'}</span>
-                </InlineEdit>
               </TileValue>
             </TileBody>
           </InfoTile>
@@ -203,136 +216,149 @@ const PersonalInfoSection = ({ userData, userId }) => {
               <TileLabel>Address</TileLabel>
               <TileValue>
                 {userData?.address || 'Not specified'}
-                <InlineEdit
-                  aria-label="Edit address"
-                  onClick={() => { setAddress(userData?.address || ''); setShowAddressModal(true); }}
-                >
-                  <PencilSimple size={14} />
-                  <span>{userData?.address ? ' Edit' : ' Add'}</span>
-                </InlineEdit>
               </TileValue>
             </TileBody>
           </InfoTile>
         </InfoGrid>
       </PersonalSectionWrapper>
 
-      {/* Edit Preferred Name Modal */}
-      {showPreferredNameModal && (
+      {/* Edit All Personal Info Modal */}
+      {showEditModal && (
         <ModalOverlay>
-          <ModalContent>
+          <ScrollableModalContent>
             <ModalHeader>
-              <ModalTitle>Edit Preferred Name</ModalTitle>
-              <CloseButton onClick={() => setShowPreferredNameModal(false)}>&times;</CloseButton>
+              <ModalTitle>Edit User Profile</ModalTitle>
+              <CloseButton onClick={handleCancelEdit}>&times;</CloseButton>
             </ModalHeader>
-            <FormGroup>
-              <Label htmlFor="preferredName">Preferred Name</Label>
-              <Input
-                type="text"
-                id="preferredName"
-                value={preferredName}
-                onChange={(e) => setPreferredName(e.target.value)}
-                placeholder="Enter your preferred name"
-              />
-            </FormGroup>
-            <ButtonGroup>
-              <CancelButton onClick={() => setShowPreferredNameModal(false)} disabled={loading}>
-                Cancel
-              </CancelButton>
-              <SubmitButton onClick={updatePreferredName} disabled={loading}>
-                {loading ? 'Updating...' : 'Update'}
-              </SubmitButton>
-            </ButtonGroup>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* Edit Phone Modal */}
-      {showPhoneModal && (
-        <ModalOverlay>
-          <ModalContent>
-            <ModalHeader>
-              <ModalTitle>Edit Phone Number</ModalTitle>
-              <CloseButton onClick={() => setShowPhoneModal(false)}>&times;</CloseButton>
-            </ModalHeader>
-            <FormGroup>
-              <Label htmlFor="phoneNumber">Phone Number</Label>
-              <Input
-                type="text"
-                id="phoneNumber"
-                value={phoneNumber}
-                onChange={handlePhoneChange}
-                placeholder="Enter your phone number"
-              />
-            </FormGroup>
-            <ButtonGroup>
-              <CancelButton onClick={() => setShowPhoneModal(false)} disabled={loading}>
-                Cancel
-              </CancelButton>
-              <SubmitButton onClick={updatePhone} disabled={loading}>
-                {loading ? 'Updating...' : 'Update'}
-              </SubmitButton>
-            </ButtonGroup>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* Edit Address Modal */}
-      {showAddressModal && (
-        <ModalOverlay>
-          <ModalContent>
-            <ModalHeader>
-              <ModalTitle>Edit Address</ModalTitle>
-              <CloseButton onClick={() => setShowAddressModal(false)}>&times;</CloseButton>
-            </ModalHeader>
-            <FormGroup>
-              <Label htmlFor="address">Address</Label>
-              <Input
-                type="text"
-                id="address"
-                value={address}
-                onChange={handleAddressChange}
-                placeholder="Enter your address"
-              />
-            </FormGroup>
-            <ButtonGroup>
-              <CancelButton onClick={() => setShowAddressModal(false)} disabled={loading}>
-                Cancel
-              </CancelButton>
-              <SubmitButton onClick={updateAddress} disabled={loading}>
-                {loading ? 'Updating...' : 'Update'}
-              </SubmitButton>
-            </ButtonGroup>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* Edit Email Modal */}
-      {showEmailModal && (
-        <ModalOverlay>
-          <ModalContent>
-            <ModalHeader>
-              <ModalTitle>Edit Email</ModalTitle>
-              <CloseButton onClick={() => setShowEmailModal(false)}>&times;</CloseButton>
-            </ModalHeader>
-            <FormGroup>
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                type="email"
-                id="email"
-                value={email}
-                onChange={handleEmailChange}
-                placeholder="Enter your email address"
-              />
-            </FormGroup>
-            <ButtonGroup>
-              <CancelButton onClick={() => setShowEmailModal(false)} disabled={loading}>
-                Cancel
-              </CancelButton>
-              <SubmitButton onClick={updateEmail} disabled={loading}>
-                {loading ? 'Updating...' : 'Update'}
-              </SubmitButton>
-            </ButtonGroup>
-          </ModalContent>
+            <ModalScrollArea>
+              <TwoColumnMainGrid>
+                <ModalSection>
+                  <ModalSectionTitle>
+                    <User size={16} />
+                    Personal Information
+                  </ModalSectionTitle>
+                  
+                  <FormGroup>
+                    <Label htmlFor="preferredName">Preferred Name</Label>
+                    <Input
+                      type="text"
+                      id="preferredName"
+                      name="preferredName"
+                      value={formData.preferredName}
+                      onChange={handleChange}
+                      placeholder="Enter your preferred name"
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="Enter your email address"
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label htmlFor="phoneNumber">Phone Number</Label>
+                    <Input
+                      type="text"
+                      id="phoneNumber"
+                      name="phoneNumber"
+                      value={formData.phoneNumber}
+                      onChange={handleChange}
+                      placeholder="Enter your phone number"
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label htmlFor="address">Address</Label>
+                    <Input
+                      type="text"
+                      id="address"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleChange}
+                      placeholder="Enter your address"
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                    <Input
+                      type="date"
+                      id="dateOfBirth"
+                      name="dateOfBirth"
+                      value={formData.dateOfBirth}
+                      onChange={handleChange}
+                    />
+                  </FormGroup>
+                </ModalSection>
+                
+                <ModalSection>
+                  <ModalSectionTitle>
+                    <UsersThree size={16} />
+                    Emergency Contact
+                  </ModalSectionTitle>
+                  
+                  <FormGroup>
+                    <Label htmlFor="emergencyContactName">Contact Name</Label>
+                    <Input
+                      type="text"
+                      id="emergencyContactName"
+                      name="emergencyContactName"
+                      value={formData.emergencyContactName}
+                      onChange={handleChange}
+                      placeholder="Enter contact name"
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label htmlFor="emergencyContactRelationship">Relationship</Label>
+                    <Input
+                      type="text"
+                      id="emergencyContactRelationship"
+                      name="emergencyContactRelationship"
+                      value={formData.emergencyContactRelationship}
+                      onChange={handleChange}
+                      placeholder="e.g. Spouse, Parent"
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label htmlFor="emergencyContactPhone">Contact Phone</Label>
+                    <Input
+                      type="text"
+                      id="emergencyContactPhone"
+                      name="emergencyContactPhone"
+                      value={formData.emergencyContactPhone}
+                      onChange={handleChange}
+                      placeholder="Enter emergency contact phone"
+                    />
+                  </FormGroup>
+                </ModalSection>
+              </TwoColumnMainGrid>
+            </ModalScrollArea>
+            
+            <ModalFooter>
+              <ButtonGroup>
+                <CancelButton onClick={handleCancelEdit} disabled={loading}>
+                  Cancel
+                </CancelButton>
+                <SubmitButton onClick={updatePersonalInfo} disabled={loading}>
+                  {loading ? 'Updating...' : (
+                    <>
+                      <FloppyDisk size={16} style={{ marginRight: '6px' }} />
+                      Save Changes
+                    </>
+                  )}
+                </SubmitButton>
+              </ButtonGroup>
+            </ModalFooter>
+          </ScrollableModalContent>
         </ModalOverlay>
       )}
     </>
@@ -344,6 +370,12 @@ const PersonalSectionWrapper = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
+  position: relative;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 24px;
 `;
 
 const InfoHeader = styled.div`
@@ -427,24 +459,115 @@ const TileValue = styled.div`
   color: #333;
 `;
 
-const InlineEdit = styled.button`
+const ScrollableModalContent = styled(ModalContent)`
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  max-width: 850px;
+  width: 95%;
+`;
+
+const ModalScrollArea = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px;
+  /* Add scrollbar styling */
+  scrollbar-width: thin;
+  scrollbar-color: #d0d0d0 transparent;
+  
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background-color: #d0d0d0;
+    border-radius: 10px;
+  }
+`;
+
+const ModalFooter = styled.div`
+  padding: 16px;
+  border-top: 1px solid #eee;
+  background: white;
+  border-radius: 0 0 8px 8px;
+`;
+
+const TwoColumnMainGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  width: 100%;
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const ModalSection = styled.div`
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fafafa;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+`;
+
+const ModalSectionTitle = styled.h3`
+  font-size: 1rem;
+  color: #800000;
+  margin: 0 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const EditAllButton = styled.button`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 6px;
-  padding: 4px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1px solid #ffe1e1;
+  border-radius: 8px;
+  background: linear-gradient(to bottom, #fff6f6, #ffe1e1);
   color: #800000;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   transition: all 0.15s ease;
-
+  box-shadow: 0 2px 4px rgba(128,0,0,0.1);
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+  
   &:hover {
-    background: #fff3f3;
-    border-color: #ffe1e1;
+    background: linear-gradient(to bottom, #ffe1e1, #ffd6d6);
+    box-shadow: 0 3px 6px rgba(128,0,0,0.15);
+    transform: translateY(-1px);
   }
+  
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(128,0,0,0.1);
+  }
+`;
+
+// Hidden button for external triggering
+const HiddenTriggerButton = styled.button`
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 `;
 
 export default PersonalInfoSection;

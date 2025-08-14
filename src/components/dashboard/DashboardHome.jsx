@@ -38,7 +38,47 @@ const DashboardHome = () => {
   const [attendanceNotes, setAttendanceNotes] = useState('');
   const [predictedStatus, setPredictedStatus] = useState('');
   const [isLoadingPrediction, setIsLoadingPrediction] = useState(false);
-  
+  // Debug: track processing flags in console to diagnose disabled button issues
+  useEffect(() => {
+    console.debug('[DashboardHome] processing flags changed', { processingTimeIn, processingTimeOut });
+  }, [processingTimeIn, processingTimeOut]);
+
+  // Helpers: normalize schedule day names and compare safely
+  const normalizeDayName = (value) => {
+    if (value === null || value === undefined) return null;
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    if (typeof value === 'number' && value >= 0 && value <= 6) return days[value];
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase();
+      // Accept short and long names
+      const map = {
+        sun: 'Sunday', sunday: 'Sunday',
+        mon: 'Monday', monday: 'Monday',
+        tue: 'Tuesday', tues: 'Tuesday', tuesday: 'Tuesday',
+        wed: 'Wednesday', weds: 'Wednesday', wednesday: 'Wednesday',
+        thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday', thursday: 'Thursday',
+        fri: 'Friday', friday: 'Friday',
+        sat: 'Saturday', saturday: 'Saturday',
+      };
+      return map[v] || days.find(d => d.toLowerCase() === v) || null;
+    }
+    return null;
+  };
+
+  const isSameDayName = (a, b) => {
+    if (!a || !b) return false;
+    return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+  };
+
+  const normalizeSchedule = (schedule) => {
+    if (!Array.isArray(schedule)) return [];
+    return schedule.map((s) => {
+      const rawDay = s.dayOfWeek ?? s.day ?? s.DayOfWeek ?? s.Day ?? s.weekday;
+      const dayOfWeek = normalizeDayName(rawDay);
+      return { ...s, dayOfWeek: dayOfWeek || s.dayOfWeek };
+    });
+  };
+
   // Avoid progress bar animating from 0% on first render
   const [animateProgress, setAnimateProgress] = useState(false);
   useEffect(() => {
@@ -62,6 +102,7 @@ const DashboardHome = () => {
     }
     
     try {
+      console.debug('[DashboardHome] handleTimeInOutClick', { type, processingTimeIn, processingTimeOut });
       // Prevent multiple submissions
       if (type === 'In' && processingTimeIn) return;
       if (type === 'Out' && processingTimeOut) return;
@@ -99,30 +140,36 @@ const DashboardHome = () => {
       return;
     }
     
+    const currentType = attendanceType; // snapshot to avoid stale/changed state during async
+    
     try {
       // Set processing state
-      if (attendanceType === 'In') setProcessingTimeIn(true);
-      if (attendanceType === 'Out') setProcessingTimeOut(true);
+      if (currentType === 'In') setProcessingTimeIn(true);
+      if (currentType === 'Out') setProcessingTimeOut(true);
+      console.debug('[DashboardHome] handleConfirmAttendance start', { currentType });
       
       // Record attendance with notes
-      await recordAttendance(user.uid, attendanceType, attendanceNotes.trim() || null);
+      const recordId = await recordAttendance(user.uid, currentType, attendanceNotes.trim() || null);
+      console.debug('[DashboardHome] recordAttendance completed', { recordId, currentType });
       
       // Update attendance status
       const newStatus = await getAttendanceStatus(user.uid);
       setAttendanceStatus(newStatus.status);
       setLastRecord(newStatus.lastRecord);
+      console.debug('[DashboardHome] attendance status updated', { status: newStatus.status });
       
-      toast.success(`Time ${attendanceType} recorded successfully`);
+      toast.success(`Time ${currentType} recorded successfully`);
       
       // Close the modal
       setShowModal(false);
     } catch (error) {
-      console.error(`Error recording Time ${attendanceType}:`, error);
-      toast.error(`Failed to record Time ${attendanceType}`);
+      console.error(`Error recording Time ${currentType}:`, error);
+      toast.error(`Failed to record Time ${currentType}`);
     } finally {
       // Reset processing state
-      if (attendanceType === 'In') setProcessingTimeIn(false);
-      if (attendanceType === 'Out') setProcessingTimeOut(false);
+      if (currentType === 'In') setProcessingTimeIn(false);
+      if (currentType === 'Out') setProcessingTimeOut(false);
+      console.debug('[DashboardHome] handleConfirmAttendance finally - reset flags', { currentType, processingTimeIn, processingTimeOut });
     }
   };
 
@@ -140,15 +187,37 @@ const DashboardHome = () => {
             setUserName(userData.name || 'User');
             setUserData(userData);
             
+            // Debug entire user document to see what's available
+            console.debug('[DashboardHome] User data loaded:', { 
+              userId: auth.currentUser.uid,
+              hasSchedule: !!(userData.schedule && Array.isArray(userData.schedule)),
+              scheduleLength: userData.schedule?.length || 0,
+              scheduleId: userData.scheduleId,
+              timeRegion: userData.timeRegion
+            });
+            
             // Get user schedule
             if (userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
-              setUserSchedule(userData.schedule);
-               
-              // Find today's schedule
+              console.debug('[DashboardHome] Raw schedule:', userData.schedule);
+              const normalized = normalizeSchedule(userData.schedule);
+              console.debug('[DashboardHome] Normalized schedule:', normalized);
+              setUserSchedule(normalized);
+              
+              // Find today's schedule (match day names robustly)
               const userTZ = userData.timeRegion || 'Asia/Manila';
               const zoneNow = getCurrentTimeInZone(userTZ);
-              const currentDay = zoneNow.dayOfWeek;
-              const todayScheduleItem = userData.schedule.find(s => s.dayOfWeek === currentDay);
+              console.debug('[DashboardHome] Current time zone info:', { userTZ, zoneNow });
+              
+              const currentDay = normalizeDayName(zoneNow.dayOfWeek);
+              const todayScheduleItem = normalized.find(s => isSameDayName(s.dayOfWeek, currentDay));
+              
+              console.debug('[DashboardHome] Schedule detection (inline schedule)', { 
+                currentDay, 
+                dayOfWeekFromZone: zoneNow.dayOfWeek,
+                normalizedCurrentDay: currentDay,
+                found: !!todayScheduleItem,
+                allDays: normalized.map(s => s.dayOfWeek)
+              });
               
               if (todayScheduleItem) {
                 setTodaySchedule(todayScheduleItem);
@@ -161,24 +230,26 @@ const DashboardHome = () => {
               
               if (scheduleDoc.exists()) {
                 const scheduleData = scheduleDoc.data();
-                setUserSchedule(scheduleData);
-                
-                // For legacy schedule format
-                if (scheduleData.shifts && Array.isArray(scheduleData.shifts)) {
+                // Normalize legacy schedule: prefer shifts array, map day index to day name
+                if (Array.isArray(scheduleData?.shifts)) {
+                  const normalized = normalizeSchedule(scheduleData.shifts.map(s => ({ ...s, day: s.day })));
+                  setUserSchedule(normalized);
+                  
                   const userTZ = userData.timeRegion || 'Asia/Manila';
                   const zoneNow = getCurrentTimeInZone(userTZ);
-                  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                  const currentDay = dayNames.indexOf(zoneNow.dayOfWeek); // 0-6 (Sunday-Saturday)
-                  const todayShift = scheduleData.shifts.find(s => s.day === currentDay);
-                  
-                  if (todayShift) {
-                    setTodaySchedule({
-                      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][currentDay],
-                      timeIn: todayShift.timeIn,
-                      timeOut: todayShift.timeOut
-                    });
+                  const currentDay = normalizeDayName(zoneNow.dayOfWeek);
+                  const todayScheduleItem = normalized.find(s => isSameDayName(s.dayOfWeek, currentDay));
+                  console.debug('[DashboardHome] schedule detection (legacy schedule)', { currentDay, found: !!todayScheduleItem });
+                  if (todayScheduleItem) {
+                    setTodaySchedule(todayScheduleItem);
                   }
+                } else {
+                  // If structure unknown, keep as is but log for visibility
+                  console.warn('[DashboardHome] Unknown legacy schedule structure', scheduleData);
+                  setUserSchedule([]);
                 }
+                
+                // Note: explicitly handled in normalized branch above
               }
             }
           }
@@ -496,6 +567,12 @@ const DashboardHome = () => {
                     }
                     
                     if (!todaySchedule && (!userSchedule || (Array.isArray(userSchedule) && userSchedule.length === 0))) {
+                      console.debug('[DashboardHome] Rendering "No schedule found"', {
+                        todaySchedule,
+                        userSchedule,
+                        attendanceStatus
+                      });
+                      
                       return (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px' }}>
@@ -503,7 +580,6 @@ const DashboardHome = () => {
                             <span>No schedule found for today</span>
                           </div>
                           
-                          {/* Attendance Button - Always displayed even with no schedule */}
                           <AttendanceButtonsContainer>
                             {attendanceStatus === 'Checked In' ? (
                               <AttendanceButton 
@@ -544,9 +620,52 @@ const DashboardHome = () => {
                       const yesterdayIdx = (todayIdx + 6) % 7;
                       const todayName = dayNames[todayIdx];
                       const yesterdayName = dayNames[yesterdayIdx];
+                      
+                      // Helper functions for day name normalization (duplicating the ones at the top level)
+                      const normalizeDayName = (day) => {
+                        if (day === undefined || day === null) return null;
+                        // Handle numeric days (0-6 for Sunday-Saturday)
+                        if (typeof day === 'number' || !isNaN(parseInt(day))) {
+                          const idx = parseInt(day) % 7; // Ensure it's within 0-6 range
+                          return dayNames[idx].toLowerCase();
+                        }
+                        // Handle string day names, normalize to lowercase
+                        const normalized = day.toLowerCase();
+                        // Handle abbreviated day names (e.g., 'mon', 'tue')
+                        const abbrevMap = {
+                          'sun': 'sunday',
+                          'mon': 'monday',
+                          'tue': 'tuesday',
+                          'tues': 'tuesday',
+                          'wed': 'wednesday',
+                          'thu': 'thursday',
+                          'thur': 'thursday',
+                          'thurs': 'thursday',
+                          'fri': 'friday',
+                          'sat': 'saturday'
+                        };
+                        return abbrevMap[normalized] || normalized;
+                      };
+                      
+                      const isMatchingDay = (day1, day2) => {
+                        return normalizeDayName(day1) === normalizeDayName(day2);
+                      };
 
-                      const schedToday = (Array.isArray(userSchedule) ? userSchedule.find(s => s.dayOfWeek === todayName) : null) || todaySchedule || null;
-                      const schedPrev = Array.isArray(userSchedule) ? userSchedule.find(s => s.dayOfWeek === yesterdayName) : null;
+                      // Use day name normalization for robust schedule matching
+                      const schedToday = (Array.isArray(userSchedule) 
+                          ? userSchedule.find(s => isMatchingDay(s.dayOfWeek, todayName)) 
+                          : null) || todaySchedule || null;
+                      const schedPrev = Array.isArray(userSchedule) 
+                          ? userSchedule.find(s => isMatchingDay(s.dayOfWeek, yesterdayName)) 
+                          : null;
+                          
+                      console.debug('[DashboardHome] Checking schedule match in render:', {
+                        todayName,
+                        yesterdayName,
+                        userScheduleArray: Array.isArray(userSchedule) ? userSchedule.map(s => ({ day: s.dayOfWeek, normalized: normalizeDayName(s.dayOfWeek) })) : 'not an array',
+                        schedTodayFound: !!schedToday,
+                        schedPrevFound: !!schedPrev
+                      });
 
                       // Helper to create Date from base date + time string
                       const createTimeDateWithBase = (baseDate, timeStr, isTimeIn = false) => {
@@ -584,8 +703,16 @@ const DashboardHome = () => {
                           endToday = new Date(startToday.getTime());
                           endToday.setHours(endToday.getHours() + dur);
                         }
-                        // If now falls in today's window, select it
+                        // Select today's schedule if current time is in the window OR if user is checked in
                         if (now >= startToday && now < endToday) {
+                          candidate = schedToday;
+                          shiftStart = startToday;
+                          shiftEnd = endToday;
+                          activeDayOfWeek = todayName;
+                        }
+                        // Always show today's schedule if user is checked in, even if shift is over
+                        else if (schedToday && attendanceStatus === 'Checked In') {
+                          console.debug('[DashboardHome] User checked in, showing today\'s schedule even after shift end');
                           candidate = schedToday;
                           shiftStart = startToday;
                           shiftEnd = endToday;
@@ -593,7 +720,8 @@ const DashboardHome = () => {
                         }
                       }
 
-                      // If not within today's window, check previous day's window crossing midnight
+                      // If not within toda
+                      // y's window, check previous day's window crossing midnight
                       if (!candidate && schedPrev) {
                         const basePrev = new Date(today);
                         basePrev.setDate(basePrev.getDate() - 1);
@@ -615,6 +743,30 @@ const DashboardHome = () => {
                         }
                       }
 
+                      console.debug('[DashboardHome] After schedule detection:', {
+                        now: now.toLocaleTimeString(),
+                        candidate,
+                        schedToday,
+                        schedPrev,
+                        attendanceStatus
+                      });
+                        
+                      // FORCE TODAY'S SCHEDULE: If no candidate selected but today's schedule exists, use it anyway
+                      if (!candidate && schedToday) {
+                        console.debug('[DashboardHome] Force selecting today\'s schedule even though not in window');
+                        candidate = schedToday;
+                        shiftStart = createTimeDateWithBase(today, schedToday.timeIn, true);
+                        if (schedToday.timeOut) {
+                          shiftEnd = createTimeDateWithBase(today, schedToday.timeOut, false);
+                          if (shiftEnd <= shiftStart) shiftEnd.setDate(shiftEnd.getDate() + 1);
+                        } else {
+                          const dur = schedToday.shiftDuration || 8;
+                          shiftEnd = new Date(shiftStart.getTime());
+                          shiftEnd.setHours(shiftEnd.getHours() + dur);
+                        }
+                        activeDayOfWeek = todayName;
+                      }
+                        
                       // If we still don't have a candidate, fallback: if there's no schedule for either day, show default panel
                       if (!candidate) {
                         // Create default schedule (9 AM - 5 PM)

@@ -36,13 +36,14 @@ import { TimeFormatProvider } from './contexts/TimeFormatContext';
 
 // Protected route component
 const ProtectedRoute = ({ children }) => {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, loading, userStatus } = useAuth();
 
   if (loading) {
     return <LoadingContainer>Loading...</LoadingContainer>;
   }
 
-  if (!currentUser) {
+  // Redirect to login if user is not logged in or is inactive
+  if (!currentUser || userStatus === 'inactive') {
     return <Navigate to="/" replace />;
   }
 
