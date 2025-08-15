@@ -298,6 +298,13 @@ export const TabButton = styled.button`
   &:hover {
     color: #800000;
   }
+  
+  &:disabled {
+    color: #bdbdbd;
+    cursor: not-allowed;
+    border-bottom-color: transparent;
+    opacity: 0.6;
+  }
 `;
 
 export const ProfileBanner = styled.div`

@@ -168,10 +168,6 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
     <ProfileContainer>
       <ProfileHeader>
         <ProfileTitle>User Profile</ProfileTitle>
-        <BackButton onClick={() => navigate(-1)}>
-          <ArrowLeft size={20} />
-          Back
-        </BackButton>
       </ProfileHeader>
       
       <TimeZoneMismatchNotification />
@@ -217,7 +213,10 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
 
         <TabButton 
           active={activeTab === 'settings'} 
-          onClick={() => setActiveTab('settings')}
+          onClick={() => {}} 
+          disabled
+          aria-disabled="true"
+          title="Settings is temporarily disabled"
         >
           <Stack size={18} />
           Settings
@@ -278,8 +277,6 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
             </CardContent>
           </>
         )}
-        
-
         
         {activeTab === 'settings' && (
           <>

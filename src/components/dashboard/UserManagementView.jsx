@@ -211,20 +211,70 @@ function UserManagementView({ isSuperAdmin }) {
     // Parse the name into first name, last name, and middle initial
     let firstName = '', lastName = '', middleInitial = '';
     
-    // Parse the name into components
+    // 1) Parse combined name first (if present) into parsed components
+    let parsedFirst = '', parsedLast = '', parsedMI = '';
     if (user.name) {
-      const nameParts = user.name.split(' ');
-      firstName = nameParts[0] || '';
-      
-      if (nameParts.length > 2) {
-        // If there are more than 2 parts, assume the middle part is a middle initial
-        middleInitial = nameParts[1].replace('.', '');
-        lastName = nameParts.slice(2).join(' ');
-      } else if (nameParts.length === 2) {
-        // If there are exactly 2 parts, assume it's just first and last name
-        lastName = nameParts[1];
+      const raw = String(user.name).trim().replace(/\s+/g, ' ');
+      if (raw.includes(',')) {
+        // Format: "Last, First [Second ...] [MI]"
+        const [lastPart, restPart] = raw.split(',', 2);
+        const tokens = (restPart || '').trim().split(' ').filter(Boolean);
+        if (tokens.length > 0) {
+          const lastToken = tokens[tokens.length - 1];
+          if (/^[A-Za-z]\.?$/.test(lastToken)) {
+            parsedMI = lastToken.replace('.', '').toUpperCase();
+            parsedFirst = tokens.slice(0, -1).join(' ');
+          } else {
+            parsedFirst = tokens.join(' ');
+          }
+        }
+        parsedLast = (lastPart || '').trim();
+      } else {
+        // Format: "First [Second ...] [MI] Last"
+        const tokens = raw.split(' ').filter(Boolean);
+        if (tokens.length === 1) {
+          parsedFirst = tokens[0];
+        } else if (tokens.length >= 2) {
+          const lastToken = tokens[tokens.length - 1];
+          const penultimate = tokens[tokens.length - 2];
+          if (/^[A-Za-z]\.?$/.test(penultimate)) {
+            // e.g., "Juan Miguel S. Cruz" => first: "Juan Miguel", MI: "S", last: "Cruz"
+            parsedMI = penultimate.replace('.', '').toUpperCase();
+            parsedLast = lastToken;
+            parsedFirst = tokens.slice(0, -2).join(' ');
+          } else if (tokens.length >= 3 && /^[A-Za-z]\.?$/.test(tokens[1])) {
+            // e.g., "Juan S. Cruz" => first: "Juan", MI: "S", last: "Cruz"
+            parsedMI = tokens[1].replace('.', '').toUpperCase();
+            parsedLast = lastToken;
+            parsedFirst = tokens[0];
+          } else {
+            // No explicit MI token, everything except last token is first name
+            parsedLast = lastToken;
+            parsedFirst = tokens.slice(0, -1).join(' ');
+          }
+        }
       }
     }
+
+    // 2) Merge with explicit fields, preferring explicit but upgrading first name when parsed has more detail
+    const explicitFirst = (user.firstName || '').trim();
+    const explicitLast = (user.lastName || '').trim();
+    const explicitMI = (user.middleInitial || '').replace('.', '').toUpperCase();
+
+    // Choose first name: if explicit is single token but parsed has multiple tokens, use parsed
+    if (explicitFirst) {
+      const explicitHasSpace = explicitFirst.includes(' ');
+      const parsedHasSpace = parsedFirst.includes(' ');
+      firstName = (!explicitHasSpace && parsedHasSpace) ? parsedFirst : explicitFirst;
+    } else {
+      firstName = parsedFirst;
+    }
+
+    // Choose last name: prefer explicit, else parsed
+    lastName = explicitLast || parsedLast;
+
+    // Choose middle initial: prefer explicit, else parsed
+    middleInitial = explicitMI || parsedMI;
     
     // First set the selected user to ensure it's available when the modal opens
     setSelectedUser(user);
@@ -400,6 +450,9 @@ function UserManagementView({ isSuperAdmin }) {
       const userRef = doc(db, 'users', documentId);
       await updateDoc(userRef, {
         name: fullName.trim(),
+        firstName: editUserData.firstName,
+        middleInitial: editUserData.middleInitial || '',
+        lastName: editUserData.lastName,
         email: editUserData.email.trim(),
         preferredName: editUserData.preferredName || '',
         position: editUserData.position.trim(),
@@ -425,6 +478,9 @@ function UserManagementView({ isSuperAdmin }) {
         return isMatch ? {
           ...u,
           name: fullName.trim(),
+          firstName: editUserData.firstName,
+          middleInitial: editUserData.middleInitial || '',
+          lastName: editUserData.lastName,
           email: editUserData.email.trim(),
           preferredName: editUserData.preferredName || '',
           position: editUserData.position.trim(),
@@ -479,6 +535,9 @@ function UserManagementView({ isSuperAdmin }) {
       const newUser = {
         userId,
         name: fullName.trim(),
+        firstName: newUserData.firstName,
+        middleInitial: newUserData.middleInitial || '',
+        lastName: newUserData.lastName,
         email: newUserData.email.trim(),
         position: newUserData.position.trim(),
         employmentStatus: newUserData.employmentStatus,

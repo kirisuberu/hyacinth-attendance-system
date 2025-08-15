@@ -1024,7 +1024,7 @@ const DashboardHome = () => {
 
         
         {/* Attendance Summary Card - Emphasized */}
-        <Card style={{ gridColumn: 'span 2' }}>
+        <Card style={{ gridColumn: '1 / -1' }}>
           <DashboardCardTitle>
             <ChartBar size={20} style={{ marginRight: '8px' }} />
             Attendance Summary
