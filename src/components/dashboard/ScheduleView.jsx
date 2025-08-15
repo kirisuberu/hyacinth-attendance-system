@@ -810,7 +810,6 @@ const ScheduleView = ({ user, userData }) => {
                       <option key={tz.value} value={tz.value} title={tz.title}>{tz.code}</option>
                     ))}
                   </select>
-                  <button type="button" className="link" onClick={() => setDeptDisplayTimeZone(userTimeRegion)}>Use my timezone</button>
                 </div>
               </div>
             </FiltersBar>
@@ -1341,7 +1340,7 @@ const FiltersBar = styled.div`
     display: flex; 
     flex-direction: column;
     align-items: flex-start; 
-    gap: 0.75rem; 
+    gap: 0.5rem; 
     white-space: nowrap;
     padding: 0.5rem;
     background: rgba(254, 242, 242, 0.5);
@@ -1352,16 +1351,22 @@ const FiltersBar = styled.div`
   .view-group, .timezone-group {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+  }
+  
+  .timezone-group .label {
+    margin-right: 0.25rem;
   }
   
   .tzSelect { 
-    padding: 0.5rem 0.7rem; 
-    border: 2px solid #f3e8e8; 
+    padding: 0.45rem 0.6rem; 
+    border: 1px solid #f3e8e8; 
     border-radius: 8px; 
     background: #fff; 
     color: #374151;
     font-size: 0.9rem;
+    line-height: 1.2;
+    min-width: 110px;
     transition: border-color 0.2s ease;
     
     &:focus {

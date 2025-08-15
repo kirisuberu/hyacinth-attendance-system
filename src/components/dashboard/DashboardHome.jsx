@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { recordAttendance, getAttendanceStatus, determineTimeInStatus, determineTimeOutStatus } from '../../services/attendanceService';
 import { toast } from 'react-toastify';
 import QuarterlyAttendanceChart from './QuarterlyAttendanceChart';
+import AttendanceGrid from './AttendanceGrid';
 import { getCurrentTimeInZone, getCurrentTimestamp, timestampToZonedDate } from '../../utils/timeZoneUtils';
 
 
@@ -1017,6 +1018,9 @@ const DashboardHome = () => {
           
           {/* Quarterly Attendance Chart */}
           <QuarterlyAttendanceChart data={stats.quarterlyData || []} />
+          
+          {/* Attendance Grid */}
+          <AttendanceGrid />
           
           {/* Main Dashboard Content */}
           <Grid style={{ marginTop: '1.5rem' }}>
