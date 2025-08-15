@@ -798,6 +798,30 @@ const DashboardHome = () => {
                               <Warning size={20} style={{ marginRight: '10px', color: '#f57f17' }} />
                               <span>No schedule found for today. Using default values.</span>
                             </div>
+                            
+                            <AttendanceButtonsContainer>
+                              {attendanceStatus === 'Checked In' ? (
+                                <AttendanceButton 
+                                  variant="out" 
+                                  onClick={() => handleTimeInOutClick('Out')}
+                                  disabled={processingTimeOut}
+                                  style={{ width: '100%' }}
+                                >
+                                  <SignOut size={18} />
+                                  TIME OUT
+                                </AttendanceButton>
+                              ) : (
+                                <AttendanceButton 
+                                  variant="in" 
+                                  onClick={() => handleTimeInOutClick('In')}
+                                  disabled={processingTimeIn}
+                                  style={{ width: '100%' }}
+                                >
+                                  <SignIn size={18} />
+                                  TIME IN
+                                </AttendanceButton>
+                              )}
+                            </AttendanceButtonsContainer>
                           </div>
                         );
                       }
