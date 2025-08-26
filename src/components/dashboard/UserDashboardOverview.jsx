@@ -342,8 +342,10 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
                   Status
                 </StatCardTitle>
               </StatCardHeader>
-              <StatusTag status={attendanceStatus || stats.todayStatus}>
-                {attendanceStatus || stats.todayStatus}
+              <StatusTag 
+                status={(attendanceStatus || stats.todayStatus) === 'N/A' ? 'No Schedule' : (attendanceStatus || stats.todayStatus)}
+              >
+                {(attendanceStatus || stats.todayStatus) === 'N/A' ? 'No Schedule' : (attendanceStatus || stats.todayStatus)}
               </StatusTag>
             </StatCard>
             
@@ -583,8 +585,11 @@ const UserDashboardOverview = ({ user, userData, attendanceStatus, lastRecord, s
                               <>
                                 {format(report.timeIn, 'h:mm a')}
                                 {report.timeInStatus && (
-                                  <StatusTag status={report.timeInStatus} style={{ marginLeft: '8px' }}>
-                                    {report.timeInStatus}
+                                  <StatusTag 
+                                    status={report.timeInStatus === 'N/A' ? 'No Schedule' : report.timeInStatus} 
+                                    style={{ marginLeft: '8px' }}
+                                  >
+                                    {report.timeInStatus === 'N/A' ? 'No Schedule' : report.timeInStatus}
                                   </StatusTag>
                                 )}
                               </>
@@ -850,6 +855,7 @@ const StatusTag = styled.span`
     if (props.status === 'Late') return '#ffebee';
     if (props.status === 'Complete') return '#e8f5e9';
     if (props.status === 'Incomplete') return '#fff8e1';
+    if (props.status === 'No Schedule') return '#f0f0f0';
     return '#f5f5f5';
   }};
   color: ${props => {
@@ -858,6 +864,7 @@ const StatusTag = styled.span`
     if (props.status === 'Late') return '#c62828';
     if (props.status === 'Complete') return '#2e7d32';
     if (props.status === 'Incomplete') return '#ef6c00';
+    if (props.status === 'No Schedule') return '#616161';
     return '#757575';
   }};
   border: 1px solid ${props => {
@@ -866,6 +873,7 @@ const StatusTag = styled.span`
     if (props.status === 'Late') return '#ffcdd2';
     if (props.status === 'Complete') return '#c8e6c9';
     if (props.status === 'Incomplete') return '#ffe0b2';
+    if (props.status === 'No Schedule') return '#e0e0e0';
     return '#eeeeee';
   }};
 `;

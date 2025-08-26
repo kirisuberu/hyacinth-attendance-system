@@ -448,7 +448,7 @@ const AttendanceView = ({ user }) => {
   
   // Calculate the status for time-in records based on schedule
   const calculateTimeInStatus = (record, dateObj) => {
-    if (!record || record.type !== 'In') return 'N/A';
+    if (!record || record.type !== 'In') return 'No Schedule';
     
     try {
       // Get the record timestamp as a Date object
@@ -456,7 +456,7 @@ const AttendanceView = ({ user }) => {
       const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][recordTime.getDay()];
       
       // Default status if we can't determine from schedule
-      let status = 'On Time';
+      let status = 'No Schedule';
       
       // Get the schedule for the user from state
       const userSchedule = userData?.schedule || [];
@@ -488,7 +488,7 @@ const AttendanceView = ({ user }) => {
       return status;
     } catch (error) {
       console.error('Error calculating time-in status:', error, record);
-      return 'On Time'; // Default fallback
+      return 'No Schedule'; // Default fallback
     }
   };
   
@@ -527,7 +527,7 @@ const AttendanceView = ({ user }) => {
   
   // Determine status for any record type (used for backward compatibility)
   const determineStatus = (record) => {
-    if (!record) return 'N/A';
+    if (!record) return 'No Schedule';
     
     // For time out records, always return Complete
     if (record.type === 'Out') {
@@ -544,7 +544,7 @@ const AttendanceView = ({ user }) => {
       return 'Absent';
     }
     
-    return 'N/A';
+    return 'No Schedule';
   };
 
   // Handle opening the petition modal for an absence record
@@ -886,6 +886,7 @@ const StatusTag = styled.span`
     if (props.status === 'Overtime') return '#e8f5e9';
     if (props.status === 'Multi-Day') return '#f3e5f5';
     if (props.status === 'Absent') return '#fce4ec';
+    if (props.status === 'No Schedule') return '#f0f0f0';
     return '#f5f5f5';
   }};
   color: ${props => {
@@ -897,6 +898,7 @@ const StatusTag = styled.span`
     if (props.status === 'Overtime') return '#2e7d32';
     if (props.status === 'Multi-Day') return '#7b1fa2';
     if (props.status === 'Absent') return '#c2185b';
+    if (props.status === 'No Schedule') return '#616161';
     return '#757575';
   }};
   border: 1px solid ${props => {
@@ -908,6 +910,7 @@ const StatusTag = styled.span`
     if (props.status === 'Overtime') return '#c8e6c9';
     if (props.status === 'Multi-Day') return '#e1bee7';
     if (props.status === 'Absent') return '#f8bbd0';
+    if (props.status === 'No Schedule') return '#e0e0e0';
     return '#e0e0e0';
   }};
 `;

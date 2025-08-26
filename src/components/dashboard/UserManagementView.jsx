@@ -27,7 +27,8 @@ function UserManagementView({ isSuperAdmin }) {
     selectedDays: [],
     timeIn: '09:00',
     timeRegion: 'Asia/Manila',
-    shiftDuration: '8',
+    shiftHours: '8',
+    shiftMinutes: '0',
   });
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -101,10 +102,18 @@ function UserManagementView({ isSuperAdmin }) {
     }
     
     const totalHours = schedules.reduce((sum, schedule) => {
-      return sum + (parseInt(schedule.shiftDuration, 10) || 0);
+      return sum + (parseFloat(schedule.shiftDuration) || 0);
     }, 0);
     
-    return totalHours;
+    return Math.round(totalHours * 100) / 100;
+  };
+
+  // Format decimal hours to "Xh Ym"
+  const formatDuration = (durationHours) => {
+    const total = Number(durationHours) || 0;
+    const h = Math.floor(total);
+    const m = Math.round((total - h) * 60);
+    return m ? `${h}h ${m}m` : `${h}h`;
   };
 
   useEffect(() => {
@@ -606,13 +615,29 @@ function UserManagementView({ isSuperAdmin }) {
     const [hours, minutes] = newSchedule.timeIn.split(':').map(Number);
     localTime.setHours(hours, minutes, 0, 0);
     
+    // Compute and validate shift duration from hours/minutes fields
+    const durHours = parseInt(newSchedule.shiftHours || '0', 10);
+    const durMinutes = parseInt(newSchedule.shiftMinutes || '0', 10);
+    const safeHours = isNaN(durHours) ? 0 : durHours;
+    const safeMinutes = isNaN(durMinutes) ? 0 : durMinutes;
+    const totalMinutes = safeHours * 60 + safeMinutes;
+    if (totalMinutes <= 0) {
+      toast.warning('Please enter a valid shift duration');
+      return;
+    }
+    if (totalMinutes > 24 * 60) {
+      toast.warning('Shift duration cannot exceed 24 hours');
+      return;
+    }
+    const durationInHours = totalMinutes / 60;
+    
     // Create schedule entries for each selected day
     const newScheduleEntries = newSchedule.selectedDays.map(day => ({
       id: `${Date.now()}-${day}`, // Unique ID for each schedule entry
       dayOfWeek: day,
       timeIn: newSchedule.timeIn,
       timeRegion: newSchedule.timeRegion,
-      shiftDuration: parseInt(newSchedule.shiftDuration, 10),
+      shiftDuration: durationInHours,
       utcTimeIn: localTime.toISOString() // Store UTC time
     }));
     
@@ -627,7 +652,8 @@ function UserManagementView({ isSuperAdmin }) {
       selectedDays: [],
       timeIn: '09:00',
       timeRegion: 'Asia/Manila',
-      shiftDuration: '8',
+      shiftHours: '8',
+      shiftMinutes: '0',
     });
   };
 
@@ -674,7 +700,8 @@ function UserManagementView({ isSuperAdmin }) {
       selectedDays: [schedule.dayOfWeek],
       timeIn: schedule.timeIn,
       timeRegion: schedule.timeRegion,
-      shiftDuration: schedule.shiftDuration.toString(),
+      shiftHours: Math.floor(Number(schedule.shiftDuration || 0)).toString(),
+      shiftMinutes: Math.round((Number(schedule.shiftDuration || 0) - Math.floor(Number(schedule.shiftDuration || 0))) * 60).toString(),
     });
   };
 
@@ -692,6 +719,22 @@ function UserManagementView({ isSuperAdmin }) {
     const [hours, minutes] = newSchedule.timeIn.split(':').map(Number);
     localTime.setHours(hours, minutes, 0, 0);
     
+    // Compute and validate shift duration from hours/minutes fields
+    const durHours = parseInt(newSchedule.shiftHours || '0', 10);
+    const durMinutes = parseInt(newSchedule.shiftMinutes || '0', 10);
+    const safeHours = isNaN(durHours) ? 0 : durHours;
+    const safeMinutes = isNaN(durMinutes) ? 0 : durMinutes;
+    const totalMinutes = safeHours * 60 + safeMinutes;
+    if (totalMinutes <= 0) {
+      toast.warning('Please enter a valid shift duration');
+      return;
+    }
+    if (totalMinutes > 24 * 60) {
+      toast.warning('Shift duration cannot exceed 24 hours');
+      return;
+    }
+    const durationInHours = totalMinutes / 60;
+    
     // Remove the old schedule entry
     let updatedSchedule = scheduleData.filter(item => item.id !== editingSchedule.id);
     
@@ -701,7 +744,7 @@ function UserManagementView({ isSuperAdmin }) {
       dayOfWeek: day,
       timeIn: newSchedule.timeIn,
       timeRegion: newSchedule.timeRegion,
-      shiftDuration: parseInt(newSchedule.shiftDuration, 10),
+      shiftDuration: durationInHours,
       utcTimeIn: localTime.toISOString()
     }));
     
@@ -716,7 +759,8 @@ function UserManagementView({ isSuperAdmin }) {
       selectedDays: [],
       timeIn: '09:00',
       timeRegion: 'Asia/Manila',
-      shiftDuration: '8',
+      shiftHours: '8',
+      shiftMinutes: '0',
     });
     setIsEditing(false);
     setEditingSchedule(null);
@@ -729,7 +773,8 @@ function UserManagementView({ isSuperAdmin }) {
       selectedDays: [],
       timeIn: '09:00',
       timeRegion: 'Asia/Manila',
-      shiftDuration: '8',
+      shiftHours: '8',
+      shiftMinutes: '0',
     });
   };
   
@@ -1814,7 +1859,7 @@ function UserManagementView({ isSuperAdmin }) {
                           <ScheduleTime>
                             <div><strong>Time In:</strong> {schedule.timeIn}</div>
                             <div><strong>Region:</strong> {schedule.timeRegion}</div>
-                            <div><strong>Duration:</strong> {schedule.shiftDuration} hours</div>
+                            <div><strong>Duration:</strong> {formatDuration(schedule.shiftDuration)}</div>
                           </ScheduleTime>
                         </ScheduleCard>
                       ))}
@@ -1862,14 +1907,29 @@ function UserManagementView({ isSuperAdmin }) {
                   </FormGroup>
                   
                   <FormGroup>
-                    <Label>Shift Duration (hours)</Label>
-                    <Input 
-                      type="number" 
-                      min="1" 
-                      max="24" 
-                      value={newSchedule.shiftDuration}
-                      onChange={(e) => setNewSchedule({...newSchedule, shiftDuration: e.target.value})}
-                    />
+                    <Label>Shift Duration</Label>
+                    <DurationRow>
+                      <div style={{ flex: 1 }}>
+                        <SmallLabel>Hours</SmallLabel>
+                        <Input 
+                          type="number" 
+                          min="0" 
+                          max="24" 
+                          value={newSchedule.shiftHours}
+                          onChange={(e) => setNewSchedule({...newSchedule, shiftHours: e.target.value})}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <SmallLabel>Minutes</SmallLabel>
+                        <Input 
+                          type="number" 
+                          min="0" 
+                          max="59" 
+                          value={newSchedule.shiftMinutes}
+                          onChange={(e) => setNewSchedule({...newSchedule, shiftMinutes: e.target.value})}
+                        />
+                      </div>
+                    </DurationRow>
                   </FormGroup>
                 </div>
                 
@@ -2593,5 +2653,19 @@ const ChartBarFill = styled.div`
 const ChartValue = styled.div`
   text-align: right;
   font-variant-numeric: tabular-nums;
+  color: var(--muted);
+`;
+
+// Shift duration input layout
+const DurationRow = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+`;
+
+const SmallLabel = styled.label`
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
   color: var(--muted);
 `;

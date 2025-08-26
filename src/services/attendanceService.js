@@ -60,14 +60,14 @@ export const recordAttendance = async (userId, type, notes = '') => {
 /**
  * Determines the status for a time-in record based on schedule
  * @param {string} userId - The user ID
- * @returns {Promise<string>} - The status ('Early', 'On Time', 'Late')
+ * @returns {Promise<string>} - The status ('Early', 'On Time', 'Late', 'No Schedule')
  */
 export const determineTimeInStatus = async (userId) => {
   try {
     // Fetch user's schedule from Firestore
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) {
-      return 'On Time'; // Default if user not found
+      return 'No Schedule'; // No status when user not found (remove default schedule behavior)
     }
     
     const userData = userDoc.data();
@@ -83,7 +83,7 @@ export const determineTimeInStatus = async (userId) => {
       userSchedule.find(s => s.dayOfWeek === currentDay) : null;
     
     if (!todaySchedule) {
-      return 'On Time'; // Default if no schedule found
+      return 'No Schedule'; // No status when no schedule found (remove default schedule behavior)
     }
     
     // Parse schedule time
@@ -117,7 +117,7 @@ export const determineTimeInStatus = async (userId) => {
     }
   } catch (error) {
     console.error('Error determining time-in status:', error);
-    return 'On Time'; // Default on error
+    return 'No Schedule'; // No status on error to avoid default schedule behavior
   }
 };
 
@@ -166,12 +166,12 @@ export const calculateTimeDifference = async (userId) => {
 /**
  * Determines the status for a time-out record based on the time worked
  * @param {string} userId - The user ID
- * @returns {Promise<{status: string, timeDiff: number|null}>} - The status and time difference
+ * @returns {Promise<{status: string, timeDiff: number|null}>} - The status ('Complete', 'Incomplete', 'Overtime', 'No Schedule') and time difference
  */
 export const determineTimeOutStatus = async (userId) => {
   try {
     let timeDiff = null;
-    let status = 'Complete';
+    let status = 'No Schedule'; // Default when no schedule context is available
     
     // Query the most recent time in record for this user
     const attendanceRef = collection(db, 'attendance');
@@ -304,7 +304,7 @@ export const determineTimeOutStatus = async (userId) => {
     return { status, timeDiff };
   } catch (error) {
     console.error('Error determining time-out status:', error);
-    return { status: 'Complete', timeDiff: null };
+    return { status: 'No Schedule', timeDiff: null };
   }
 };
 

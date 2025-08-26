@@ -538,7 +538,7 @@ const ReportsView = () => {
           return {
             'Name': user.name,
             'Time IN': user.inRecord ? formatTime(user.inRecord.timestamp) : 'N/A',
-            'IN Status': user.inRecord ? user.inRecord.status || 'N/A' : 'N/A',
+            'IN Status': user.inRecord ? (user.inRecord.status || 'No Schedule') : 'N/A',
             'Time Difference': user.inRecord && user.inRecord.timeDiff !== undefined ? 
               formatDuration(Math.abs(user.inRecord.timeDiff)) : 'N/A',
             'IN Notes': user.inRecord ? user.inRecord.notes || '' : '',
