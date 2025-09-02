@@ -5,7 +5,7 @@ export const ProfileContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   padding: 16px;
   font-family: 'Inter', sans-serif;

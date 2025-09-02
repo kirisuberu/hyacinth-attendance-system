@@ -1,22 +1,23 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is a super_admin
+    // Helper function to check if user is a super_admin (avoid circular dependency)
     function isSuperAdmin() {
       return request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin';
+        request.auth.token.role == 'super_admin';
     }
     
-    // Allow read/write access to authenticated users
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Helper function to check if user is admin or super_admin
+    function isAdmin() {
+      return request.auth != null && 
+        (request.auth.token.role == 'admin' || request.auth.token.role == 'super_admin');
     }
     
-    // User collection rules
+    // User collection rules - allow users to read/write their own data
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && (request.auth.uid == userId || isSuperAdmin());
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && 
+        (request.auth.uid == userId || isAdmin());
     }
     
     // Attendance collection rules
@@ -27,15 +28,30 @@ service cloud.firestore {
     
     // Registration requests collection rules
     match /registration_requests/{requestId} {
-      allow read: if isSuperAdmin();
+      // Allow the owner to read their own request; admins can read all
+      allow read: if isSuperAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
       allow create: if request.auth != null;
       allow update, delete: if isSuperAdmin();
     }
     
     // Declined registrations collection rules
     match /declined_registrations/{requestId} {
-      allow read: if isSuperAdmin();
+      // Allow the owner to read their own declined record; admins can manage all
+      allow read: if isSuperAdmin() || (request.auth != null && resource.data.userId == request.auth.uid);
       allow create, update, delete: if isSuperAdmin();
+    }
+    
+    // System settings collection rules
+    match /system_settings/{document} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+    
+    // System logs collection rules
+    match /system_logs/{document} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
   }
 }
+

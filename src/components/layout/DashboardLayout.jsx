@@ -19,11 +19,13 @@ import {
   ListChecks,
   CaretDown,
   CaretRight,
-  Bell 
+  Bell,
+  Question, 
+  Wrench
 } from 'phosphor-react';
 import UserPlus from '../icons/UserPlus';
 import { auth, db } from '../../firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { getAttendanceRules } from '../../services/systemSettingsService';
@@ -69,6 +71,8 @@ function DashboardLayout() {
   const canViewReports = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canViewReports !== false);
   const canManageAttendanceRequests = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canManageAttendanceRequests !== false);
   const canManageSchedules = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canManageSchedules !== false);
+  // Manager Functions is explicit opt-in for admins; super admins always allowed
+  const canUseManagerFunctions = isSuperAdmin || (userData?.role === 'admin' && userData?.privileges?.canUseManagerFunctions === true);
 
   // Check if the current path matches a specific route
   const isActive = (path) => {
@@ -231,8 +235,13 @@ function DashboardLayout() {
             Profile
           </NavItem>
           
+          <NavItem to="/dashboard/tutorials" className={isActive('/dashboard/tutorials') ? 'active' : ''} style={{ display: 'none' }}>
+            <Icon><Question size={16} /></Icon>
+            Tutorials
+          </NavItem>
+          
           {/* Admin Panel Section */}
-          {(isSuperAdmin || canManageRegistrations || canManageUsers || canViewReports || canManageAttendanceRequests || canManageSchedules) && (
+          {(isSuperAdmin || isAdmin || canManageRegistrations || canManageUsers || canViewReports || canManageAttendanceRequests || canManageSchedules || canUseManagerFunctions) && (
             <div style={{ marginTop: '1.5rem', marginBottom: '1.5rem' }}>
               <div 
                 style={{ 
@@ -311,6 +320,17 @@ function DashboardLayout() {
                     >
                       <Icon><Calendar size={16} /></Icon>
                       Schedule Change Requests
+                    </NavItem>
+                  )}
+
+                  {/* Manager Functions - Visible to super admins, or admins with privilege */}
+                  {canUseManagerFunctions && (
+                    <NavItem 
+                      to="/dashboard/manager-functions"
+                      className={isActive('/dashboard/manager-functions') ? 'active' : ''}
+                    >
+                      <Icon><Wrench size={16} /></Icon>
+                      Manager Functions
                     </NavItem>
                   )}
                 </div>

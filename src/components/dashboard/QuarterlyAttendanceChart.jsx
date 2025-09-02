@@ -33,6 +33,9 @@ const QuarterlyAttendanceChart = ({ data }) => {
             <Bar dataKey="early" name="Early" fill="#42a5f5" />
             <Bar dataKey="onTime" name="On Time" fill="#66bb6a" />
             <Bar dataKey="late" name="Late" fill="#ff9800" />
+            <Bar dataKey="pto" name="PTO" fill="#9c27b0" />
+            <Bar dataKey="absent" name="Absent" fill="#f44336" />
+            <Bar dataKey="ncns" name="NCNS" fill="#000000" />
           </BarChart>
         </ResponsiveContainer>
       </div>

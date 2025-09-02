@@ -29,12 +29,14 @@ export const REQUEST_STATUS = {
 /**
  * Create a new absence petition
  * @param {string} userId - The user ID
- * @param {string} attendanceId - The ID of the absence record
+ * @param {string} absenceId - The ID of the absence record
  * @param {string} remarks - The reason for the petition
  * @returns {Promise<string>} - The ID of the created request
  */
-export const createAbsencePetition = async (userId, attendanceId, remarks) => {
+export const createAbsencePetition = async (userId, absenceId, remarks) => {
   try {
+    console.log('Debug - createAbsencePetition called with:', { userId, absenceId, remarks });
+    
     // Get user details
     const userDoc = await getDoc(doc(db, 'users', userId));
     if (!userDoc.exists()) {
@@ -42,12 +44,18 @@ export const createAbsencePetition = async (userId, attendanceId, remarks) => {
     }
     const userData = userDoc.data();
     
-    // Get attendance record details
-    const attendanceDoc = await getDoc(doc(db, 'attendance', attendanceId));
-    if (!attendanceDoc.exists()) {
-      throw new Error('Attendance record not found');
+    console.log('Debug - Looking for absence record with ID:', absenceId);
+    console.log('Debug - Querying collection: absences');
+    
+    // Get absence record details from the absences collection
+    const absenceDoc = await getDoc(doc(db, 'absences', absenceId));
+    console.log('Debug - Absence doc exists:', absenceDoc.exists());
+    
+    if (!absenceDoc.exists()) {
+      console.log('Debug - Absence record not found in absences collection');
+      throw new Error('Absence record not found');
     }
-    const attendanceData = attendanceDoc.data();
+    const absenceData = absenceDoc.data();
     
     // Create the request
     const requestData = {
@@ -56,8 +64,8 @@ export const createAbsencePetition = async (userId, attendanceId, remarks) => {
       userEmail: userData.email,
       type: REQUEST_TYPES.ABSENCE_PETITION,
       status: REQUEST_STATUS.PENDING,
-      attendanceId,
-      attendanceDate: attendanceData.timestamp,
+      absenceId, // Changed from attendanceId to absenceId
+      attendanceDate: absenceData.timestamp || absenceData.date,
       remarks,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
@@ -202,7 +210,13 @@ export const updateRequestStatus = async (requestId, status, adminRemarks = '') 
     
     // If approving an absence petition, remove the absence record
     if (status === REQUEST_STATUS.APPROVED && requestData.type === REQUEST_TYPES.ABSENCE_PETITION) {
-      await deleteDoc(doc(db, 'attendance', requestData.attendanceId));
+      // Check if it's an absence record (new format) or attendance record (legacy format)
+      if (requestData.absenceId) {
+        await deleteDoc(doc(db, 'absences', requestData.absenceId));
+      } else if (requestData.attendanceId) {
+        // Legacy support for old petitions that reference attendance collection
+        await deleteDoc(doc(db, 'attendance', requestData.attendanceId));
+      }
     }
     
     // Additional logic for approved overtime requests could be added here

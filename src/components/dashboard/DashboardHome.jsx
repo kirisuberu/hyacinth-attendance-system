@@ -22,7 +22,10 @@ const DashboardHome = () => {
     totalAttendance: 0,
     onTimePercentage: 0,
     latePercentage: 0,
-    absences: 0
+    absences: 0,
+    quarterlyData: [],
+    punctualityTrend: [],
+    pto: []
   });
   
   const [notifications, setNotifications] = useState([]);
@@ -279,12 +282,13 @@ const DashboardHome = () => {
           // Start of this month
           const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
           
-          // Calculate start dates for the last 3 months (for quarterly data)
+          // Calculate start and end dates for last 3 months
           const currentMonth = now.getMonth();
           const currentYear = now.getFullYear();
           
           // This month
           const month0Start = new Date(currentYear, currentMonth, 1, 0, 0, 0);
+          const month0End = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
           const month0Name = format(month0Start, 'MMM');
           
           // Last month
@@ -304,109 +308,160 @@ const DashboardHome = () => {
           const startOfLast30Days = new Date(now);
           startOfLast30Days.setDate(now.getDate() - 30);
           
-          // Get all attendance records for the quarterly data (last 3 months)
-          const attendanceQuery = query(
-            collection(db, 'attendance'),
-            where('userId', '==', auth.currentUser.uid),
-            where('timestamp', '>=', Timestamp.fromDate(startOfQuarter)),
-            orderBy('timestamp', 'desc')
+          // Get all attendance and absence records for quarterly data
+          const [attendanceSnapshot, absencesSnapshot] = await Promise.all([
+            getDocs(query(
+              collection(db, 'attendance'),
+              where('userId', '==', auth.currentUser.uid),
+              where('timestamp', '>=', Timestamp.fromDate(startOfQuarter)),
+              orderBy('timestamp', 'desc')
+            )),
+            getDocs(query(
+              collection(db, 'absences'),
+              where('userId', '==', auth.currentUser.uid),
+              where('date', '>=', format(startOfQuarter, 'yyyy-MM-dd'))
+            ))
+          ]);
+          
+          // Process records with comprehensive error handling
+          const processRecords = () => {
+            try {
+              // Process attendance records
+              const records = (attendanceSnapshot?.docs || []).map(doc => {
+                try {
+                  const data = doc.data();
+                  if (!data) return null;
+                  return {
+                    ...data,
+                    id: doc.id,
+                    timestamp: data.timestamp?.toDate?.() || new Date()
+                  };
+                } catch (e) {
+                  console.error('Error processing attendance record:', e);
+                  return null;
+                }
+              }).filter(Boolean);
+              
+              // Convert absences to attendance-like records
+              const absenceRecords = (absencesSnapshot?.docs || []).map(doc => {
+                const data = doc.data();
+                let status = 'Absent';
+                if (data.type === 'pto') status = 'PTO';
+                else if (data.type === 'ncns') status = 'NCNS';
+                
+                return {
+                  ...data,
+                  id: doc.id,
+                  type: 'In',
+                  status: status,
+                  timestamp: new Date((data.date || '1970-01-01') + 'T00:00:00')
+                };
+              });
+              
+              return [...records, ...absenceRecords].filter(r => !!r?.timestamp);
+            } catch (error) {
+              console.error('Error processing records:', error);
+              return [];
+            }
+          };
+          
+          const allRecords = processRecords();
+          
+          // Separate records by month for quarterly data with validation
+          const month0Records = (allRecords || []).filter(record => 
+            record?.timestamp && record.timestamp >= month0Start && record.timestamp < month0End && record.type === 'In'
+          );
+          const month1Records = (allRecords || []).filter(record => 
+            record?.timestamp && record.timestamp >= month1Start && record.timestamp < month1End && record.type === 'In'
+          );
+          const month2Records = (allRecords || []).filter(record => 
+            record?.timestamp && record.timestamp >= month2Start && record.timestamp < month2End && record.type === 'In'
           );
           
-          const attendanceSnapshot = await getDocs(attendanceQuery);
-          const records = attendanceSnapshot.docs.map(doc => ({
-            ...doc.data(),
-            id: doc.id,
-            timestamp: doc.data().timestamp.toDate() // Convert Firestore timestamp to JS Date
-          }));
+          // Calculate status counts for each month with validation
+          const month0Total = (month0Records || []).length;
+          const month0PTO = (month0Records || []).filter(r => r?.status === 'PTO').length;
+          const month0Absent = (month0Records || []).filter(r => r?.status === 'Absent').length;
+          const month0NCNS = (month0Records || []).filter(r => r?.status === 'NCNS').length;
+          const month0Present = month0Total - month0PTO - month0Absent - month0NCNS;
           
-          // Separate records by month for quarterly data
-          const month0Records = records.filter(record => 
-            record.timestamp >= month0Start && record.type === 'In'
-          );
-          const month1Records = records.filter(record => 
-            record.timestamp >= month1Start && record.timestamp <= month1End && record.type === 'In'
-          );
-          const month2Records = records.filter(record => 
-            record.timestamp >= month2Start && record.timestamp <= month2End && record.type === 'In'
-          );
+          const month1Total = (month1Records || []).length;
+          const month1PTO = (month1Records || []).filter(r => r?.status === 'PTO').length;
+          const month1Absent = (month1Records || []).filter(r => r?.status === 'Absent').length;
+          const month1NCNS = (month1Records || []).filter(r => r?.status === 'NCNS').length;
+          const month1Present = month1Total - month1PTO - month1Absent - month1NCNS;
           
-          // Calculate status counts for each month
-          // Current month
-          const month0Total = month0Records.length;
-          const month0Early = month0Records.filter(record => record.status === 'Early').length;
-          const month0OnTime = month0Records.filter(record => record.status === 'On Time').length;
-          const month0Late = month0Records.filter(record => record.status === 'Late').length;
-          
-          // Last month
-          const month1Total = month1Records.length;
-          const month1Early = month1Records.filter(record => record.status === 'Early').length;
-          const month1OnTime = month1Records.filter(record => record.status === 'On Time').length;
-          const month1Late = month1Records.filter(record => record.status === 'Late').length;
-          
-          // Two months ago
-          const month2Total = month2Records.length;
-          const month2Early = month2Records.filter(record => record.status === 'Early').length;
-          const month2OnTime = month2Records.filter(record => record.status === 'On Time').length;
-          const month2Late = month2Records.filter(record => record.status === 'Late').length;
+          const month2Total = (month2Records || []).length;
+          const month2PTO = (month2Records || []).filter(r => r?.status === 'PTO').length;
+          const month2Absent = (month2Records || []).filter(r => r?.status === 'Absent').length;
+          const month2NCNS = (month2Records || []).filter(r => r?.status === 'NCNS').length;
+          const month2Present = month2Total - month2PTO - month2Absent - month2NCNS;
           
           // Create quarterly data for the chart
           const quarterlyData = [
             {
               month: month2Name,
               total: month2Total,
-              early: month2Early,
-              onTime: month2OnTime,
-              late: month2Late
+              pto: month2PTO,
+              absent: month2Absent,
+              ncns: month2NCNS,
+              present: month2Present
             },
             {
               month: month1Name,
               total: month1Total,
-              early: month1Early,
-              onTime: month1OnTime,
-              late: month1Late
+              pto: month1PTO,
+              absent: month1Absent,
+              ncns: month1NCNS,
+              present: month1Present
             },
             {
               month: month0Name,
               total: month0Total,
-              early: month0Early,
-              onTime: month0OnTime,
-              late: month0Late
+              pto: month0PTO,
+              absent: month0Absent,
+              ncns: month0NCNS,
+              present: month0Present
             }
           ];
           
           // Calculate overall stats
-          const totalRecords = records.length;
-          const timeInRecords = records.filter(record => record.type === 'In');
-          const onTimeRecords = records.filter(record => record.status === 'On Time').length;
-          const lateRecords = records.filter(record => record.status === 'Late').length;
-          const earlyRecords = records.filter(record => record.status === 'Early').length;
-          const absentRecords = records.filter(record => record.status === 'Absent').length;
+          const totalRecords = allRecords.length;
+          const timeInRecords = allRecords.filter(record => record.type === 'In');
+          const onTimeRecords = allRecords.filter(record => record.status === 'On Time').length;
+          const lateRecords = allRecords.filter(record => record.status === 'Late').length;
+          const earlyRecords = allRecords.filter(record => record.status === 'Early').length;
+          const absentRecords = allRecords.filter(record => record.status === 'Absent').length;
+          const ptoRecords = allRecords.filter(record => record.status === 'PTO').length;
           
           // Calculate daily stats
-          const todayRecords = records.filter(record => record.timestamp >= startOfToday);
+          const todayRecords = allRecords.filter(record => record.timestamp >= startOfToday);
           const todayTimeIn = todayRecords.find(record => record.type === 'In');
           const todayTimeOut = todayRecords.find(record => record.type === 'Out');
           const isTodayAbsent = todayRecords.some(record => record.status === 'Absent');
+          const isTodayPTO = todayRecords.some(record => record.status === 'PTO');
           
           // Calculate weekly stats
-          const weekRecords = records.filter(record => record.timestamp >= startOfWeek);
+          const weekRecords = allRecords.filter(record => record.timestamp >= startOfWeek);
           const weekTimeInRecords = weekRecords.filter(record => record.type === 'In');
           const weekOnTimeCount = weekRecords.filter(record => record.status === 'On Time').length;
           const weekLateCount = weekRecords.filter(record => record.status === 'Late').length;
           const weekEarlyCount = weekRecords.filter(record => record.status === 'Early').length;
           const weekAbsentCount = weekRecords.filter(record => record.status === 'Absent').length;
+          const weekPTOCount = weekRecords.filter(record => record.status === 'PTO').length;
           
           // Calculate weekly attendance percentage
           const weekAttendanceRate = weekTimeInRecords.length > 0 ? 
             (weekTimeInRecords.length / 5) * 100 : 0; // Assuming 5-day work week
           
           // Calculate monthly stats
-          const monthRecords = records.filter(record => record.timestamp >= startOfMonth);
+          const monthRecords = allRecords.filter(record => record.timestamp >= startOfMonth);
           const monthTimeInRecords = monthRecords.filter(record => record.type === 'In');
           const monthOnTimeCount = monthRecords.filter(record => record.status === 'On Time').length;
           const monthLateCount = monthRecords.filter(record => record.status === 'Late').length;
           const monthEarlyCount = monthRecords.filter(record => record.status === 'Early').length;
           const monthAbsentCount = monthRecords.filter(record => record.status === 'Absent').length;
+          const monthPTOCount = monthRecords.filter(record => record.status === 'PTO').length;
           
           // Calculate monthly attendance percentage
           const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -418,7 +473,7 @@ const DashboardHome = () => {
             (monthTimeInRecords.length / workDaysElapsed) * 100 : 0;
           
           // Calculate punctuality trends (last 7 time-ins)
-          const last7TimeIns = timeInRecords.slice(0, 7);
+          const last7TimeIns = (timeInRecords || []).slice(0, 7);
           const punctualityTrend = last7TimeIns.map(record => {
             const date = record.timestamp;
             return {
@@ -445,12 +500,13 @@ const DashboardHome = () => {
             latePercentage: totalRecords > 0 ? Math.round((lateRecords / totalRecords) * 100) : 0,
             earlyPercentage: totalRecords > 0 ? Math.round((earlyRecords / totalRecords) * 100) : 0,
             absences: absentRecords,
+            pto: ptoRecords,
             
             // Quarterly data for chart
             quarterlyData: quarterlyData,
             
             // Today's status
-            todayStatus: todayTimeIn ? todayTimeIn.status : (isTodayAbsent ? 'Absent' : 'Not Checked In'),
+            todayStatus: todayTimeIn ? todayTimeIn.status : (isTodayAbsent ? 'Absent' : isTodayPTO ? 'PTO' : 'Not Checked In'),
             todayTimeIn: todayTimeIn ? todayTimeIn.timestamp : null,
             todayTimeOut: todayTimeOut ? todayTimeOut.timestamp : null,
             todayWorkedHours: todayTimeIn && todayTimeOut ? 
@@ -464,6 +520,7 @@ const DashboardHome = () => {
             weekEarlyRate: weekTimeInRecords.length > 0 ? 
               Math.round((weekEarlyCount / weekTimeInRecords.length) * 100) : 0,
             weekAbsentCount: weekAbsentCount,
+            weekPTOCount: weekPTOCount,
             weekAttendanceRate: Math.round(weekAttendanceRate),
             weekEarlyCount: weekEarlyCount,
             weekOnTimeCount: weekOnTimeCount,
@@ -477,6 +534,7 @@ const DashboardHome = () => {
             monthEarlyRate: monthTimeInRecords.length > 0 ? 
               Math.round((monthEarlyCount / monthTimeInRecords.length) * 100) : 0,
             monthAbsentCount: monthAbsentCount,
+            monthPTOCount: monthPTOCount,
             monthAttendanceRate: Math.round(monthAttendanceRate),
             monthlyAttendanceCount: monthTimeInRecords.length,
             monthOnTimeCount: monthOnTimeCount,
@@ -677,9 +735,9 @@ const DashboardHome = () => {
                         }
                         try {
                           const [hours, minutes] = timeStr.split(':').map(Number);
-                          const d = new Date(baseDate);
-                          d.setHours(hours || 0, minutes || 0, 0, 0);
-                          return d;
+                          const timeDate = new Date(baseDate);
+                          timeDate.setHours(hours || 0, minutes || 0, 0, 0);
+                          return timeDate;
                         } catch (e) {
                           const d = new Date(baseDate);
                           d.setHours(isTimeIn ? 9 : 17, 0, 0, 0);
@@ -721,8 +779,7 @@ const DashboardHome = () => {
                         }
                       }
 
-                      // If not within toda
-                      // y's window, check previous day's window crossing midnight
+                      // If not within today's window, check previous day's window crossing midnight
                       if (!candidate && schedPrev) {
                         const basePrev = new Date(today);
                         basePrev.setDate(basePrev.getDate() - 1);
@@ -1044,7 +1101,18 @@ const DashboardHome = () => {
           <QuarterlyAttendanceChart data={stats.quarterlyData || []} />
           
           {/* Attendance Grid */}
-          <AttendanceGrid />
+          <AttendanceGrid>
+            {(stats.quarterlyData || []).map((record, index) => (
+              <tr key={index}>
+                <td>{record.month}</td>
+                <td>{record.total}</td>
+                <td>{record.pto}</td>
+                <td>{record.absent}</td>
+                <td>{record.ncns}</td>
+                <td>{record.present}</td>
+              </tr>
+            ))}
+          </AttendanceGrid>
           
           {/* Main Dashboard Content */}
           <Grid style={{ marginTop: '1.5rem' }}>
@@ -1446,6 +1514,7 @@ const StatusTag = styled.span`
     if (props.status === 'Complete') return '#e8f5e9';
     if (props.status === 'Incomplete') return '#fff8e1';
     if (props.status === 'Overtime') return '#e8f5e9';
+    if (props.status === 'PTO') return '#e8f5e9';
     return '#f5f5f5';
   }};
   color: ${props => {
@@ -1455,6 +1524,7 @@ const StatusTag = styled.span`
     if (props.status === 'Complete') return '#2e7d32';
     if (props.status === 'Incomplete') return '#ef6c00';
     if (props.status === 'Overtime') return '#2e7d32';
+    if (props.status === 'PTO') return '#2e7d32';
     return '#757575';
   }};
   border: 1px solid ${props => {
@@ -1464,6 +1534,7 @@ const StatusTag = styled.span`
     if (props.status === 'Complete') return '#c8e6c9';
     if (props.status === 'Incomplete') return '#ffe0b2';
     if (props.status === 'Overtime') return '#c8e6c9';
+    if (props.status === 'PTO') return '#c8e6c9';
     return '#e0e0e0';
   }};
 `;

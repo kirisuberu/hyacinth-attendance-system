@@ -216,9 +216,11 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
       snapArray.docs.forEach(d => byId.set(d.id, { id: d.id, ...d.data() }));
       snapLegacy.docs.forEach(d => byId.set(d.id, { id: d.id, ...d.data() }));
       
-      const members = Array.from(byId.values());
-      console.log('Department members loaded:', members.length, 'for department', departmentId);
-      setDepartmentMembers(members);
+      // Filter out inactive users from department members
+      const allMembers = Array.from(byId.values());
+      const activeMembers = allMembers.filter(user => user.status !== 'inactive');
+      console.log('Department members loaded:', activeMembers.length, 'active members (', allMembers.length, 'total) for department', departmentId);
+      setDepartmentMembers(activeMembers);
       setLoadingMembers(false);
     } catch (error) {
       console.error('Error fetching department members:', error);
@@ -235,14 +237,18 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
       try {
         const q = query(usersRef, orderBy('firstName'));
         const querySnapshot = await getDocs(q);
-        const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        console.log('All users loaded (ordered):', users.length);
-        setAllUsers(users);
+        const allUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Filter out inactive users from the available users list
+        const activeUsers = allUsers.filter(user => user.status !== 'inactive');
+        console.log('All users loaded (ordered):', activeUsers.length, 'active users (', allUsers.length, 'total)');
+        setAllUsers(activeUsers);
       } catch (errOrdered) {
         console.warn('OrderBy(firstName) failed; falling back to unsorted fetch:', errOrdered);
         const querySnapshot = await getDocs(usersRef);
-        const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setAllUsers(users);
+        const allUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Filter out inactive users from the available users list
+        const activeUsers = allUsers.filter(user => user.status !== 'inactive');
+        setAllUsers(activeUsers);
       }
     } catch (error) {
       console.error('Error fetching all users:', error);

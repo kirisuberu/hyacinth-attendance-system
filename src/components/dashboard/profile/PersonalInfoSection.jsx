@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { User, Phone, MapPin, EnvelopeSimple, PencilSimple, FloppyDisk, Calendar, UsersThree } from 'phosphor-react';
 import { updateDoc, doc, Timestamp } from 'firebase/firestore';
-import { db } from '../../../firebase';
+import { db, auth } from '../../../firebase';
 import { toast } from 'react-toastify';
+import { verifyBeforeUpdateEmail, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { 
   ModalOverlay,
   ModalContent,
@@ -21,6 +22,8 @@ import {
 const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [reauthRequired, setReauthRequired] = useState(false);
   
   // Derive input-friendly YYYY-MM-DD value for date of birth
   const initialDob = useMemo(() => {
@@ -93,6 +96,8 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
       emergencyContactRelationship: userData?.emergencyContactRelationship || '',
       emergencyContactPhone: userData?.emergencyContactPhone || ''
     });
+    setCurrentPassword('');
+    setReauthRequired(false);
     setShowEditModal(true);
   };
 
@@ -113,17 +118,88 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
     setLoading(true);
     try {
       const userRef = doc(db, 'users', userId);
+      const trimmedEmail = formData.email.trim();
+      const originalEmail = (userData?.email || '').trim();
+      const emailChanged = originalEmail.toLowerCase() !== trimmedEmail.toLowerCase();
+      // In production, always use the current origin to ensure the continue URL matches the deployed host.
+      // In development, allow overriding with VITE_PUBLIC_APP_URL or fall back to the current origin.
+      const appUrl = import.meta.env.PROD
+        ? window.location.origin
+        : (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin);
+
+      // If the email changed, initiate verify-before-update flow in Firebase Auth
+      if (emailChanged) {
+        try {
+          if (!auth.currentUser || auth.currentUser.uid !== userId) {
+            toast.error('You must be signed in to your account to change the email.');
+            setLoading(false);
+            return;
+          }
+
+          const actionCodeSettings = {
+            // After email is verified, user will be redirected here
+            url: `${appUrl}/email-verified`,
+            handleCodeInApp: false,
+          };
+
+          await verifyBeforeUpdateEmail(auth.currentUser, trimmedEmail, actionCodeSettings);
+          toast.info(`We sent a verification link to ${trimmedEmail}. Please confirm it to finish updating your email. Until then, continue logging in with ${originalEmail}.`);
+        } catch (err) {
+          // If recent login is required, ask for password and reattempt
+          if (err && err.code === 'auth/requires-recent-login') {
+            if (!currentPassword) {
+              setReauthRequired(true);
+              toast.info('Please confirm your current password to change your email.');
+              setLoading(false);
+              return;
+            }
+            try {
+              const cred = EmailAuthProvider.credential(originalEmail, currentPassword);
+              await reauthenticateWithCredential(auth.currentUser, cred);
+              const actionCodeSettings = {
+                url: `${appUrl}/email-verified`,
+                handleCodeInApp: false,
+              };
+              await verifyBeforeUpdateEmail(auth.currentUser, trimmedEmail, actionCodeSettings);
+              toast.info(`We sent a verification link to ${trimmedEmail}. Please confirm it to finish updating your email. Until then, continue logging in with ${originalEmail}.`);
+            } catch (reauthErr) {
+              const msg = (reauthErr && reauthErr.message) || 'Reauthentication failed. Please try again.';
+              toast.error(msg);
+              setLoading(false);
+              return;
+            }
+          } else if (err && (err.code === 'auth/invalid-email' || err.code === 'auth/email-already-in-use')) {
+            toast.error(err.code === 'auth/invalid-email' ? 'The email address is invalid.' : 'The email address is already in use.');
+            setLoading(false);
+            return;
+          } else if (err && (err.code === 'auth/invalid-continue-uri' || err.code === 'auth/unauthorized-continue-uri')) {
+            console.error('Email change blocked: continue URL not authorized or invalid. Ensure VITE_PUBLIC_APP_URL points to your deployed domain and that domain is added to Firebase Auth > Settings > Authorized domains.', { appUrl, err });
+            toast.error('Email change failed due to redirect URL configuration. Please contact an administrator.');
+            setLoading(false);
+            return;
+          } else {
+            console.error('Error updating auth email:', err);
+            toast.error('Failed to initiate email change.');
+            setLoading(false);
+            return;
+          }
+        }
+      }
       
-      // Create the update object
+      // Create the Firestore update object
       const updateData = { 
         preferredName: formData.preferredName,
-        email: formData.email,
         phoneNumber: formData.phoneNumber,
         address: formData.address,
         emergencyContactName: formData.emergencyContactName,
         emergencyContactRelationship: formData.emergencyContactRelationship,
         emergencyContactPhone: formData.emergencyContactPhone
       };
+
+      // Only update email in Firestore if it wasn't changed here; it will be synced automatically after verification
+      if (!emailChanged) {
+        updateData.email = trimmedEmail;
+      }
       
       // Handle date of birth conversion to Timestamp if provided
       if (formData.dateOfBirth) {
@@ -134,7 +210,7 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
       }
       
       await updateDoc(userRef, updateData);
-      toast.success('Personal information updated successfully!');
+      toast.success(emailChanged ? 'Changes saved. Check your new inbox to verify and complete the email update.' : 'Personal information updated successfully!');
       setShowEditModal(false);
     } catch (error) {
       console.error('Error updating personal information:', error);
@@ -261,7 +337,21 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
                       placeholder="Enter your email address"
                     />
                   </FormGroup>
-                  
+
+                  {(reauthRequired || ((userData?.email || '').trim().toLowerCase() !== (formData.email || '').trim().toLowerCase())) && (
+                    <FormGroup>
+                      <Label htmlFor="currentPassword">Current Password (required to change email)</Label>
+                      <Input
+                        type="password"
+                        id="currentPassword"
+                        name="currentPassword"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="Enter your current password"
+                      />
+                    </FormGroup>
+                  )}
+
                   <FormGroup>
                     <Label htmlFor="phoneNumber">Phone Number</Label>
                     <Input

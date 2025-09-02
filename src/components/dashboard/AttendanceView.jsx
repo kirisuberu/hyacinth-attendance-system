@@ -30,65 +30,90 @@ const AttendanceView = ({ user }) => {
     
     let userUnsubscribe = null;
     let attendanceUnsubscribe = null;
+    let absencesUnsubscribe = null;
+    
+    console.log('[DEBUG] Setting up attendance listeners for user:', user.uid);
     
     // Set up real-time listener for user data
     const userDocRef = doc(db, 'users', user.uid);
     userUnsubscribe = onSnapshot(userDocRef, (userDoc) => {
       if (userDoc.exists()) {
+        console.log('[DEBUG] User data updated:', userDoc.data());
         const data = userDoc.data();
         setUserData(data);
         setUserTimeZone(data.timeRegion || 'Asia/Manila');
       }
     }, (error) => {
-      console.error('Error in user data listener:', error);
+      console.error('[DEBUG] Error in user data listener:', error);
     });
     
     // Set up real-time listener for attendance records
     setLoading(true);
     const attendanceRef = collection(db, 'attendance');
-    const q = query(
+    const absencesRef = collection(db, 'absences');
+    
+    const qAttendance = query(
       attendanceRef,
       where('userId', '==', user.uid)
     );
     
-    attendanceUnsubscribe = onSnapshot(q, (querySnapshot) => {
-      try {
-        const rawRecords = [];
+    const qAbsences = query(
+      absencesRef,
+      where('userId', '==', user.uid)
+    );
+    
+    console.log('[DEBUG] Setting up attendance/absence queries');
+    
+    // Combine both queries
+    attendanceUnsubscribe = onSnapshot(qAttendance, (attendanceSnapshot) => {
+      console.log('[DEBUG] Attendance snapshot:', attendanceSnapshot.size, 'records');
+      
+      absencesUnsubscribe = onSnapshot(qAbsences, (absencesSnapshot) => {
+        console.log('[DEBUG] Absence snapshot:', absencesSnapshot.size, 'records');
         
-        querySnapshot.forEach((doc) => {
-          rawRecords.push({
-            id: doc.id,
-            ...doc.data()
+        try {
+          const allRecords = [];
+          
+          // Process attendance records
+          attendanceSnapshot.forEach((doc) => {
+            allRecords.push({
+              id: doc.id,
+              ...doc.data()
+            });
           });
-        });
-        
-        console.log('Real-time attendance records update:', rawRecords.length);
-        
-        if (rawRecords.length === 0) {
-          // If there are no records, set empty array and return
-          setAttendanceRecords([]);
+          
+          // Process absence records
+          absencesSnapshot.forEach((doc) => {
+            allRecords.push({
+              id: doc.id,
+              ...doc.data(),
+              type: 'Absent'
+            });
+          });
+          
+          console.log('[DEBUG] Combined records:', allRecords.length);
+          
+          // Process all records together
+          const processedRecords = processAttendanceRecords(allRecords);
+          setAttendanceRecords(processedRecords);
+        } catch (error) {
+          console.error('[DEBUG] Error processing records:', error);
+        } finally {
           setLoading(false);
-          return;
         }
-        
-        // Process records to pair IN and OUT entries by date
-        const processedRecords = processAttendanceRecords(rawRecords);
-        console.log('Processed attendance records:', processedRecords.length);
-        setAttendanceRecords(processedRecords);
-      } catch (error) {
-        console.error('Error processing attendance records:', error);
-      } finally {
-        setLoading(false);
-      }
+      }, (error) => {
+        console.error('[DEBUG] Error in absence listener:', error);
+      });
     }, (error) => {
-      console.error('Error in attendance listener:', error);
+      console.error('[DEBUG] Error in attendance listener:', error);
       setLoading(false);
     });
     
-    // Cleanup listeners on unmount
     return () => {
+      console.log('[DEBUG] Cleaning up listeners');
       if (userUnsubscribe) userUnsubscribe();
       if (attendanceUnsubscribe) attendanceUnsubscribe();
+      if (absencesUnsubscribe) absencesUnsubscribe();
     };
   }, [user?.uid]);
   
@@ -143,8 +168,11 @@ const AttendanceView = ({ user }) => {
           inRecords.push(record);
         } else if (record.type === 'Out') {
           outRecords.push(record);
-        } else if (record.type === 'Absent') {
-          absentRecords.push(record);
+        } else if (record.type === 'Absent' || record.type === 'absent') {
+          absentRecords.push({
+            ...record,
+            type: 'Absent'
+          });
         } else {
           console.log('Record with unknown type:', record.type, record);
         }
@@ -386,11 +414,21 @@ const AttendanceView = ({ user }) => {
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
-    if (timestamp instanceof Date) {
-      return timestamp.toLocaleDateString();
-    }
     try {
-      const date = timestamp.toDate();
+      let date;
+      if (timestamp instanceof Date) {
+        date = timestamp;
+      } else if (typeof timestamp?.toDate === 'function') {
+        date = timestamp.toDate();
+      } else if (typeof timestamp === 'object' && timestamp?.seconds !== undefined) {
+        // Firestore Timestamp-like plain object
+        date = new Date(timestamp.seconds * 1000);
+      } else {
+        // string, number, or other parseable input
+        date = new Date(timestamp);
+      }
+
+      if (isNaN(date.getTime())) return 'Invalid Date';
       return date.toLocaleDateString();
     } catch (error) {
       console.error('Error formatting date:', error, timestamp);
@@ -401,7 +439,17 @@ const AttendanceView = ({ user }) => {
   const getDayOfWeek = (timestamp) => {
     if (!timestamp) return 'N/A';
     try {
-      const date = timestamp instanceof Date ? timestamp : timestamp.toDate();
+      let date;
+      if (timestamp instanceof Date) {
+        date = timestamp;
+      } else if (typeof timestamp?.toDate === 'function') {
+        date = timestamp.toDate();
+      } else if (typeof timestamp === 'object' && timestamp?.seconds !== undefined) {
+        date = new Date(timestamp.seconds * 1000);
+      } else {
+        date = new Date(timestamp);
+      }
+      if (isNaN(date.getTime())) return 'Unknown';
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       return days[date.getDay()];
     } catch (error) {
@@ -417,9 +465,11 @@ const AttendanceView = ({ user }) => {
       // Normalize to a Date instance
       const date = (timestamp instanceof Date)
         ? timestamp
-        : (typeof timestamp.toDate === 'function')
+        : (typeof timestamp?.toDate === 'function')
           ? timestamp.toDate()
-          : new Date(timestamp);
+          : (typeof timestamp === 'object' && timestamp?.seconds !== undefined)
+            ? new Date(timestamp.seconds * 1000)
+            : new Date(timestamp);
 
       if (isNaN(date.getTime())) return '';
 
@@ -451,8 +501,15 @@ const AttendanceView = ({ user }) => {
     if (!record || record.type !== 'In') return 'No Schedule';
     
     try {
-      // Get the record timestamp as a Date object
-      const recordTime = record.timestamp.toDate();
+      // Get the record timestamp as a Date object (robust)
+      const recordTime = (record.timestamp instanceof Date)
+        ? record.timestamp
+        : (typeof record.timestamp?.toDate === 'function')
+          ? record.timestamp.toDate()
+          : (typeof record.timestamp === 'object' && record.timestamp?.seconds !== undefined)
+            ? new Date(record.timestamp.seconds * 1000)
+            : new Date(record.timestamp);
+      if (isNaN(recordTime.getTime())) return 'No Schedule';
       const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][recordTime.getDay()];
       
       // Default status if we can't determine from schedule
@@ -517,7 +574,7 @@ const AttendanceView = ({ user }) => {
       scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
 
       // Signed minutes: positive means late, negative means early
-      const diffMinutes = Math.round((inTime - scheduleDate) / (1000 * 60));
+      const diffMinutes = (isNaN(inTime) || isNaN(scheduleDate)) ? 0 : Math.round((inTime - scheduleDate) / (1000 * 60));
       return diffMinutes;
     } catch (e) {
       console.error('Error calculating time-in difference:', e, inRecord);
@@ -549,6 +606,9 @@ const AttendanceView = ({ user }) => {
 
   // Handle opening the petition modal for an absence record
   const handleRequestRemoval = (record) => {
+    console.log('Debug - Full record:', record);
+    console.log('Debug - Absent record:', record.absentRecord);
+    console.log('Debug - Absent record ID:', record.absentRecord?.id);
     setSelectedAbsence(record.absentRecord);
     setShowPetitionModal(true);
   };
@@ -571,6 +631,9 @@ const AttendanceView = ({ user }) => {
     
     try {
       setSubmittingPetition(true);
+      
+      console.log('Debug - Selected absence:', selectedAbsence);
+      console.log('Debug - Absence ID being sent:', selectedAbsence.id);
       
       await createAbsencePetition(
         user.uid,
@@ -632,16 +695,42 @@ const AttendanceView = ({ user }) => {
                       <>
                         {/* For absent records, span across all columns */}
                         <td colSpan="6" style={{ textAlign: 'center' }}>
-                          <StatusTag status="Absent">Absent</StatusTag>
-                          <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
-                            Missed scheduled shift on {formatDate(record.date)} at <TimeZoneDisplay timestamp={record.absentRecord.timestamp} timeZone={userTimeZone} />
-                          </div>
-                          <RequestButton 
-                            onClick={() => handleRequestRemoval(record)}
-                            disabled={submittingPetition}
-                          >
-                            Request Removal
-                          </RequestButton>
+                          <AbsentRecordContainer>
+                            <AbsentStatusContainer>
+                              <StatusTag status="Absent">
+                                Absent{(() => {
+                                  // Show absentReason if it exists and is not 'others'
+                                  if (record.absentRecord.absentReason && record.absentRecord.absentReason !== 'others') {
+                                    const reasonMap = {
+                                      'medical': 'Medical',
+                                      'emergency': 'Emergency', 
+                                      'personal': 'Personal',
+                                      'transportation': 'Transportation/Weather',
+                                      'maternity': 'Maternity/Paternity'
+                                    };
+                                    const displayReason = reasonMap[record.absentRecord.absentReason] || record.absentRecord.absentReason;
+                                    return ` - ${displayReason}`;
+                                  }
+                                  // Fallback to general reason if no absentReason
+                                  if (record.absentRecord.reason && record.absentRecord.reason !== 'others') {
+                                    return `: ${record.absentRecord.reason}`;
+                                  }
+                                  return '';
+                                })()}
+                              </StatusTag>
+                              <RequestButton 
+                                onClick={() => handleRequestRemoval(record)}
+                                disabled={submittingPetition}
+                              >
+                                Request Removal
+                              </RequestButton>
+                            </AbsentStatusContainer>
+                            {record.absentRecord.markedByName && (
+                              <NotedByText>
+                                Noted by {record.absentRecord.markedByName}
+                              </NotedByText>
+                            )}
+                          </AbsentRecordContainer>
                         </td>
                         <td>
                           {record.absentRecord.notes || '-'}
@@ -1053,4 +1142,24 @@ const PageButton = styled.button`
 const PageInfo = styled.div`
   font-size: 0.9rem;
   color: #666;
+`;
+
+const AbsentRecordContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+`;
+
+const AbsentStatusContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+`;
+
+const NotedByText = styled.div`
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
 `;

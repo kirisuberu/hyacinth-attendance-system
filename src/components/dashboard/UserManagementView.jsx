@@ -3,13 +3,15 @@ import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
-import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings } from 'phosphor-react';
+import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings, BookmarkSimple } from 'phosphor-react';
 import * as XLSX from 'xlsx';
 import styled from 'styled-components';
 import { Card, CardTitle, CardContent, Grid } from './DashboardComponents';
+import { useAuth } from '../../contexts/AuthContext';
 
 
 function UserManagementView({ isSuperAdmin }) {
+  const { currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -33,18 +35,25 @@ function UserManagementView({ isSuperAdmin }) {
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [showColumnControl, setShowColumnControl] = useState(false);
+  const [draggedColumnIndex, setDraggedColumnIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [presetName, setPresetName] = useState('');
+  const [savedPresets, setSavedPresets] = useState([]);
   
-  // Define all possible columns with initial widths
-  const [allColumns, setAllColumns] = useState([
+  // Define default columns configuration
+  const defaultColumns = [
     { id: 'name', label: 'Name', visible: true, required: true, width: 200 },
-    { id: 'email', label: 'Email', visible: true, width: 250 },
     { id: 'employmentStatus', label: 'Employment Status', visible: true, width: 180 },
+    { id: 'preemploymentDate', label: 'Pre-employment Date', visible: true, width: 180 },
+    { id: 'dateHired', label: 'Hired Date', visible: true, width: 180 },
+    { id: 'regularDate', label: 'Regular Date', visible: true, width: 180 },
+    { id: 'email', label: 'Email Address', visible: true, width: 250 },
     { id: 'position', label: 'Position', visible: true, width: 200 },
     { id: 'departments', label: 'Departments', visible: true, width: 200 },
     { id: 'role', label: 'Role', visible: true, width: 120 },
     { id: 'status', label: 'Status', visible: true, width: 120 },
     { id: 'shifts', label: 'Shifts', visible: true, width: 150 },
-    { id: 'dateHired', label: 'Date Hired', visible: false, width: 180 },
     { id: 'dateOfBirth', label: 'Date of Birth', visible: false, width: 180 },
     { id: 'phoneNumber', label: 'Phone Number', visible: false, width: 180 },
     { id: 'address', label: 'Address', visible: false, width: 250 },
@@ -52,7 +61,9 @@ function UserManagementView({ isSuperAdmin }) {
     { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false, width: 220 },
     { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false, width: 220 },
     { id: 'actions', label: 'Actions', visible: true, required: true, width: 180 }
-  ]);
+  ];
+  
+  const [allColumns, setAllColumns] = useState(defaultColumns);
   
   // State for tracking column resizing
   const [resizingColumnId, setResizingColumnId] = useState(null);
@@ -69,6 +80,8 @@ function UserManagementView({ isSuperAdmin }) {
     role: 'member',
     dateOfBirth: '',
     dateHired: '',
+    preemploymentDate: '',
+    regularDate: '',
     phoneNumber: '',
     address: '',
     emergencyContactName: '',
@@ -89,6 +102,8 @@ function UserManagementView({ isSuperAdmin }) {
     status: 'active',
     address: '',
     contactNumber: '',
+    preemploymentDate: '',
+    regularDate: '',
     departments: [],
     companies: []
   });
@@ -122,13 +137,23 @@ function UserManagementView({ isSuperAdmin }) {
     const unsubDepts = setupDepartmentsListener();
     const unsubCompanies = setupCompaniesListener();
     
+    // Load saved column configuration
+    loadColumnConfiguration();
+    
     // Clean up listeners on unmount
     return () => {
       if (unsubUsers) unsubUsers();
       if (unsubDepts) unsubDepts();
       if (unsubCompanies) unsubCompanies();
     };
-  }, []);
+  }, [currentUser]);
+  
+  // Save column configuration whenever it changes
+  useEffect(() => {
+    if (currentUser) {
+      saveColumnConfiguration();
+    }
+  }, [allColumns, currentUser]);
   
   const setupDepartmentsListener = () => {
     try {
@@ -299,6 +324,8 @@ function UserManagementView({ isSuperAdmin }) {
       role: user.role || 'member',
       dateOfBirth: user.dateOfBirth || '',
       dateHired: user.dateHired || '',
+      preemploymentDate: user.preemploymentDate || '',
+      regularDate: user.regularDate || '',
       phoneNumber: user.phoneNumber || '',
       address: user.address || '',
       emergencyContactName: user.emergencyContactName || '',
@@ -439,19 +466,27 @@ function UserManagementView({ isSuperAdmin }) {
         toast.error('Name and email are required');
         return;
       }
-      
-      // Check if email is being changed
-      const isEmailChanged = selectedUser.email !== editUserData.email.trim();
-      
-      if (isEmailChanged) {
-        // You might want to handle email changes differently
-        // For example, you might want to update auth user email too
-        console.log('Email has been changed - note that this does not update auth email');
-      }
-      
       // First, we need to determine the correct document ID to use
       // If userId exists, use that as the document ID, otherwise fall back to id
       const documentId = selectedUser.userId || selectedUser.id;
+
+      // Check if email is being changed and update via Cloud Function (admin path)
+      const trimmedNewEmail = editUserData.email.trim();
+      const isEmailChanged = (selectedUser.email || '').trim().toLowerCase() !== trimmedNewEmail.toLowerCase();
+      if (isEmailChanged) {
+        try {
+          const functions = getFunctions();
+          const updateUserEmail = httpsCallable(functions, 'updateUserEmail');
+          await updateUserEmail({ userId: documentId, newEmail: trimmedNewEmail });
+          toast.success('Authentication email updated');
+        } catch (emailErr) {
+          console.error('Failed to update auth email via function:', emailErr);
+          const msg = (emailErr && emailErr.message) || 'Failed to update authentication email.';
+          toast.error(msg);
+          // Abort to prevent Firestore/Auth divergence
+          return;
+        }
+      }
       
       console.log('Updating user with document ID:', documentId);
       
@@ -462,13 +497,15 @@ function UserManagementView({ isSuperAdmin }) {
         firstName: editUserData.firstName,
         middleInitial: editUserData.middleInitial || '',
         lastName: editUserData.lastName,
-        email: editUserData.email.trim(),
+        email: trimmedNewEmail,
         preferredName: editUserData.preferredName || '',
         position: editUserData.position.trim(),
         employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
         dateOfBirth: editUserData.dateOfBirth,
         dateHired: editUserData.dateHired,
+        preemploymentDate: editUserData.preemploymentDate,
+        regularDate: editUserData.regularDate,
         phoneNumber: editUserData.phoneNumber,
         address: editUserData.address,
         emergencyContactName: editUserData.emergencyContactName,
@@ -490,13 +527,15 @@ function UserManagementView({ isSuperAdmin }) {
           firstName: editUserData.firstName,
           middleInitial: editUserData.middleInitial || '',
           lastName: editUserData.lastName,
-          email: editUserData.email.trim(),
+          email: trimmedNewEmail,
           preferredName: editUserData.preferredName || '',
           position: editUserData.position.trim(),
           employmentStatus: editUserData.employmentStatus,
           role: editUserData.role,
           dateOfBirth: editUserData.dateOfBirth,
           dateHired: editUserData.dateHired,
+          preemploymentDate: editUserData.preemploymentDate,
+          regularDate: editUserData.regularDate,
           phoneNumber: editUserData.phoneNumber,
           address: editUserData.address,
           emergencyContactName: editUserData.emergencyContactName,
@@ -552,6 +591,8 @@ function UserManagementView({ isSuperAdmin }) {
         employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
         status: 'active',
+        preemploymentDate: newUserData.preemploymentDate || '',
+        regularDate: newUserData.regularDate || '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         departments: newUserData.departments || [],
@@ -594,8 +635,10 @@ function UserManagementView({ isSuperAdmin }) {
         status: 'active',
         address: '',
         contactNumber: '',
+        preemploymentDate: '',
+        regularDate: '',
         departments: [],
-        company: ''
+        companies: []
       });
     } catch (error) {
       console.error('Error adding user:', error);
@@ -780,26 +823,100 @@ function UserManagementView({ isSuperAdmin }) {
   
   const exportUsersToExcel = () => {
     try {
-      // Format the data for Excel export
-      const formattedData = users.map(user => ({
-        'Name': user.name || '',
-        'Email': user.email || '',
-        'Position': user.position || '',
-        'Employment Status': user.employmentStatus || '',
-        'Role': user.role || '',
-        'Status': user.status || '',
-        'Date Hired': user.dateHired || '',
-        'Date of Birth': user.dateOfBirth || '',
-        'Address': user.address || '',
-        'Contact Number': user.contactNumber || user.phoneNumber || '',
-        'Emergency Contact Name': user.emergencyContactName || '',
-        'Emergency Contact Phone': user.emergencyContactPhone || '',
-        'Emergency Contact Relationship': user.emergencyContactRelationship || ''
-      }));
+      // Get visible columns in their current order, excluding actions
+      const exportColumns = visibleColumns.filter(col => col.id !== 'actions');
+      
+      // Format the data for Excel export based on visible columns
+      const formattedData = users.map(user => {
+        const rowData = {};
+        
+        exportColumns.forEach(column => {
+          switch (column.id) {
+            case 'name':
+              rowData[column.label] = user.name || '';
+              break;
+            case 'email':
+              rowData[column.label] = user.email || '';
+              break;
+            case 'position':
+              rowData[column.label] = user.position || '';
+              break;
+            case 'employmentStatus':
+              rowData[column.label] = user.employmentStatus || '';
+              break;
+            case 'role':
+              rowData[column.label] = user.role || '';
+              break;
+            case 'status':
+              rowData[column.label] = user.status || '';
+              break;
+            case 'departments':
+              if (user.departments && user.departments.length > 0) {
+                const deptNames = user.departments.map(deptId => {
+                  const dept = departments.find(d => d.id === deptId);
+                  return dept ? dept.name : deptId;
+                }).join(', ');
+                rowData[column.label] = deptNames;
+              } else {
+                rowData[column.label] = 'None assigned';
+              }
+              break;
+            case 'shifts':
+              if (user.schedule && Array.isArray(user.schedule)) {
+                rowData[column.label] = `${user.schedule.length} shifts (${calculateTotalHours(user.schedule)}h total)`;
+              } else {
+                rowData[column.label] = 'No shifts';
+              }
+              break;
+            case 'preemploymentDate':
+            case 'dateHired':
+            case 'regularDate':
+            case 'dateOfBirth':
+              if (user[column.id]) {
+                const date = user[column.id].seconds ? 
+                  new Date(user[column.id].seconds * 1000) : 
+                  new Date(user[column.id]);
+                rowData[column.label] = date.toLocaleDateString('en-US', { 
+                  month: 'long', 
+                  day: 'numeric', 
+                  year: 'numeric' 
+                });
+              } else {
+                rowData[column.label] = 'Not specified';
+              }
+              break;
+            case 'phoneNumber':
+              rowData[column.label] = user.phoneNumber || user.contactNumber || 'Not specified';
+              break;
+            case 'address':
+              rowData[column.label] = user.address || 'Not specified';
+              break;
+            case 'emergencyContactName':
+              rowData[column.label] = user.emergencyContactName || 'Not specified';
+              break;
+            case 'emergencyContactPhone':
+              rowData[column.label] = user.emergencyContactPhone || 'Not specified';
+              break;
+            case 'emergencyContactRelationship':
+              rowData[column.label] = user.emergencyContactRelationship || 'Not specified';
+              break;
+            default:
+              rowData[column.label] = user[column.id] || '';
+          }
+        });
+        
+        return rowData;
+      });
       
       // Create a new workbook and add the data
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.json_to_sheet(formattedData);
+      
+      // Set column widths based on the configured widths
+      const columnWidths = exportColumns.map(col => ({
+        wch: Math.max(col.width / 8, 10) // Convert pixels to character width, minimum 10
+      }));
+      worksheet['!cols'] = columnWidths;
       
       // Add the worksheet to the workbook
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
@@ -812,7 +929,7 @@ function UserManagementView({ isSuperAdmin }) {
       // Write the workbook and trigger download
       XLSX.writeFile(workbook, fileName);
       
-      toast.success('Users data exported successfully');
+      toast.success(`Users data exported successfully with ${exportColumns.length} columns`);
     } catch (error) {
       console.error('Error exporting users data:', error);
       toast.error(`Failed to export users data: ${error.message}`);
@@ -843,24 +960,132 @@ function UserManagementView({ isSuperAdmin }) {
   };
   
   const resetColumns = () => {
-    setAllColumns([
-      { id: 'name', label: 'Name', visible: true, required: true, width: 200 },
-      { id: 'email', label: 'Email', visible: true, width: 250 },
-      { id: 'employmentStatus', label: 'Employment Status', visible: true, width: 180 },
-      { id: 'position', label: 'Position', visible: true, width: 200 },
-      { id: 'role', label: 'Role', visible: true, width: 120 },
-      { id: 'status', label: 'Status', visible: true, width: 120 },
-      { id: 'company', label: 'Company', visible: true, width: 150 },
-      { id: 'shifts', label: 'Shifts', visible: true, width: 150 },
-      { id: 'dateHired', label: 'Date Hired', visible: false, width: 180 },
-      { id: 'dateOfBirth', label: 'Date of Birth', visible: false, width: 180 },
-      { id: 'phoneNumber', label: 'Phone Number', visible: false, width: 180 },
-      { id: 'address', label: 'Address', visible: false, width: 250 },
-      { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false, width: 220 },
-      { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false, width: 220 },
-      { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false, width: 220 },
-      { id: 'actions', label: 'Actions', visible: true, required: true, width: 180 }
-    ]);
+    setAllColumns([...defaultColumns]);
+  };
+  
+  // Column configuration persistence functions
+  const getStorageKey = () => {
+    return `userManagement_columns_${currentUser?.uid || 'default'}`;
+  };
+  
+  const loadColumnConfiguration = () => {
+    try {
+      const savedConfig = localStorage.getItem(getStorageKey());
+      if (savedConfig) {
+        const parsedConfig = JSON.parse(savedConfig);
+        // Ensure all default columns exist in saved config
+        const mergedColumns = defaultColumns.map(defaultCol => {
+          const savedCol = parsedConfig.find(col => col.id === defaultCol.id);
+          return savedCol ? { ...defaultCol, ...savedCol } : defaultCol;
+        });
+        setAllColumns(mergedColumns);
+      }
+      
+      // Load saved presets
+      const presetsKey = `userManagement_presets_${currentUser?.uid || 'default'}`;
+      const savedPresets = localStorage.getItem(presetsKey);
+      if (savedPresets) {
+        setSavedPresets(JSON.parse(savedPresets));
+      }
+    } catch (error) {
+      console.error('Error loading column configuration:', error);
+    }
+  };
+  
+  const saveColumnConfiguration = () => {
+    try {
+      localStorage.setItem(getStorageKey(), JSON.stringify(allColumns));
+    } catch (error) {
+      console.error('Error saving column configuration:', error);
+    }
+  };
+  
+  const savePreset = () => {
+    if (!presetName.trim()) {
+      toast.error('Please enter a preset name');
+      return;
+    }
+    
+    try {
+      const newPreset = {
+        id: Date.now().toString(),
+        name: presetName.trim(),
+        columns: [...allColumns],
+        createdAt: new Date().toISOString()
+      };
+      
+      const updatedPresets = [...savedPresets, newPreset];
+      setSavedPresets(updatedPresets);
+      
+      const presetsKey = `userManagement_presets_${currentUser?.uid || 'default'}`;
+      localStorage.setItem(presetsKey, JSON.stringify(updatedPresets));
+      
+      toast.success(`Preset "${presetName}" saved successfully`);
+      setPresetName('');
+      setShowPresetModal(false);
+    } catch (error) {
+      console.error('Error saving preset:', error);
+      toast.error('Failed to save preset');
+    }
+  };
+  
+  const loadPreset = (preset) => {
+    setAllColumns([...preset.columns]);
+    toast.success(`Loaded preset "${preset.name}"`);
+  };
+  
+  const deletePreset = (presetId) => {
+    try {
+      const updatedPresets = savedPresets.filter(p => p.id !== presetId);
+      setSavedPresets(updatedPresets);
+      
+      const presetsKey = `userManagement_presets_${currentUser?.uid || 'default'}`;
+      localStorage.setItem(presetsKey, JSON.stringify(updatedPresets));
+      
+      toast.success('Preset deleted successfully');
+    } catch (error) {
+      console.error('Error deleting preset:', error);
+      toast.error('Failed to delete preset');
+    }
+  };
+  
+  // Column reordering functions
+  const handleColumnDragStart = (e, index) => {
+    setDraggedColumnIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  
+  const handleColumnDragOver = (e, index) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+  
+  const handleColumnDrop = (e, dropIndex) => {
+    e.preventDefault();
+    
+    if (draggedColumnIndex === null || draggedColumnIndex === dropIndex) {
+      setDraggedColumnIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    
+    const newColumns = [...allColumns];
+    const draggedColumn = newColumns[draggedColumnIndex];
+    
+    // Remove the dragged column
+    newColumns.splice(draggedColumnIndex, 1);
+    
+    // Insert at the new position
+    newColumns.splice(dropIndex, 0, draggedColumn);
+    
+    setAllColumns(newColumns);
+    setDraggedColumnIndex(null);
+    setDragOverIndex(null);
+  };
+  
+  const handleColumnDragEnd = () => {
+    setDraggedColumnIndex(null);
+    setDragOverIndex(null);
   };
   
   // Column resize handlers
@@ -996,25 +1221,72 @@ function UserManagementView({ isSuperAdmin }) {
             
             {showColumnControl && (
               <ColumnControlDropdown>
-                <div style={{ marginBottom: '10px', fontWeight: '500' }}>Show/Hide Columns</div>
-                
-                {allColumns.map(column => (
-                  <ColumnCheckboxLabel key={column.id}>
-                    <input
-                      type="checkbox"
-                      checked={column.visible}
-                      onChange={() => toggleColumnVisibility(column.id)}
-                      disabled={column.required}
-                    />
-                    {column.label}
-                  </ColumnCheckboxLabel>
-                ))}
-                
-                <ColumnControlActions>
-                  <ColumnControlButton2 onClick={showAllColumns}>Show All</ColumnControlButton2>
-                  <ColumnControlButton2 onClick={hideAllColumns}>Hide All</ColumnControlButton2>
-                  <ColumnControlButton2 primary onClick={resetColumns}>Reset</ColumnControlButton2>
-                </ColumnControlActions>
+                <DropdownLayout>
+                  <DropdownMain>
+                    <div style={{ marginBottom: '10px', fontWeight: '500' }}>Manage Columns</div>
+                    
+                    <div style={{ marginBottom: '15px' }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: '500', marginBottom: '8px' }}>Column Order (Drag to Reorder)</div>
+                      <ColumnOrderList>
+                        {allColumns.map((column, index) => (
+                          <ColumnOrderItem
+                            key={column.id}
+                            draggable={!column.required}
+                            onDragStart={(e) => handleColumnDragStart(e, index)}
+                            onDragOver={(e) => handleColumnDragOver(e, index)}
+                            onDrop={(e) => handleColumnDrop(e, index)}
+                            onDragEnd={handleColumnDragEnd}
+                            isDragging={draggedColumnIndex === index}
+                            isDragOver={dragOverIndex === index}
+                            isRequired={column.required}
+                          >
+                            <DragHandle>⋮⋮</DragHandle>
+                            <ColumnItemContent>
+                              <input
+                                type="checkbox"
+                                checked={column.visible}
+                                onChange={() => toggleColumnVisibility(column.id)}
+                                disabled={column.required}
+                              />
+                              <span>{column.label}</span>
+                              {column.required && <RequiredBadge>Required</RequiredBadge>}
+                            </ColumnItemContent>
+                          </ColumnOrderItem>
+                        ))}
+                      </ColumnOrderList>
+                    </div>
+                    
+                    {false && savedPresets.length > 0 && null}
+                  </DropdownMain>
+                  <ActionsColumn>
+                    <ColumnControlButton2 onClick={showAllColumns}>Show All</ColumnControlButton2>
+                    <ColumnControlButton2 onClick={hideAllColumns}>Hide All</ColumnControlButton2>
+                    <ColumnControlButton2 onClick={resetColumns}>Reset</ColumnControlButton2>
+                    <ColumnControlButton2 onClick={() => setShowPresetModal(true)}>
+                      <BookmarkSimple size={14} />
+                      Save Preset
+                    </ColumnControlButton2>
+                    {savedPresets.length > 0 && (
+                      <div style={{ marginTop: '8px' }}>
+                        <div style={{ fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px' }}>Saved Presets</div>
+                        <PresetsList>
+                          {savedPresets.map(preset => (
+                            <PresetItem key={preset.id}>
+                              <PresetInfo>
+                                <PresetName>{preset.name}</PresetName>
+                                <PresetDate>{new Date(preset.createdAt).toLocaleDateString()}</PresetDate>
+                              </PresetInfo>
+                              <PresetActions>
+                                <PresetButton onClick={() => loadPreset(preset)}>Load</PresetButton>
+                                <PresetButton danger onClick={() => deletePreset(preset.id)}>Delete</PresetButton>
+                              </PresetActions>
+                            </PresetItem>
+                          ))}
+                        </PresetsList>
+                      </div>
+                    )}
+                  </ActionsColumn>
+                </DropdownLayout>
               </ColumnControlDropdown>
             )}
           </ColumnControlContainer>
@@ -1163,6 +1435,18 @@ function UserManagementView({ isSuperAdmin }) {
                         );
                       }
                       
+                      if (column.id === 'preemploymentDate') {
+                        return (
+                          <TableCell key={column.id} className="col-preemploymentDate" style={{ width: `${column.width}px` }}>
+                            {user.preemploymentDate ? (
+                              user.preemploymentDate.seconds ? 
+                                new Date(user.preemploymentDate.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
+                                new Date(user.preemploymentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                            ) : 'Not specified'}
+                          </TableCell>
+                        );
+                      }
+                      
                       if (column.id === 'dateHired') {
                         return (
                           <TableCell key={column.id} className="col-dateHired" style={{ width: `${column.width}px` }}>
@@ -1170,6 +1454,18 @@ function UserManagementView({ isSuperAdmin }) {
                               user.dateHired.seconds ? 
                                 new Date(user.dateHired.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
                                 new Date(user.dateHired).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                            ) : 'Not specified'}
+                          </TableCell>
+                        );
+                      }
+                      
+                      if (column.id === 'regularDate') {
+                        return (
+                          <TableCell key={column.id} className="col-regularDate" style={{ width: `${column.width}px` }}>
+                            {user.regularDate ? (
+                              user.regularDate.seconds ? 
+                                new Date(user.regularDate.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
+                                new Date(user.regularDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
                             ) : 'Not specified'}
                           </TableCell>
                         );
@@ -1362,6 +1658,26 @@ function UserManagementView({ isSuperAdmin }) {
                       type="date" 
                       value={editUserData.dateHired || ''}
                       onChange={(e) => setEditUserData({...editUserData, dateHired: e.target.value})}
+                    />
+                  </FormGroup>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <FormGroup>
+                    <Label>Preemployment Date</Label>
+                    <Input 
+                      type="date" 
+                      value={editUserData.preemploymentDate || ''}
+                      onChange={(e) => setEditUserData({...editUserData, preemploymentDate: e.target.value})}
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label>Regular Date</Label>
+                    <Input 
+                      type="date" 
+                      value={editUserData.regularDate || ''}
+                      onChange={(e) => setEditUserData({...editUserData, regularDate: e.target.value})}
                     />
                   </FormGroup>
                 </div>
@@ -1632,14 +1948,34 @@ function UserManagementView({ isSuperAdmin }) {
                   />
                 </FormGroup>
                 
-                <FormGroup>
-                  <Label>Date Hired</Label>
-                  <Input 
-                    type="date" 
-                    value={newUserData.dateHired}
-                    onChange={(e) => setNewUserData({...newUserData, dateHired: e.target.value})}
-                  />
-                </FormGroup>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <FormGroup>
+                    <Label>Date Hired</Label>
+                    <Input 
+                      type="date" 
+                      value={newUserData.dateHired}
+                      onChange={(e) => setNewUserData({...newUserData, dateHired: e.target.value})}
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label>Preemployment Date</Label>
+                    <Input 
+                      type="date" 
+                      value={newUserData.preemploymentDate || ''}
+                      onChange={(e) => setNewUserData({...newUserData, preemploymentDate: e.target.value})}
+                    />
+                  </FormGroup>
+                  
+                  <FormGroup>
+                    <Label>Regular Date</Label>
+                    <Input 
+                      type="date" 
+                      value={newUserData.regularDate || ''}
+                      onChange={(e) => setNewUserData({...newUserData, regularDate: e.target.value})}
+                    />
+                  </FormGroup>
+                </div>
                 
                 <FormGroup>
                   <Label>Role {!isSuperAdmin && <span style={{ fontSize: '0.8rem', color: '#f44336' }}>(Super Admin only)</span>}</Label>
@@ -1995,7 +2331,46 @@ function UserManagementView({ isSuperAdmin }) {
             
             <ModalButtons>
               <Button onClick={() => setShowScheduleModal(false)}>Cancel</Button>
-              <Button primary onClick={handleSaveSchedule}>Save Changes</Button>
+            </ModalButtons>
+          </ModalContent>
+        </ConfirmationModal>
+      )}
+      
+      {/* Save Preset Modal */}
+      {showPresetModal && (
+        <ConfirmationModal>
+          <ModalContent style={{ maxWidth: '400px' }}>
+            <ModalTitle>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <BookmarkSimple size={24} />
+                Save Column Preset
+              </div>
+            </ModalTitle>
+            
+            <FormGroup>
+              <Label>Preset Name</Label>
+              <Input 
+                type="text" 
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="Enter a name for this column configuration"
+                onKeyPress={(e) => e.key === 'Enter' && savePreset()}
+              />
+            </FormGroup>
+            
+            <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '1rem' }}>
+              This will save the current column visibility and order settings.
+            </div>
+            
+            <ModalButtons>
+              <Button onClick={() => {
+                setShowPresetModal(false);
+                setPresetName('');
+              }}>Cancel</Button>
+              <Button primary onClick={savePreset}>
+                <BookmarkSimple size={16} />
+                Save Preset
+              </Button>
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>
@@ -2346,18 +2721,56 @@ const ColumnControlButton = styled.button`
 
 const ColumnControlDropdown = styled.div`
   position: absolute;
-  top: 100%;
-  right: 0;
-  width: 250px;
+  top: 50%;
+  left: calc(100% + 8px);
+  width: 520px;
   background-color: var(--card);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   z-index: 100;
   padding: 0.75rem;
-  margin-top: 5px;
-  max-height: 400px;
+  margin-top: 0;
+  max-height: 85vh;
   overflow-y: auto;
+  transform: translateY(calc(-50% + 16px));
+
+  @media (max-width: 768px) {
+    top: 100%;
+    left: 0;
+    width: 95vw;
+    margin-top: 5px;
+    transform: none;
+  }
+`;
+
+// Two-column layout for dropdown content: main content on the left, actions on the right
+const DropdownLayout = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 12px;
+  align-items: start;
+
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+`;
+
+const DropdownMain = styled.div`
+  min-width: 0; /* allow content to shrink within grid */
+`;
+
+const ActionsColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  width: 120px;
+  min-width: 120px;
+  position: sticky;
+  top: 0; /* keep actions visible while scrolling */
 `;
 
 const ColumnCheckboxLabel = styled.label`
@@ -2384,6 +2797,74 @@ const ColumnControlActions = styled.div`
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid #eee;
+`;
+
+const ColumnOrderList = styled.div`
+  max-height: 70vh;
+  overflow-y: auto;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background: white;
+`;
+
+const ColumnOrderItem = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: ${props => props.isRequired ? 'default' : 'move'};
+  background-color: ${props => {
+    if (props.isDragging) return '#e3f2fd';
+    if (props.isDragOver) return '#f3e5f5';
+    return 'white';
+  }};
+  opacity: ${props => props.isDragging ? 0.5 : 1};
+  transition: background-color 0.2s, opacity 0.2s;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  &:hover {
+    background-color: ${props => props.isRequired ? 'white' : '#f8f9fa'};
+  }
+`;
+
+const DragHandle = styled.div`
+  margin-right: 8px;
+  color: #999;
+  font-size: 12px;
+  cursor: grab;
+  user-select: none;
+  
+  &:active {
+    cursor: grabbing;
+  }
+`;
+
+const ColumnItemContent = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  
+  input[type="checkbox"] {
+    margin: 0;
+  }
+  
+  span {
+    flex: 1;
+    font-size: 0.9rem;
+  }
+`;
+
+const RequiredBadge = styled.span`
+  background-color: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 500;
 `;
 
 const ColumnControlButton2 = styled.button`
@@ -2668,4 +3149,70 @@ const SmallLabel = styled.label`
   margin-bottom: 0.25rem;
   font-size: 0.8rem;
   color: var(--muted);
+`;
+
+const PresetsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+`;
+
+const PresetItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+`;
+
+const PresetInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+`;
+
+const PresetName = styled.div`
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text);
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+`;
+
+const PresetDate = styled.div`
+  font-size: 0.75rem;
+  color: var(--muted);
+`;
+
+const PresetActions = styled.div`
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: flex-start;
+`;
+
+const PresetButton = styled.button`
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  background-color: ${props => props.danger ? '#fee' : '#e3f2fd'};
+  color: ${props => props.danger ? '#d32f2f' : '#1976d2'};
+  
+  &:hover {
+    background-color: ${props => props.danger ? '#ffcdd2' : '#bbdefb'};
+  }
 `;

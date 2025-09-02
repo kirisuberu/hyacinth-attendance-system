@@ -10,6 +10,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Changelog from './pages/Changelog';
 import DepartmentManagement from './pages/DepartmentManagement';
+import EmailVerified from './pages/EmailVerified';
+import Tutorials from './pages/Tutorials';
 
 // Dashboard pages
 import DashboardHome from './pages/dashboard/DashboardHome';
@@ -22,6 +24,7 @@ import Reports from './pages/dashboard/Reports';
 import AttendanceRequests from './pages/dashboard/AttendanceRequests';
 import ScheduleChangeRequests from './pages/dashboard/ScheduleChangeRequests';
 import AdminPrivileges from './pages/dashboard/AdminPrivileges';
+import ManagerFunctions from './pages/dashboard/ManagerFunctions';
 import Rules from './pages/dashboard/Rules';
 import AbsentService from './pages/dashboard/AbsentService';
 
@@ -70,6 +73,7 @@ function App() {
               {/* Public routes */}
               <Route path="/" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/email-verified" element={<EmailVerified />} />
               
               {/* Protected routes with AuthLayout */}
               <Route element={
@@ -83,12 +87,14 @@ function App() {
                   <Route path="/dashboard/attendance" element={<AttendanceLogs />} />
                   <Route path="/dashboard/schedule" element={<Schedule />} />
                   <Route path="/dashboard/profile" element={<Profile />} />
+                  <Route path="/dashboard/tutorials" element={<Tutorials />} />
                   <Route path="/dashboard/registration-requests" element={<RegistrationRequests />} />
                   <Route path="/dashboard/user-management" element={<UserManagement />} />
                   <Route path="/dashboard/reports" element={<Reports />} />
                   <Route path="/dashboard/attendance-requests" element={<AttendanceRequests />} />
                   <Route path="/dashboard/schedule-change-requests" element={<ScheduleChangeRequests />} />
                   <Route path="/dashboard/admin-privileges" element={<AdminPrivileges />} />
+                  <Route path="/dashboard/manager-functions" element={<ManagerFunctions />} />
                   <Route path="/dashboard/rules" element={<Rules />} />
                   <Route path="/dashboard/absent-service" element={<AbsentService />} />
                   <Route path="/dashboard/departments" element={<DepartmentManagement />} />

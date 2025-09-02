@@ -23,21 +23,43 @@ const AttendanceGrid = () => {
       const endDate = new Date();
       const startDate = subDays(endDate, 364); // 365 days total including today
       
-      const attendanceQuery = query(
-        collection(db, 'attendance'),
-        where('userId', '==', auth.currentUser.uid),
-        where('timestamp', '>=', startDate),
-        orderBy('timestamp', 'desc')
-      );
+      // Fetch both attendance and absence records in parallel
+      const [attendanceSnapshot, absencesSnapshot] = await Promise.all([
+        getDocs(query(
+          collection(db, 'attendance'),
+          where('userId', '==', auth.currentUser.uid),
+          where('timestamp', '>=', startDate),
+          orderBy('timestamp', 'desc')
+        )),
+        getDocs(query(
+          collection(db, 'absences'),
+          where('userId', '==', auth.currentUser.uid),
+          where('date', '>=', format(startDate, 'yyyy-MM-dd'))
+        ))
+      ]);
 
-      const snapshot = await getDocs(attendanceQuery);
-      const records = snapshot.docs.map(doc => ({
+      // Process attendance records
+      const attendanceRecords = (attendanceSnapshot?.docs || []).map(doc => ({
         ...doc.data(),
         id: doc.id,
         timestamp: doc.data().timestamp.toDate()
       }));
 
-      setAttendanceData(records);
+      // Process absence records and convert to attendance format
+      const absenceRecords = (absencesSnapshot?.docs || []).map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          type: 'In',
+          status: data.type === 'pto' ? 'PTO' : 'Absent',
+          timestamp: new Date(data.date + 'T00:00:00')
+        };
+      });
+
+      // Combine all records
+      const allRecords = [...attendanceRecords, ...absenceRecords];
+      setAttendanceData(allRecords);
     } catch (error) {
       console.error('Error fetching attendance data:', error);
     } finally {
@@ -94,14 +116,21 @@ const AttendanceGrid = () => {
             if (record.status === 'Early') status = 'early';
             else if (record.status === 'On Time') status = 'ontime';
             else if (record.status === 'Late') status = 'late';
+            else if (record.status === 'PTO') {
+              status = 'pto';
+              hasAbsentRecord = true;
+            }
+            else if (record.status === 'Absent') {
+              status = 'absent';
+              hasAbsentRecord = true;
+            }
+            else if (record.status === 'NCNS') {
+              status = 'ncns';
+              hasAbsentRecord = true;
+            }
           }
           if (record.type === 'Out') {
             hasTimeOut = true;
-          }
-          // Check for explicit absent records
-          if (record.status === 'Absent' || record.type === 'Absent') {
-            hasAbsentRecord = true;
-            status = 'absent';
           }
         });
         
@@ -184,7 +213,16 @@ const AttendanceGrid = () => {
     let tooltip = `${format(dayData.date, 'MMM d, yyyy')}`;
     
     if (timeInRecord) {
-      tooltip += `\nTime In: ${format(timeInRecord.timestamp, 'h:mm a')} (${timeInRecord.status})`;
+      if (timeInRecord.status === 'PTO') {
+        tooltip += `\nPTO: ${timeInRecord.reason || 'No reason provided'}`;
+      } else if (timeInRecord.status === 'Absent') {
+        const absentReason = timeInRecord.absentReason ? ` (${timeInRecord.absentReason})` : '';
+        tooltip += `\nAbsent${absentReason}: ${timeInRecord.reason || 'No reason provided'}`;
+      } else if (timeInRecord.status === 'NCNS') {
+        tooltip += `\nNo Call No Show: ${timeInRecord.reason || 'No reason provided'}`;
+      } else {
+        tooltip += `\nTime In: ${format(timeInRecord.timestamp, 'h:mm a')} (${timeInRecord.status})`;
+      }
     }
     
     if (timeOutRecord) {
@@ -283,8 +321,16 @@ const AttendanceGrid = () => {
           <LegendLabel>Day Off</LegendLabel>
         </LegendItem>
         <LegendItem>
+          <LegendSquare status="pto" />
+          <LegendLabel>PTO</LegendLabel>
+        </LegendItem>
+        <LegendItem>
           <LegendSquare status="absent" />
           <LegendLabel>Absent</LegendLabel>
+        </LegendItem>
+        <LegendItem>
+          <LegendSquare status="ncns" />
+          <LegendLabel>NCNS</LegendLabel>
         </LegendItem>
         <LegendItem>
           <LegendSquare status="late" />
@@ -442,7 +488,9 @@ const GridSquare = styled.div`
       case 'early': return '#55B6FF'; // light blue
       case 'ontime': return '#66BB6A'; // green
       case 'late': return '#FFA500'; // orange
+      case 'pto': return '#9c27b0'; // purple
       case 'absent': return '#dc2626'; // red
+      case 'ncns': return '#000000'; // black
       case 'future': return '#f3f4f6'; // light gray
       case 'dayoff': return 'transparent'; // empty/transparent for day off
       default: return '#e5e7eb'; // gray
@@ -528,7 +576,9 @@ const LegendSquare = styled.div`
       case 'early': return '#55B6FF';
       case 'ontime': return '#66BB6A';
       case 'late': return '#FFA500';
+      case 'pto': return '#9c27b0';
       case 'absent': return '#dc2626';
+      case 'ncns': return '#000000';
       case 'dayoff': return 'transparent';
       default: return '#e5e7eb';
     }

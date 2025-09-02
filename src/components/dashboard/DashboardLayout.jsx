@@ -25,7 +25,8 @@ import {
   LockSimple,
   CalendarX,
   Bell,
-  Buildings
+  Buildings,
+  Question
 } from 'phosphor-react';
 import { useTimeFormat } from '../../contexts/TimeFormatContext';
 import { auth, db } from '../../firebase';
@@ -257,6 +258,14 @@ const DashboardLayout = ({
             <Icon><UserCircle size={16} /></Icon>
             My Profile
           </NavItem>
+          
+          <NavItem 
+            className={activeTab === 'tutorials' ? 'active' : ''}
+            onClick={() => setActiveTab('tutorials')}
+          >
+            <Icon><Question size={16} /></Icon>
+            Tutorials
+          </NavItem>
         </div>
         
         {/* Admin Panel Section - For both admins and super admins */}
@@ -487,6 +496,7 @@ const DashboardLayout = ({
             {activeTab === 'attendance' && 'Attendance'}
             {activeTab === 'schedule' && 'Schedule'}
             {activeTab === 'profile' && 'Profile'}
+            {activeTab === 'tutorials' && 'Tutorials'}
             {activeTab === 'registration_requests' && 'Registration Requests'}
             {activeTab === 'user_management' && 'User Management'}
             {activeTab === 'admin_privileges' && 'Admin Privileges'}

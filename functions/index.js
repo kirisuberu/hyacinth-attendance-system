@@ -214,3 +214,66 @@ exports.toggleUserEnabled = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * Cloud function to update a user's email in Firebase Authentication
+ * Requires the caller to be authenticated and have role 'admin' or 'super_admin'.
+ * Also synchronizes the email in Firestore users/{userId} document and logs the action.
+ */
+exports.updateUserEmail = functions.https.onCall(async (data, context) => {
+  // Ensure the caller is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+  }
+
+  const { userId, newEmail } = data || {};
+  if (!userId || typeof newEmail !== 'string' || !newEmail.trim()) {
+    throw new functions.https.HttpsError('invalid-argument', 'Must provide userId and a non-empty newEmail.');
+  }
+
+  try {
+    // Permission check
+    const callerUid = context.auth.uid;
+    const callerDoc = await admin.firestore().collection('users').doc(callerUid).get();
+
+    if (!callerDoc.exists || (callerDoc.data().role !== 'admin' && callerDoc.data().role !== 'super_admin')) {
+      throw new functions.https.HttpsError('permission-denied', 'Only admins can update user emails.');
+    }
+
+    const trimmedEmail = newEmail.trim();
+
+    // Update Auth user email
+    await admin.auth().updateUser(userId, { email: trimmedEmail });
+
+    // Sync Firestore user document email
+    const userRef = admin.firestore().collection('users').doc(userId);
+    const targetDoc = await userRef.get();
+    if (targetDoc.exists) {
+      await userRef.update({ email: trimmedEmail, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    }
+
+    // Log the action
+    await admin.firestore().collection('system_logs').add({
+      action: 'update_user_email',
+      userId,
+      newEmail: trimmedEmail,
+      updatedBy: callerUid,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    return { success: true, message: 'User email updated successfully' };
+  } catch (error) {
+    console.error('Error updating user email:', error);
+
+    // Map common Auth errors to appropriate HttpsError codes
+    const code = (error && error.code) || '';
+    if (code.includes('auth/email-already-exists')) {
+      throw new functions.https.HttpsError('already-exists', 'The email address is already in use by another account.');
+    }
+    if (code.includes('auth/invalid-email')) {
+      throw new functions.https.HttpsError('invalid-argument', 'The email address is invalid.');
+    }
+
+    throw new functions.https.HttpsError('internal', 'An error occurred while updating the user email.', error.message);
+  }
+});

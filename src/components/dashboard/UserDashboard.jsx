@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { Users, Buildings, Briefcase, Bank } from 'phosphor-react';
+import { Users, Buildings, Briefcase, Bank, CalendarX } from 'phosphor-react';
 
 
 
@@ -11,11 +11,13 @@ import { Users, Buildings, Briefcase, Bank } from 'phosphor-react';
  * @param {Object} props
  * @param {boolean} props.isSuperAdmin - Whether the current user is a super admin
  */
-function UserDashboard({ isSuperAdmin }) {
+function UserDashboard({ isSuperAdmin, user }) {
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [absenceCount, setAbsenceCount] = useState(0);
+  const [absenceCounts, setAbsenceCounts] = useState({});
 
   // Fetch users from Firestore
   useEffect(() => {
@@ -61,14 +63,69 @@ function UserDashboard({ isSuperAdmin }) {
     return () => unsubscribe();
   }, []);
 
-  // Calculate statistics
-  const totalUsers = users.length;
-  const adminUsers = users.filter(user => user.role === 'admin').length;
-  const staffUsers = users.filter(user => user.role === 'staff').length;
-  const internUsers = users.filter(user => user.employmentStatus === 'intern').length;
-  const contractualUsers = users.filter(user => user.employmentStatus === 'contractual').length;
-  const probationaryUsers = users.filter(user => user.employmentStatus === 'probationary').length;
-  const regularUsers = users.filter(user => user.employmentStatus === 'regular').length;
+  // Fetch absence counts from Firestore
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    const absencesRef = collection(db, 'absences');
+    const q = query(absencesRef, where('userId', '==', user.uid));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const counts = {
+        total: snapshot.size,
+        byType: {}
+      };
+      
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        counts.byType[data.type] = (counts.byType[data.type] || 0) + 1;
+      });
+      
+      setAbsenceCounts(counts);
+    });
+    
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    
+    const absencesRef = collection(db, 'absences');
+    const q = query(
+      absencesRef, 
+      where('userId', '==', user.uid),
+      where('status', '==', 'approved')
+    );
+    
+    console.log('[DEBUG] Setting up absence listener for user:', user.uid);
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log('[DEBUG] Absence snapshot received:', {
+        size: snapshot.size,
+        docs: snapshot.docs.map(d => d.data())
+      });
+      setAbsenceCount(snapshot.size);
+    }, (error) => {
+      console.error('[DEBUG] Error in absence listener:', error);
+    });
+    
+    return () => {
+      console.log('[DEBUG] Cleaning up absence listener');
+      unsubscribe();
+    };
+  }, [user?.uid]);
+
+  // Filter out inactive users for statistics
+  const activeUsers = users.filter(user => user.status !== 'inactive');
+  
+  // Calculate statistics (excluding inactive users)
+  const totalUsers = activeUsers.length;
+  const adminUsers = activeUsers.filter(user => user.role === 'admin').length;
+  const staffUsers = activeUsers.filter(user => user.role === 'staff').length;
+  const internUsers = activeUsers.filter(user => user.employmentStatus === 'intern').length;
+  const contractualUsers = activeUsers.filter(user => user.employmentStatus === 'contractual').length;
+  const probationaryUsers = activeUsers.filter(user => user.employmentStatus === 'probationary').length;
+  const regularUsers = activeUsers.filter(user => user.employmentStatus === 'regular').length;
   const totalDepartments = departments.length;
 
   // Calculate users by role (not used in charts)
@@ -85,15 +142,15 @@ function UserDashboard({ isSuperAdmin }) {
     return counts;
   }, [users]);
 
-  // Calculate users by employment status
-  const usersByEmploymentStatus = users.reduce((acc, user) => {
+  // Calculate users by employment status (excluding inactive users)
+  const usersByEmploymentStatus = activeUsers.reduce((acc, user) => {
     const status = user.employmentStatus || 'unknown';
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {});
 
-  // Calculate users by department
-  const usersByDepartment = users.reduce((acc, user) => {
+  // Calculate users by department (excluding inactive users)
+  const usersByDepartment = activeUsers.reduce((acc, user) => {
     if (user.departments && user.departments.length > 0) {
       user.departments.forEach(deptId => {
         acc[deptId] = (acc[deptId] || 0) + 1;
@@ -104,8 +161,8 @@ function UserDashboard({ isSuperAdmin }) {
     return acc;
   }, {});
 
-  // Calculate users by company (supports multiple companies per user)
-  const usersByCompany = users.reduce((acc, user) => {
+  // Calculate users by company (supports multiple companies per user, excluding inactive users)
+  const usersByCompany = activeUsers.reduce((acc, user) => {
     const assigned = Array.isArray(user.companies)
       ? user.companies
       : (user.company ? [user.company] : []);
@@ -237,6 +294,15 @@ function UserDashboard({ isSuperAdmin }) {
             <StatTitle>Active</StatTitle>
           </StatHeader>
           <StatValue>{statusCounts.active}</StatValue>
+        </StatCard>
+        <StatCard>
+          <StatHeader>
+            <StatIcon bgColor="#ffebee" iconColor="#f44336">
+              <CalendarX size={24} />
+            </StatIcon>
+            <StatTitle>Absences</StatTitle>
+          </StatHeader>
+          <StatValue>{absenceCount}</StatValue>
         </StatCard>
       </StatsGrid>
       {/* Status Overview removed as requested */}

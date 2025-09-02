@@ -25,15 +25,23 @@ export const db = getFirestore(app);
 export const storage = getStorage(app);
 
 // Connect to emulators in development mode
-if (import.meta.env.VITE_USE_EMULATORS === 'true') {
+const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';
+const useAuthEmulator = import.meta.env.VITE_USE_AUTH_EMULATOR === 'true';
+if (useEmulators) {
   const host = import.meta.env.VITE_FIREBASE_EMULATOR_HOST || 'localhost';
   const firestorePort = import.meta.env.VITE_FIRESTORE_EMULATOR_PORT || 8080;
   const authPort = import.meta.env.VITE_AUTH_EMULATOR_PORT || 9099;
-  
+
   console.log(`Connecting to Firebase emulators at ${host}`);
   connectFirestoreEmulator(db, host, parseInt(firestorePort));
-  connectAuthEmulator(auth, `http://${host}:${authPort}`);
-  console.log('Firebase emulators connected');
+  console.log('Firestore emulator connected');
+
+  if (useAuthEmulator) {
+    connectAuthEmulator(auth, `http://${host}:${authPort}`);
+    console.log('Auth emulator connected');
+  } else {
+    console.log('Using PRODUCTION Auth with Firestore emulator');
+  }
 } else {
   console.log('Using production Firebase services');
 }

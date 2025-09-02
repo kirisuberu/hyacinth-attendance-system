@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Shield, Check, X, Users, UserPlus, ChartBar, ClockClockwise } from 'phosphor-react';
+import { Shield, Check, X, Users, UserPlus, ChartBar, ClockClockwise, Wrench } from 'phosphor-react';
 
 
 function AdminPrivilegesView() {
@@ -35,7 +35,9 @@ function AdminPrivilegesView() {
               canManageUsers: data.privileges?.canManageUsers !== false, // Default to true if not set
               canManageRegistrations: data.privileges?.canManageRegistrations !== false, // Default to true if not set
               canViewReports: data.privileges?.canViewReports !== false, // Default to true if not set
-              canManageAttendanceRequests: data.privileges?.canManageAttendanceRequests !== false // Default to true if not set
+              canManageAttendanceRequests: data.privileges?.canManageAttendanceRequests !== false, // Default to true if not set
+              // Manager Functions must be explicitly enabled by a super admin
+              canUseManagerFunctions: data.privileges?.canUseManagerFunctions === true
             }
           };
         });
@@ -122,6 +124,7 @@ function AdminPrivilegesView() {
                   <TableHeader>Registration Requests</TableHeader>
                   <TableHeader>Reports</TableHeader>
                   <TableHeader>Attendance Requests</TableHeader>
+                  <TableHeader>Manager Functions</TableHeader>
                 </TableRow>
               </TableHead>
               <tbody>
@@ -193,6 +196,23 @@ function AdminPrivilegesView() {
                         >
                           <ToggleIcon>
                             {admin.privileges?.canManageAttendanceRequests ? <Check size={16} /> : <X size={16} />}
+                          </ToggleIcon>
+                        </ToggleButton>
+                      </PrivilegeToggle>
+                    </TableCell>
+                    <TableCell>
+                      <PrivilegeToggle>
+                        <PrivilegeLabel>
+                          <Icon><Wrench size={16} /></Icon>
+                          Access
+                        </PrivilegeLabel>
+                        <ToggleButton 
+                          enabled={admin.privileges?.canUseManagerFunctions === true}
+                          onClick={() => togglePrivilege(admin.id, 'canUseManagerFunctions', admin.privileges?.canUseManagerFunctions === true)}
+                          disabled={updating}
+                        >
+                          <ToggleIcon>
+                            {admin.privileges?.canUseManagerFunctions === true ? <Check size={16} /> : <X size={16} />}
                           </ToggleIcon>
                         </ToggleButton>
                       </PrivilegeToggle>

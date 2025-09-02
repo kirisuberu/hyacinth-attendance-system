@@ -4,6 +4,7 @@ import { auth, db } from '../../firebase';
 import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
+import { useAuth } from '../../contexts/AuthContext';
 
 
 
@@ -16,11 +17,17 @@ function AuthLayout() {
   const [userData, setUserData] = useState(null);
   const [loadingUserData, setLoadingUserData] = useState(true);
   const navigate = useNavigate();
+  const { currentUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    // Get current user
-    const currentUser = auth.currentUser;
-    
+    const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
+    let cleanup = null;
+
+    if (authLoading) {
+      // Wait for auth to resolve
+      return;
+    }
+
     if (currentUser) {
       const userObj = {
         uid: currentUser.uid,
@@ -28,10 +35,9 @@ function AuthLayout() {
         displayName: currentUser.displayName || currentUser.email.split('@')[0]
       };
       setUser(userObj);
-      fetchUserData(currentUser.uid);
+      cleanup = fetchUserData(currentUser.uid);
     } else {
       // Check for development fallback user
-      const isEmulatorMode = import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true';
       if (isEmulatorMode) {
         const devUser = localStorage.getItem('dev_user');
         if (devUser) {
@@ -43,7 +49,7 @@ function AuthLayout() {
               displayName: parsedUser.displayName || parsedUser.email.split('@')[0]
             };
             setUser(userObj);
-            fetchUserData(parsedUser.uid);
+            cleanup = fetchUserData(parsedUser.uid);
             console.log('Using development user:', parsedUser.email);
           } catch (error) {
             console.error('Error parsing development user:', error);
@@ -59,22 +65,30 @@ function AuthLayout() {
         navigate('/');
       }
     }
-  }, [navigate]);
+
+    return () => {
+      if (typeof cleanup === 'function') cleanup();
+    };
+  }, [currentUser, authLoading, navigate]);
   
   // Fetch additional user data from Firestore with real-time updates
   const fetchUserData = (userId) => {
-    if (!userId) return;
+    if (!userId) return () => {};
     
     setLoadingUserData(true);
     
+    let declinedUnsubscribe = null;
+    let pendingUnsubscribe = null;
+    let userUnsubscribe = null;
+
     // First, check if this user has been declined or blocked
-    const declinedQuery = query(
+    const declinedQ = query(
       collection(db, 'declined_registrations'),
       where('userId', '==', userId)
     );
     
     // Real-time listener for declined status
-    const declinedUnsubscribe = onSnapshot(declinedQuery, (declinedSnapshot) => {
+    declinedUnsubscribe = onSnapshot(declinedQ, (declinedSnapshot) => {
       if (!declinedSnapshot.empty) {
         // User was declined, sign them out and redirect to login
         toast.error('Your registration request has been declined. Please contact an administrator.');
@@ -83,58 +97,62 @@ function AuthLayout() {
       }
       
       // Check if this user has a pending registration request
-      const pendingQuery = query(
+      const pendingQ = query(
         collection(db, 'registration_requests'),
         where('userId', '==', userId)
       );
       
       // Real-time listener for pending status
-      const pendingUnsubscribe = onSnapshot(pendingQuery, (pendingSnapshot) => {
-        if (!pendingSnapshot.empty) {
-          // User has a pending request
-          toast.info('Your registration request is pending approval. You will be notified when approved.');
-          auth.signOut().then(() => navigate('/'));
-          return;
-        }
-        
-        // If we get here, check for the user in the users collection
-        const userDocRef = doc(db, 'users', userId);
-        
-        // Real-time listener for user data
-        const userUnsubscribe = onSnapshot(userDocRef, (userDocSnap) => {
-          setLoadingUserData(false);
-          
-          if (userDocSnap.exists()) {
-            const userData = userDocSnap.data();
-            setUserData(userData);
-          } else {
-            console.log('No user data found in Firestore');
-            
-            // If we get here, the user is authenticated but has no data in Firestore
-            toast.error('Your account is not properly set up. Please contact an administrator.');
+      if (!pendingUnsubscribe) {
+        pendingUnsubscribe = onSnapshot(pendingQ, (pendingSnapshot) => {
+          if (!pendingSnapshot.empty) {
+            // User has a pending request
+            toast.info('Your registration request is pending approval. You will be notified when approved.');
             auth.signOut().then(() => navigate('/'));
+            return;
+          }
+          
+          // If we get here, check for the user in the users collection
+          const userDocRef = doc(db, 'users', userId);
+          
+          // Real-time listener for user data
+          if (!userUnsubscribe) {
+            userUnsubscribe = onSnapshot(userDocRef, (userDocSnap) => {
+              setLoadingUserData(false);
+              
+              if (userDocSnap.exists()) {
+                const userData = userDocSnap.data();
+                setUserData(userData);
+              } else {
+                console.log('No user data found in Firestore');
+                
+                // If we get here, the user is authenticated but has no data in Firestore
+                toast.error('Your account is not properly set up. Please contact an administrator.');
+                auth.signOut().then(() => navigate('/'));
+              }
+            }, (error) => {
+              console.error('Error fetching user data:', error);
+              setLoadingUserData(false);
+              toast.error('Error loading user data. Please try again later.');
+            });
           }
         }, (error) => {
-          console.error('Error fetching user data:', error);
+          console.error('Error checking pending status:', error);
           setLoadingUserData(false);
-          toast.error('Error loading user data. Please try again later.');
+          toast.error('Error checking registration status. Please try again later.');
         });
-        
-        return () => userUnsubscribe();
-      }, (error) => {
-        console.error('Error checking pending status:', error);
-        setLoadingUserData(false);
-        toast.error('Error checking registration status. Please try again later.');
-      });
-      
-      return () => pendingUnsubscribe();
+      }
     }, (error) => {
       console.error('Error checking declined status:', error);
       setLoadingUserData(false);
       toast.error('Error checking registration status. Please try again later.');
     });
     
-    return () => declinedUnsubscribe();
+    return () => {
+      if (userUnsubscribe) userUnsubscribe();
+      if (pendingUnsubscribe) pendingUnsubscribe();
+      if (declinedUnsubscribe) declinedUnsubscribe();
+    };
   };
 
   if (loadingUserData) {

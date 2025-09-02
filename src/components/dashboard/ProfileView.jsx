@@ -27,15 +27,14 @@ import {
   UserTitle,
   UserStatus,
   StatusIndicator,
-  ThreeColumnGrid
+  ThreeColumnGrid,
+  SubmitButton
 } from './ProfileStyles';
 
 // Import profile section components
 import PersonalInfoSection from './profile/PersonalInfoSection';
 import CompanyDepartmentSection from './profile/CompanyDepartmentSection';
 import AdditionalInfoSection from './profile/AdditionalInfoSection';
-import TimeZoneSection from './profile/TimeZoneSection';
-import TimeZoneMismatchNotification from '../common/TimeZoneMismatchNotification';
 import EmergencyContactSection from './profile/EmergencyContactSection';
 
 const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadingUserData }) => {
@@ -45,7 +44,7 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
   const [departments, setDepartments] = useState([]);
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [loadingDepartments, setLoadingDepartments] = useState(true);
-  const { timeZone: userTimeZone, systemTimeZone } = useTimeFormat();
+  const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
   const [activeTab, setActiveTab] = useState('personal');
 
   // Helper function to format timestamps
@@ -166,11 +165,6 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
 
   return (
     <ProfileContainer>
-      <ProfileHeader>
-        <ProfileTitle>User Profile</ProfileTitle>
-      </ProfileHeader>
-      
-      <TimeZoneMismatchNotification />
       
       {/* Profile Banner with Avatar and Basic Info */}
       <ProfileBanner>
@@ -213,10 +207,7 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
 
         <TabButton 
           active={activeTab === 'settings'} 
-          onClick={() => {}} 
-          disabled
-          aria-disabled="true"
-          title="Settings is temporarily disabled"
+          onClick={() => setActiveTab('settings')}
         >
           <Stack size={18} />
           Settings
@@ -282,8 +273,22 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
           <>
             <CardTitle>User Settings</CardTitle>
             <CardContent>
-              <TimeZoneSection userId={propUserData.id} userTimeZone={propUserData?.timeRegion} />
-              {/* Add more settings as needed */}
+              {/* Time Format Setting */}
+              <div style={{ marginTop: '16px' }}>
+                <Card>
+                  <CardTitle>Time Format</CardTitle>
+                  <CardContent>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                      <div>
+                        Current format: <strong>{use24HourFormat ? '24-hour' : '12-hour'}</strong>
+                      </div>
+                      <SubmitButton onClick={toggleTimeFormat}>
+                        Switch to {use24HourFormat ? '12-hour' : '24-hour'}
+                      </SubmitButton>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </CardContent>
           </>
         )}

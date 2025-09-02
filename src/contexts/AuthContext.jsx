@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged, signOut, getIdTokenResult } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { toast } from 'react-toastify';
@@ -32,7 +32,6 @@ export const AuthProvider = ({ children }) => {
             email: user.email
           });
           console.log('User email synchronized in Firestore');
-          toast.info('Your email has been updated in the system');
         }
       }
     } catch (error) {
@@ -70,24 +69,26 @@ export const AuthProvider = ({ children }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setLoading(true);
       
-      // If user just logged in and we have their previous email stored
-      if (user && previousEmail && user.email !== previousEmail) {
-        syncUserEmailInFirestore(user);
-      }
-      
-      // Store the current email for future comparison
-      if (user) {
-        setPreviousEmail(user.email);
-      }
-      
       // Check user status in Firestore when they log in
       if (user) {
+        // Always sync email first before checking status
+        await syncUserEmailInFirestore(user);
+        try {
+          // Force refresh to ensure we have the latest custom claims
+          const tokenResult = await getIdTokenResult(user, true);
+          console.log('Auth token claims:', tokenResult.claims);
+        } catch (claimErr) {
+          console.warn('Unable to read auth token claims:', claimErr);
+        }
+        
         const status = await checkUserStatus(user);
         setUserStatus(status);
         
+        // Store the current email for future comparison
+        setPreviousEmail(user.email);
+        
         // Only proceed if user is active
         if (status === 'active') {
-          syncUserEmailInFirestore(user);
           setCurrentUser(user);
         } else {
           console.log('User account is inactive, signing out');
@@ -98,13 +99,14 @@ export const AuthProvider = ({ children }) => {
       } else {
         setUserStatus(null);
         setCurrentUser(null);
+        setPreviousEmail(null);
       }
       
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [previousEmail]);
+  }, []);
 
   // Add a second useEffect to handle inactive users after the status is set
   useEffect(() => {

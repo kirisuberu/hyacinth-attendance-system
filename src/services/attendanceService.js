@@ -136,9 +136,11 @@ export const calculateTimeDifference = async (userId) => {
     
     const userData = userDoc.data();
     const userSchedule = userData.schedule || [];
+    const userTimeRegion = userData.timeRegion || 'Asia/Manila'; // Get user's time region
     
-    const now = new Date();
-    const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+    // Get current time in user's time zone
+    const zoneTime = getCurrentTimeInZone(userTimeRegion);
+    const currentDay = zoneTime.dayOfWeek;
     
     // Find today's schedule if it exists
     const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
@@ -151,12 +153,14 @@ export const calculateTimeDifference = async (userId) => {
     // Parse schedule time
     const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
     
-    // Create Date objects for comparison
-    const scheduleDate = new Date();
-    scheduleDate.setHours(scheduledHour, scheduledMinute, 0, 0);
+    // Create schedule time object to compare with current time (both in user's timezone)
+    const scheduleTime = {
+      hour: scheduledHour,
+      minute: scheduledMinute
+    };
     
-    // Calculate time difference in minutes
-    return Math.round((now - scheduleDate) / (1000 * 60));
+    // Calculate time difference in minutes between schedule and current time (both in user's timezone)
+    return calculateTimeDifferenceInMinutes(scheduleTime, zoneTime);
   } catch (error) {
     console.error('Error calculating time difference:', error);
     return null;
@@ -238,7 +242,9 @@ export const determineTimeOutStatus = async (userId) => {
     }
     
     // Get current time in user's time zone
+    const currentTimeInZone = getCurrentTimeInZone(userTimeRegion);
     const now = new Date();
+    now.setHours(currentTimeInZone.hour, currentTimeInZone.minute, 0, 0);
     
     // Calculate time difference in minutes
     timeDiff = Math.round((now - lastTimeInZoned) / (1000 * 60));
@@ -322,9 +328,11 @@ export const hasScheduledShiftToday = async (userId) => {
     
     const userData = userDoc.data();
     const userSchedule = userData.schedule || [];
+    const userTimeRegion = userData.timeRegion || 'Asia/Manila';
     
-    const now = new Date();
-    const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+    // Get current time in user's time zone
+    const zoneTime = getCurrentTimeInZone(userTimeRegion);
+    const currentDay = zoneTime.dayOfWeek;
     
     // Find today's schedule if it exists
     const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
@@ -418,9 +426,11 @@ export const shouldMarkUserAbsent = async (userId) => {
     
     const userData = userDoc.data();
     const userSchedule = userData.schedule || [];
+    const userTimeRegion = userData.timeRegion || 'Asia/Manila';
     
-    const now = new Date();
-    const currentDay = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
+    // Get current time in user's time zone
+    const zoneTime = getCurrentTimeInZone(userTimeRegion);
+    const currentDay = zoneTime.dayOfWeek;
     
     // Find today's schedule if it exists
     const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
@@ -433,16 +443,18 @@ export const shouldMarkUserAbsent = async (userId) => {
     // Parse schedule time
     const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
     
-    // Create scheduled time Date object
-    const scheduledTime = new Date();
-    scheduledTime.setHours(scheduledHour, scheduledMinute, 0, 0);
+    // Create schedule time object to compare with current time (both in user's timezone)
+    const scheduleTime = {
+      hour: scheduledHour,
+      minute: scheduledMinute
+    };
     
     // Get the absent threshold from system settings
     const rules = await getAttendanceRules();
     const absentThreshold = rules.absent?.threshold || 300; // Default to 5 hours (300 minutes)
     
-    // Calculate minutes elapsed since scheduled time
-    const minutesElapsed = Math.floor((now - scheduledTime) / (1000 * 60));
+    // Calculate minutes elapsed since scheduled time (both in user's timezone)
+    const minutesElapsed = calculateTimeDifferenceInMinutes(scheduleTime, zoneTime);
     
     // User should be marked absent if more than the threshold minutes have passed
     return minutesElapsed >= absentThreshold;

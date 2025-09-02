@@ -194,6 +194,18 @@ const RulesView = () => {
       return;
     }
     
+    // Allow empty string for user to clear and retype
+    if (value === '') {
+      setRules(prev => ({
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: 0
+        }
+      }));
+      return;
+    }
+    
     // Ensure value is a positive number
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) || numValue < 0) return;
