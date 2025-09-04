@@ -2737,7 +2737,7 @@ const ColumnControlDropdown = styled.div`
   margin-top: 0;
   max-height: 85vh;
   overflow-y: auto;
-  transform: translateY(calc(-50% + 16px));
+  transform: translateY(calc(-25%));
 
   @media (max-width: 768px) {
     top: 100%;

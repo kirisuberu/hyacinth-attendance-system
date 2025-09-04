@@ -1,16 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is a super_admin (avoid circular dependency)
+    // Role helpers: check custom claims first, then fall back to Firestore users/{uid}.role
+    function hasRoleOrSynonyms(target) {
+      return request.auth != null && (
+        request.auth.token.role == target ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == target ||
+        // Accept 'superadmin' as a synonym for 'super_admin'
+        (target == 'super_admin' && (
+          request.auth.token.role == 'superadmin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin'
+        ))
+      );
+    }
+
+    // Helper function to check if user is a super_admin
     function isSuperAdmin() {
-      return request.auth != null && 
-        request.auth.token.role == 'super_admin';
+      return hasRoleOrSynonyms('super_admin');
     }
     
     // Helper function to check if user is admin or super_admin
     function isAdmin() {
-      return request.auth != null && 
-        (request.auth.token.role == 'admin' || request.auth.token.role == 'super_admin');
+      return hasRoleOrSynonyms('admin') || hasRoleOrSynonyms('super_admin');
     }
     
     // User collection rules - allow authenticated users to read all user data for department schedules
