@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -40,6 +40,9 @@ function UserManagementView({ isSuperAdmin }) {
   const [showPresetModal, setShowPresetModal] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [savedPresets, setSavedPresets] = useState([]);
+  
+  // Ref for detecting outside clicks on Column Control dropdown
+  const columnControlRef = useRef(null);
   
   // Define default columns configuration
   const defaultColumns = [
@@ -154,6 +157,27 @@ function UserManagementView({ isSuperAdmin }) {
       saveColumnConfiguration();
     }
   }, [allColumns, currentUser]);
+  
+  // Close ColumnControlDropdown when clicking outside its container or pressing Escape
+  useEffect(() => {
+    if (!showColumnControl) return;
+    const handlePointer = (e) => {
+      if (columnControlRef.current && !columnControlRef.current.contains(e.target)) {
+        setShowColumnControl(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setShowColumnControl(false);
+    };
+    document.addEventListener('mousedown', handlePointer);
+    document.addEventListener('touchstart', handlePointer);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer);
+      document.removeEventListener('touchstart', handlePointer);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showColumnControl]);
   
   const setupDepartmentsListener = () => {
     try {
@@ -1212,7 +1236,7 @@ function UserManagementView({ isSuperAdmin }) {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           
-          <ColumnControlContainer>
+          <ColumnControlContainer ref={columnControlRef}>
             <ColumnControlButton onClick={() => setShowColumnControl(!showColumnControl)}>
               <List size={18} />
               Columns
