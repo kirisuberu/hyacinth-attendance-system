@@ -2331,6 +2331,10 @@ function UserManagementView({ isSuperAdmin }) {
             
             <ModalButtons>
               <Button onClick={() => setShowScheduleModal(false)}>Cancel</Button>
+              <Button primary onClick={handleSaveSchedule}>
+                <FloppyDisk size={16} />
+                Save Schedule
+              </Button>
             </ModalButtons>
           </ModalContent>
         </ConfirmationModal>

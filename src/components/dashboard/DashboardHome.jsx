@@ -71,7 +71,10 @@ const DashboardHome = () => {
 
   const isSameDayName = (a, b) => {
     if (!a || !b) return false;
-    return String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+    const normalizedA = normalizeDayName(a);
+    const normalizedB = normalizeDayName(b);
+    if (!normalizedA || !normalizedB) return false;
+    return normalizedA.toLowerCase() === normalizedB.toLowerCase();
   };
 
   const normalizeSchedule = (schedule) => {
@@ -185,9 +188,10 @@ const DashboardHome = () => {
     const fetchUserData = async () => {
       if (auth.currentUser) {
         try {
-          const userDoc = await getDocs(query(collection(db, 'users'), where('userId', '==', auth.currentUser.uid)));
-          if (!userDoc.empty) {
-            const userData = userDoc.docs[0].data();
+          const userDocRef = doc(db, 'users', auth.currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
             setUserName(userData.name || 'User');
             setUserData(userData);
             
@@ -197,13 +201,31 @@ const DashboardHome = () => {
               hasSchedule: !!(userData.schedule && Array.isArray(userData.schedule)),
               scheduleLength: userData.schedule?.length || 0,
               scheduleId: userData.scheduleId,
-              timeRegion: userData.timeRegion
+              timeRegion: userData.timeRegion,
+              fullUserData: userData,
+              scheduleRaw: userData.schedule
             });
             
-            // Get user schedule
-            if (userData.schedule && Array.isArray(userData.schedule) && userData.schedule.length > 0) {
-              console.debug('[DashboardHome] Raw schedule:', userData.schedule);
-              const normalized = normalizeSchedule(userData.schedule);
+            // Get user schedule - try multiple possible field names and structures
+            const possibleSchedules = [
+              userData.schedule,
+              userData.schedules,
+              userData.workSchedule,
+              userData.shifts
+            ].filter(s => s && Array.isArray(s) && s.length > 0);
+            
+            console.debug('[DashboardHome] Checking for schedules:', {
+              hasSchedule: !!userData.schedule,
+              hasSchedules: !!userData.schedules,
+              hasWorkSchedule: !!userData.workSchedule,
+              hasShifts: !!userData.shifts,
+              possibleSchedulesFound: possibleSchedules.length
+            });
+            
+            if (possibleSchedules.length > 0) {
+              const scheduleToUse = possibleSchedules[0];
+              console.debug('[DashboardHome] Raw schedule:', scheduleToUse);
+              const normalized = normalizeSchedule(scheduleToUse);
               console.debug('[DashboardHome] Normalized schedule:', normalized);
               setUserSchedule(normalized);
               
@@ -220,7 +242,13 @@ const DashboardHome = () => {
                 dayOfWeekFromZone: zoneNow.dayOfWeek,
                 normalizedCurrentDay: currentDay,
                 found: !!todayScheduleItem,
-                allDays: normalized.map(s => s.dayOfWeek)
+                allDays: normalized.map(s => s.dayOfWeek),
+                rawScheduleData: scheduleToUse,
+                normalizedSchedule: normalized,
+                matchingLogic: normalized.map(s => ({
+                  scheduleDay: s.dayOfWeek,
+                  matches: isSameDayName(s.dayOfWeek, currentDay)
+                }))
               });
               
               if (todayScheduleItem) {
@@ -383,18 +411,27 @@ const DashboardHome = () => {
           const month0PTO = (month0Records || []).filter(r => r?.status === 'PTO').length;
           const month0Absent = (month0Records || []).filter(r => r?.status === 'Absent').length;
           const month0NCNS = (month0Records || []).filter(r => r?.status === 'NCNS').length;
+          const month0Early = (month0Records || []).filter(r => r?.status === 'Early').length;
+          const month0OnTime = (month0Records || []).filter(r => r?.status === 'On Time').length;
+          const month0Late = (month0Records || []).filter(r => r?.status === 'Late').length;
           const month0Present = month0Total - month0PTO - month0Absent - month0NCNS;
           
           const month1Total = (month1Records || []).length;
           const month1PTO = (month1Records || []).filter(r => r?.status === 'PTO').length;
           const month1Absent = (month1Records || []).filter(r => r?.status === 'Absent').length;
           const month1NCNS = (month1Records || []).filter(r => r?.status === 'NCNS').length;
+          const month1Early = (month1Records || []).filter(r => r?.status === 'Early').length;
+          const month1OnTime = (month1Records || []).filter(r => r?.status === 'On Time').length;
+          const month1Late = (month1Records || []).filter(r => r?.status === 'Late').length;
           const month1Present = month1Total - month1PTO - month1Absent - month1NCNS;
           
           const month2Total = (month2Records || []).length;
           const month2PTO = (month2Records || []).filter(r => r?.status === 'PTO').length;
           const month2Absent = (month2Records || []).filter(r => r?.status === 'Absent').length;
           const month2NCNS = (month2Records || []).filter(r => r?.status === 'NCNS').length;
+          const month2Early = (month2Records || []).filter(r => r?.status === 'Early').length;
+          const month2OnTime = (month2Records || []).filter(r => r?.status === 'On Time').length;
+          const month2Late = (month2Records || []).filter(r => r?.status === 'Late').length;
           const month2Present = month2Total - month2PTO - month2Absent - month2NCNS;
           
           // Create quarterly data for the chart
@@ -402,6 +439,9 @@ const DashboardHome = () => {
             {
               month: month2Name,
               total: month2Total,
+              early: month2Early,
+              onTime: month2OnTime,
+              late: month2Late,
               pto: month2PTO,
               absent: month2Absent,
               ncns: month2NCNS,
@@ -410,6 +450,9 @@ const DashboardHome = () => {
             {
               month: month1Name,
               total: month1Total,
+              early: month1Early,
+              onTime: month1OnTime,
+              late: month1Late,
               pto: month1PTO,
               absent: month1Absent,
               ncns: month1NCNS,
@@ -418,6 +461,9 @@ const DashboardHome = () => {
             {
               month: month0Name,
               total: month0Total,
+              early: month0Early,
+              onTime: month0OnTime,
+              late: month0Late,
               pto: month0PTO,
               absent: month0Absent,
               ncns: month0NCNS,
@@ -629,7 +675,14 @@ const DashboardHome = () => {
                       console.debug('[DashboardHome] Rendering "No schedule found"', {
                         todaySchedule,
                         userSchedule,
-                        attendanceStatus
+                        attendanceStatus,
+                        loadingSchedule,
+                        userData: userData ? {
+                          hasSchedule: !!userData.schedule,
+                          scheduleType: typeof userData.schedule,
+                          scheduleLength: userData.schedule?.length,
+                          scheduleContent: userData.schedule
+                        } : null
                       });
                       
                       return (
