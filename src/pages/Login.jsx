@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, SignIn, UserPlus, Eye, EyeSlash, ArrowCounterClockwise } from 'phosphor-react';
+import { isMobile } from 'react-device-detect';
+import { getAttendanceRules } from '../services/systemSettingsService';
 
 const LoginContainer = styled.div`
   display: flex;
@@ -273,9 +275,24 @@ function Login() {
       setError('');
       setLoading(true);
       
+      // Resolve email aliases to primary email before attempting to sign in
+      let emailToUse = email.trim().toLowerCase();
+      try {
+        const aliasRef = doc(db, 'email_aliases', emailToUse);
+        const aliasSnap = await getDoc(aliasRef);
+        if (aliasSnap.exists()) {
+          const aliasData = aliasSnap.data() || {};
+          if (aliasData.primaryEmail) {
+            emailToUse = String(aliasData.primaryEmail).trim().toLowerCase();
+          }
+        }
+      } catch (aliasErr) {
+        console.warn('Alias lookup failed:', aliasErr);
+      }
+      
       try {
         // Attempt to sign in
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, emailToUse, password);
         const user = userCredential.user;
         
         // Check if the user's registration has been declined
@@ -287,7 +304,7 @@ function Login() {
         
         if (!declinedSnapshot.empty) {
           // User was declined, sign them out and show error
-          await auth.signOut();
+          await signOut(auth);
           setError('Your registration request has been declined. Please contact an administrator.');
           toast.error('Access denied: Registration declined');
           return;
@@ -302,7 +319,7 @@ function Login() {
 
         if (!pendingSnapshot.empty) {
           // User has a pending request, sign them out and show message
-          await auth.signOut();
+          await signOut(auth);
           setError('Your registration request is pending approval. You will be notified when approved.');
           toast.info('Registration pending approval');
           return;
@@ -324,11 +341,33 @@ function Login() {
           if (userData.status === 'inactive') {
             // User account is inactive, sign them out and show error
             console.log('Blocking login attempt by inactive user:', user.uid);
-            await auth.signOut();
+            await signOut(auth);
             setError('Your account has been deactivated. Please contact an administrator.');
             toast.error('Access denied: Account deactivated');
             setLoading(false);
             return;
+          }
+
+          // Enforce mobile access restrictions based on role and system rules
+          try {
+            const rules = await getAttendanceRules();
+            const role = String(userData?.role || '').toLowerCase();
+            const isSuperAdminRole = role === 'super_admin' || role === 'superadmin' || role === 'super-admin';
+            const isAdminRole = role === 'admin';
+            const mobileAllowed = (
+              (isSuperAdminRole && (rules?.mobileAccess?.allowSuperAdmin === true)) ||
+              (isAdminRole && (rules?.mobileAccess?.allowAdmin === true)) ||
+              (!isSuperAdminRole && !isAdminRole && (rules?.mobileAccess?.allowMember === true))
+            );
+            if (isMobile && !mobileAllowed) {
+              await signOut(auth);
+              setError('Mobile access is not allowed for your role. Please use a desktop browser.');
+              toast.error('Access denied: Mobile not allowed for your role');
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error('Error evaluating mobile access rules during login:', err);
           }
         }
 
@@ -357,7 +396,7 @@ function Login() {
           const devUser = localStorage.getItem('dev_user');
           if (devUser) {
             const parsedUser = JSON.parse(devUser);
-            if (parsedUser.email === email) {
+            if ((parsedUser.email || '').toLowerCase() === (emailToUse || email).toLowerCase()) {
               // Simulate successful login
               toast.success('Development login successful!');
               navigate('/dashboard');

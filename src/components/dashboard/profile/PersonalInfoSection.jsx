@@ -56,6 +56,7 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
   const [formData, setFormData] = useState({
     preferredName: userData?.preferredName || '',
     email: userData?.email || '',
+    otherEmail: userData?.otherEmail || '',
     phoneNumber: userData?.phoneNumber || '',
     address: userData?.address || '',
     dateOfBirth: initialDob || '',
@@ -89,6 +90,7 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
     setFormData({
       preferredName: userData?.preferredName || '',
       email: userData?.email || '',
+      otherEmail: userData?.otherEmail || '',
       phoneNumber: userData?.phoneNumber || '',
       address: userData?.address || '',
       dateOfBirth: initialDob || '',
@@ -112,6 +114,11 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       toast.error('Please enter a valid email address.');
+      return;
+    }
+    // Optional other email validation
+    if (formData.otherEmail && !emailRegex.test(formData.otherEmail)) {
+      toast.error('Please enter a valid other email address.');
       return;
     }
     
@@ -189,6 +196,7 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
       // Create the Firestore update object
       const updateData = { 
         preferredName: formData.preferredName,
+        otherEmail: (formData.otherEmail || '').trim(),
         phoneNumber: formData.phoneNumber,
         address: formData.address,
         emergencyContactName: formData.emergencyContactName,
@@ -274,6 +282,18 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
 
           <InfoTile>
             <IconBubble>
+              <EnvelopeSimple size={18} />
+            </IconBubble>
+            <TileBody>
+              <TileLabel>Other Email</TileLabel>
+              <TileValue>
+                {userData?.otherEmail || 'Not specified'}
+              </TileValue>
+            </TileBody>
+          </InfoTile>
+
+          <InfoTile>
+            <IconBubble>
               <Phone size={18} />
             </IconBubble>
             <TileBody>
@@ -351,6 +371,18 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
                       />
                     </FormGroup>
                   )}
+
+                  <FormGroup>
+                    <Label htmlFor="otherEmail">Other Email (optional)</Label>
+                    <Input
+                      type="email"
+                      id="otherEmail"
+                      name="otherEmail"
+                      value={formData.otherEmail}
+                      onChange={handleChange}
+                      placeholder="Enter an alternate email address"
+                    />
+                  </FormGroup>
 
                   <FormGroup>
                     <Label htmlFor="phoneNumber">Phone Number</Label>

@@ -30,6 +30,12 @@ export const getAttendanceRules = async () => {
         },
         absent: {
           threshold: 300 // Minutes (5 hours) after schedule to mark as absent automatically
+        },
+        mobileAccess: {
+          // Mobile access is disabled by default for all roles
+          allowSuperAdmin: false,
+          allowAdmin: false,
+          allowMember: false
         }
       };
     }

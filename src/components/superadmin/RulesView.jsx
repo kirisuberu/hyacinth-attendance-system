@@ -154,6 +154,11 @@ const RulesView = () => {
     },
     absent: {
       threshold: 300 // 5 hours in minutes
+    },
+    mobileAccess: {
+      allowSuperAdmin: false,
+      allowAdmin: false,
+      allowMember: false
     }
   });
   
@@ -167,8 +172,30 @@ const RulesView = () => {
       try {
         setLoading(true);
         const fetchedRules = await getAttendanceRules();
-        setRules(fetchedRules);
-        setOriginalRules(JSON.parse(JSON.stringify(fetchedRules))); // Deep copy for reset functionality
+        // Normalize in case some keys are missing in existing stored document
+        const normalizedRules = {
+          timeIn: {
+            earlyThreshold: fetchedRules?.timeIn?.earlyThreshold ?? 15,
+            onTimeThreshold: fetchedRules?.timeIn?.onTimeThreshold ?? 5
+          },
+          timeOut: {
+            incompleteThreshold: fetchedRules?.timeOut?.incompleteThreshold ?? 30,
+            overtimeThreshold: fetchedRules?.timeOut?.overtimeThreshold ?? 30
+          },
+          timeRegion: {
+            lockToDeviceRegion: fetchedRules?.timeRegion?.lockToDeviceRegion ?? false
+          },
+          absent: {
+            threshold: fetchedRules?.absent?.threshold ?? 300
+          },
+          mobileAccess: {
+            allowSuperAdmin: fetchedRules?.mobileAccess?.allowSuperAdmin ?? false,
+            allowAdmin: fetchedRules?.mobileAccess?.allowAdmin ?? false,
+            allowMember: fetchedRules?.mobileAccess?.allowMember ?? false
+          }
+        };
+        setRules(normalizedRules);
+        setOriginalRules(JSON.parse(JSON.stringify(normalizedRules))); // Deep copy for reset functionality
       } catch (error) {
         console.error('Error fetching attendance rules:', error);
         toast.error('Failed to load attendance rules');
@@ -253,7 +280,10 @@ const RulesView = () => {
       rules.timeOut.incompleteThreshold !== originalRules.timeOut.incompleteThreshold ||
       rules.timeOut.overtimeThreshold !== originalRules.timeOut.overtimeThreshold ||
       rules.timeRegion?.lockToDeviceRegion !== originalRules.timeRegion?.lockToDeviceRegion ||
-      rules.absent?.threshold !== originalRules.absent?.threshold
+      rules.absent?.threshold !== originalRules.absent?.threshold ||
+      rules.mobileAccess?.allowSuperAdmin !== originalRules.mobileAccess?.allowSuperAdmin ||
+      rules.mobileAccess?.allowAdmin !== originalRules.mobileAccess?.allowAdmin ||
+      rules.mobileAccess?.allowMember !== originalRules.mobileAccess?.allowMember
     );
   };
   
@@ -453,6 +483,51 @@ const RulesView = () => {
               </div>
             </RulesSection>
             
+            <RulesSection>
+              <SectionTitle>
+                <LockSimple size={20} weight="bold" />
+                Mobile Access
+              </SectionTitle>
+              <RuleDescription>
+                <p>Control whether users can log in and use the application from mobile devices based on their role. If disabled for a role, users with that role will be signed out when using a mobile device.</p>
+              </RuleDescription>
+              <FormRow>
+                <FormGroup>
+                  <FormLabel>Allow Super Admins</FormLabel>
+                  <input
+                    type="checkbox"
+                    checked={rules.mobileAccess?.allowSuperAdmin || false}
+                    onChange={(e) => handleInputChange('mobileAccess', 'allowSuperAdmin', e.target.checked)}
+                  />
+                  <Description>
+                    When enabled, Super Admins may access the app on mobile devices.
+                  </Description>
+                </FormGroup>
+                <FormGroup>
+                  <FormLabel>Allow Admins</FormLabel>
+                  <input
+                    type="checkbox"
+                    checked={rules.mobileAccess?.allowAdmin || false}
+                    onChange={(e) => handleInputChange('mobileAccess', 'allowAdmin', e.target.checked)}
+                  />
+                  <Description>
+                    When enabled, Admins may access the app on mobile devices.
+                  </Description>
+                </FormGroup>
+                <FormGroup>
+                  <FormLabel>Allow Members</FormLabel>
+                  <input
+                    type="checkbox"
+                    checked={rules.mobileAccess?.allowMember || false}
+                    onChange={(e) => handleInputChange('mobileAccess', 'allowMember', e.target.checked)}
+                  />
+                  <Description>
+                    When enabled, Members may access the app on mobile devices.
+                  </Description>
+                </FormGroup>
+              </FormRow>
+            </RulesSection>
+
             <ButtonContainer>
               <SecondaryButton
                 type="button"

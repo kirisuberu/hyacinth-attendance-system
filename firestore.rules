@@ -121,6 +121,27 @@ service cloud.firestore {
       allow write: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if request.auth != null;
     }
+    
+    // Email aliases collection rules
+    match /email_aliases/{alias} {
+      // Allow unauthenticated get for login-time alias resolution
+      allow get: if true;
+      
+      // Prevent enumeration of aliases
+      allow list: if false;
+      
+      // Authenticated users: owners and admins can read
+      allow read: if request.auth != null && (isAdmin() || resource.data.primaryUid == request.auth.uid);
+      
+      // Create by owner or admin
+      allow create: if request.auth != null && (isAdmin() || request.resource.data.primaryUid == request.auth.uid);
+      
+      // Update by owner or admin; primaryUid must not change
+      allow update: if request.auth != null && (isAdmin() || resource.data.primaryUid == request.auth.uid) &&
+        request.resource.data.primaryUid == resource.data.primaryUid;
+      
+      // Delete by owner or admin
+      allow delete: if request.auth != null && (isAdmin() || resource.data.primaryUid == request.auth.uid);
+    }
   }
 }
-

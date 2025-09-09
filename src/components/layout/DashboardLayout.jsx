@@ -195,13 +195,14 @@ function DashboardLayout() {
   }, [userData, detectedTimeZone]);
 
 
-  const handleLogout = () => {
-    auth.signOut().then(() => {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
       navigate('/');
-    }).catch((error) => {
+    } catch (error) {
       console.error('Error signing out:', error);
       toast.error('Failed to sign out');
-    });
+    }
   };
 
 

@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Outlet } from 'react-router-dom';
 import { auth, db } from '../../firebase';
+import { signOut } from 'firebase/auth';
 import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
+import { isMobile } from 'react-device-detect';
+import { getAttendanceRules } from '../../services/systemSettingsService';
 
 
 
@@ -80,6 +83,7 @@ function AuthLayout() {
     let declinedUnsubscribe = null;
     let pendingUnsubscribe = null;
     let userUnsubscribe = null;
+    let settingsUnsubscribe = null;
 
     // First, check if this user has been declined or blocked
     const declinedQ = query(
@@ -88,11 +92,17 @@ function AuthLayout() {
     );
     
     // Real-time listener for declined status
-    declinedUnsubscribe = onSnapshot(declinedQ, (declinedSnapshot) => {
+    declinedUnsubscribe = onSnapshot(declinedQ, async (declinedSnapshot) => {
       if (!declinedSnapshot.empty) {
         // User was declined, sign them out and redirect to login
         toast.error('Your registration request has been declined. Please contact an administrator.');
-        auth.signOut().then(() => navigate('/'));
+        try {
+          await signOut(auth);
+        } catch (error) {
+          console.error('Error signing out:', error);
+          toast.error('Failed to sign out');
+        }
+        navigate('/');
         return;
       }
       
@@ -104,11 +114,17 @@ function AuthLayout() {
       
       // Real-time listener for pending status
       if (!pendingUnsubscribe) {
-        pendingUnsubscribe = onSnapshot(pendingQ, (pendingSnapshot) => {
+        pendingUnsubscribe = onSnapshot(pendingQ, async (pendingSnapshot) => {
           if (!pendingSnapshot.empty) {
             // User has a pending request
             toast.info('Your registration request is pending approval. You will be notified when approved.');
-            auth.signOut().then(() => navigate('/'));
+            try {
+              await signOut(auth);
+            } catch (error) {
+              console.error('Error signing out:', error);
+              toast.error('Failed to sign out');
+            }
+            navigate('/');
             return;
           }
           
@@ -117,18 +133,83 @@ function AuthLayout() {
           
           // Real-time listener for user data
           if (!userUnsubscribe) {
-            userUnsubscribe = onSnapshot(userDocRef, (userDocSnap) => {
+            userUnsubscribe = onSnapshot(userDocRef, async (userDocSnap) => {
               setLoadingUserData(false);
               
               if (userDocSnap.exists()) {
                 const userData = userDocSnap.data();
+                // Enforce mobile access rules based on role
+                try {
+                  const rules = await getAttendanceRules();
+                  const role = String(userData?.role || '').toLowerCase();
+                  const isSuperAdminRole = role === 'super_admin' || role === 'superadmin' || role === 'super-admin';
+                  const isAdminRole = role === 'admin';
+                  const mobileAllowed = (
+                    (isSuperAdminRole && (rules?.mobileAccess?.allowSuperAdmin === true)) ||
+                    (isAdminRole && (rules?.mobileAccess?.allowAdmin === true)) ||
+                    (!isSuperAdminRole && !isAdminRole && (rules?.mobileAccess?.allowMember === true))
+                  );
+
+                  if (isMobile && !mobileAllowed) {
+                    toast.error('Mobile access is not allowed for your role. Please use a desktop browser.');
+                    try {
+                      await signOut(auth);
+                    } catch (error) {
+                      console.error('Error signing out:', error);
+                      toast.error('Failed to sign out');
+                    }
+                    navigate('/', { replace: true });
+                    return;
+                  }
+                } catch (err) {
+                  console.error('Error checking mobile access rules:', err);
+                }
+
                 setUserData(userData);
+
+                // Listen for changes in system settings to enforce mobile access dynamically
+                const settingsDocRef = doc(db, 'systemSettings', 'attendance_rules');
+                if (!settingsUnsubscribe) {
+                  settingsUnsubscribe = onSnapshot(settingsDocRef, async (settingsSnap) => {
+                    try {
+                      const rules = settingsSnap.exists() ? settingsSnap.data() : {};
+                      const role = String(userData?.role || '').toLowerCase();
+                      const isSuperAdminRole = role === 'super_admin' || role === 'superadmin' || role === 'super-admin';
+                      const isAdminRole = role === 'admin';
+                      const mobileAllowed = (
+                        (isSuperAdminRole && (rules?.mobileAccess?.allowSuperAdmin === true)) ||
+                        (isAdminRole && (rules?.mobileAccess?.allowAdmin === true)) ||
+                        (!isSuperAdminRole && !isAdminRole && (rules?.mobileAccess?.allowMember === true))
+                      );
+                      if (isMobile && !mobileAllowed) {
+                        toast.error('Mobile access is not allowed for your role. Please use a desktop browser.');
+                        try {
+                          await signOut(auth);
+                        } catch (error) {
+                          console.error('Error signing out:', error);
+                          toast.error('Failed to sign out');
+                        }
+                        navigate('/', { replace: true });
+                      }
+                    } catch (err) {
+                      console.error('Error enforcing mobile access on settings change:', err);
+                    }
+                  }, (error) => {
+                    console.error('Error subscribing to system settings:', error);
+                  });
+                }
               } else {
                 console.log('No user data found in Firestore');
                 
                 // If we get here, the user is authenticated but has no data in Firestore
                 toast.error('Your account is not properly set up. Please contact an administrator.');
-                auth.signOut().then(() => navigate('/'));
+                try {
+                  await signOut(auth);
+                } catch (error) {
+                  console.error('Error signing out:', error);
+                  toast.error('Failed to sign out');
+                }
+                navigate('/');
               }
             }, (error) => {
               console.error('Error fetching user data:', error);
@@ -152,6 +233,7 @@ function AuthLayout() {
       if (userUnsubscribe) userUnsubscribe();
       if (pendingUnsubscribe) pendingUnsubscribe();
       if (declinedUnsubscribe) declinedUnsubscribe();
+      if (settingsUnsubscribe) settingsUnsubscribe();
     };
   };
 
