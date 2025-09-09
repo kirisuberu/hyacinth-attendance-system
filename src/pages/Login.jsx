@@ -6,8 +6,8 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Envelope, Lock, SignIn, UserPlus, Eye, EyeSlash, ArrowCounterClockwise } from 'phosphor-react';
-import { isMobile } from 'react-device-detect';
 import { getAttendanceRules } from '../services/systemSettingsService';
+import { isLikelyMobileDevice } from '../utils/deviceUtils';
 
 const LoginContainer = styled.div`
   display: flex;
@@ -359,7 +359,7 @@ function Login() {
               (isAdminRole && (rules?.mobileAccess?.allowAdmin === true)) ||
               (!isSuperAdminRole && !isAdminRole && (rules?.mobileAccess?.allowMember === true))
             );
-            if (isMobile && !mobileAllowed) {
+            if (isLikelyMobileDevice() && !mobileAllowed) {
               await signOut(auth);
               setError('Mobile access is not allowed for your role. Please use a desktop browser.');
               toast.error('Access denied: Mobile not allowed for your role');

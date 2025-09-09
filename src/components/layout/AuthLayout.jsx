@@ -6,8 +6,8 @@ import { collection, query, where, doc, onSnapshot } from 'firebase/firestore';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
-import { isMobile } from 'react-device-detect';
 import { getAttendanceRules } from '../../services/systemSettingsService';
+import { isLikelyMobileDevice } from '../../utils/deviceUtils';
 
 
 
@@ -150,7 +150,7 @@ function AuthLayout() {
                     (!isSuperAdminRole && !isAdminRole && (rules?.mobileAccess?.allowMember === true))
                   );
 
-                  if (isMobile && !mobileAllowed) {
+                  if (isLikelyMobileDevice() && !mobileAllowed) {
                     toast.error('Mobile access is not allowed for your role. Please use a desktop browser.');
                     try {
                       await signOut(auth);
@@ -181,7 +181,7 @@ function AuthLayout() {
                         (isAdminRole && (rules?.mobileAccess?.allowAdmin === true)) ||
                         (!isSuperAdminRole && !isAdminRole && (rules?.mobileAccess?.allowMember === true))
                       );
-                      if (isMobile && !mobileAllowed) {
+                      if (isLikelyMobileDevice() && !mobileAllowed) {
                         toast.error('Mobile access is not allowed for your role. Please use a desktop browser.');
                         try {
                           await signOut(auth);

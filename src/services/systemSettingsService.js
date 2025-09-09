@@ -52,7 +52,7 @@ export const getAttendanceRules = async () => {
  */
 export const updateAttendanceRules = async (rules) => {
   try {
-    await setDoc(doc(db, 'systemSettings', SYSTEM_SETTINGS_DOC_ID), rules);
+    await setDoc(doc(db, 'systemSettings', SYSTEM_SETTINGS_DOC_ID), rules, { merge: true });
   } catch (error) {
     console.error('Error updating attendance rules:', error);
     throw error;
