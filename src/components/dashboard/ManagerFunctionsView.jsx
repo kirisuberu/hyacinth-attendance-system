@@ -54,6 +54,18 @@ function ManagerFunctionsView() {
   const [petitionAction, setPetitionAction] = useState(null);
   const [adminRemarks, setAdminRemarks] = useState('');
   const [processingPetition, setProcessingPetition] = useState(false);
+  // Day marking modal state (tri-column Absent/PTO/NCNS)
+  const [showDayMarkModal, setShowDayMarkModal] = useState(false);
+  // Map of userId -> { type: 'absent'|'pto'|'ncns'|null, reason: string, absentReason: string }
+  const [dailySelections, setDailySelections] = useState({});
+  // Search inside Day Mark modal
+  const [dayMarkSearch, setDayMarkSearch] = useState('');
+  // Per-type list modal for a specific day
+  const [showTypeListModal, setShowTypeListModal] = useState(false);
+  const [typeListDate, setTypeListDate] = useState('');
+  const [typeListType, setTypeListType] = useState('absent');
+  // userId -> { type, reason, absentReason }
+  const [typeListEdits, setTypeListEdits] = useState({});
 
   // Get admin's departments
   const adminDepartments = React.useMemo(() => {
@@ -78,6 +90,15 @@ function ManagerFunctionsView() {
       return total + (Number(schedule.shiftDuration) || 0);
     }, 0).toFixed(1);
   };
+
+  // Quick lookup of user data by id for display
+  const userById = React.useMemo(() => {
+    const map = {};
+    for (const u of departmentUsers) map[u.id] = u;
+    return map;
+  }, [departmentUsers]);
+
+  // (moved) modalFilteredUsers is defined after filteredUsers
 
   const handleBulkMarkAbsences = async () => {
     if (!absenceDate) {
@@ -119,7 +140,7 @@ function ManagerFunctionsView() {
           const arr = copy[absenceDate] ? [...copy[absenceDate]] : [];
           const mapByUser = new Map(arr.map((a) => [a.userId, a]));
           bulkSelectedUserIds.forEach((uid) => {
-            mapByUser.set(uid, { id: `${uid}_${absenceDate}`, userId: uid, type: bulkAbsenceType, reason: bulkAbsenceReason || '' });
+            mapByUser.set(uid, { id: `${uid}_${absenceDate}`, userId: uid, type: bulkAbsenceType, reason: bulkAbsenceReason || '', absentReason: bulkAbsenceType === 'absent' ? (bulkAbsentReason || '') : '' });
           });
           copy[absenceDate] = Array.from(mapByUser.values());
           return copy;
@@ -154,6 +175,15 @@ function ManagerFunctionsView() {
   const monthTitle = (dateObj) =>
     dateObj.toLocaleString(undefined, { month: 'long', year: 'numeric' });
   const weekDayMondayIndex = (jsDay) => (jsDay + 6) % 7; // convert Sun(0)..Sat(6) -> Mon(0)..Sun(6)
+  const formatLongDate = (dateStr) => {
+    try {
+      const [y, m, d] = (dateStr || '').split('-').map(Number);
+      const dt = new Date(y, (m || 1) - 1, d || 1);
+      return dt.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
 
   // Fetch users in admin's departments
   useEffect(() => {
@@ -294,6 +324,18 @@ function ManagerFunctionsView() {
     });
   }, [departmentUsers, searchTerm, selectedDeptId]);
 
+  // Filtered users within the Day Mark modal
+  const modalFilteredUsers = React.useMemo(() => {
+    const t = (dayMarkSearch || '').trim().toLowerCase();
+    if (!t) return filteredUsers;
+    return filteredUsers.filter((u) => {
+      const name = (u.name || '').toLowerCase();
+      const email = (u.email || '').toLowerCase();
+      const pos = (u.position || '').toLowerCase();
+      return name.includes(t) || email.includes(t) || pos.includes(t);
+    });
+  }, [filteredUsers, dayMarkSearch]);
+
   // Load monthly absences for filtered users when in calendar view
   useEffect(() => {
     if (viewMode !== 'calendar') return;
@@ -317,7 +359,7 @@ function ManagerFunctionsView() {
           if (!allowedIds.has(data.userId)) return;
           const dateKey = data.date;
           if (!map[dateKey]) map[dateKey] = [];
-          map[dateKey].push({ id: docSnap.id, userId: data.userId, type: data.type, reason: data.reason || '' });
+          map[dateKey].push({ id: docSnap.id, userId: data.userId, type: data.type, reason: data.reason || '', absentReason: data.absentReason || '' });
         });
         setAbsencesByDate(map);
       } catch (err) {
@@ -355,7 +397,7 @@ function ManagerFunctionsView() {
           const copy = { ...prev };
           const arr = copy[absenceDate] ? [...copy[absenceDate]] : [];
           const existingIndex = arr.findIndex(a => a.userId === selectedUser.id);
-          const entry = { id: absenceId, userId: selectedUser.id, type: absenceType, reason: absenceReason || '' };
+          const entry = { id: absenceId, userId: selectedUser.id, type: absenceType, reason: absenceReason || '', absentReason: absenceType === 'absent' ? (absentReason || '') : '' };
           if (existingIndex >= 0) arr[existingIndex] = entry; else arr.push(entry);
           copy[absenceDate] = arr;
           return copy;
@@ -618,10 +660,103 @@ function ManagerFunctionsView() {
 
   const onDayClick = (dateStr) => {
     setAbsenceDate(dateStr);
-    setBulkAbsenceType('absent');
-    setBulkAbsenceReason('');
-    setBulkSelectedUserIds(selectedUser ? [selectedUser.id] : []);
-    setShowBulkAbsenceModal(true);
+    // Initialize selections from current absences for this date
+    const existing = absencesByDate[dateStr] || [];
+    const map = {};
+    existing.forEach((a) => {
+      map[a.userId] = { type: a.type || null, reason: a.reason || '', absentReason: a.type === 'absent' ? (a.absentReason || '') : '' };
+    });
+    setDailySelections(map);
+    setDayMarkSearch('');
+    setShowDayMarkModal(true);
+  };
+
+  const toggleSelection = (userId, type, checked) => {
+    setDailySelections((prev) => {
+      const next = { ...prev };
+      const current = next[userId] || { type: null, reason: '', absentReason: '' };
+      if (checked) {
+        // Ensure a user can have only one type; selecting one clears others
+        next[userId] = { type, reason: current.reason || '', absentReason: current.absentReason || '' };
+      } else {
+        next[userId] = { type: null, reason: '', absentReason: '' };
+      }
+      return next;
+    });
+  };
+
+  const updateReason = (userId, field, value) => {
+    setDailySelections((prev) => ({
+      ...prev,
+      [userId]: { type: prev[userId]?.type || null, reason: field === 'reason' ? value : (prev[userId]?.reason || ''), absentReason: field === 'absentReason' ? value : (prev[userId]?.absentReason || '') }
+    }));
+  };
+
+  const handleSubmitDayMarkings = async () => {
+    if (!absenceDate) {
+      toast.error('Please select a date');
+      return;
+    }
+
+    try {
+      const batch = writeBatch(db);
+      const timestampStr = new Date().toISOString();
+
+      // Build map of existing absences for comparison
+      const existing = absencesByDate[absenceDate] || [];
+      const existingByUser = new Map(existing.map((a) => [a.userId, a]));
+
+      // For each user in filtered list, decide whether to set or delete
+      const affectedUserIds = new Set([
+        ...filteredUsers.map((u) => u.id),
+        ...Object.keys(dailySelections || {})
+      ]);
+
+      affectedUserIds.forEach((uid) => {
+        const sel = dailySelections[uid];
+        const absenceId = `${uid}_${absenceDate}`;
+        if (sel && sel.type) {
+          const data = {
+            userId: uid,
+            date: absenceDate,
+            type: sel.type,
+            reason: sel.reason || '',
+            absentReason: sel.type === 'absent' ? (sel.absentReason || '') : '',
+            markedBy: userData?.uid || 'system',
+            markedByName: userData?.name || userData?.displayName || 'Admin',
+            timestamp: timestampStr,
+            status: 'approved'
+          };
+          batch.set(doc(db, 'absences', absenceId), data);
+        } else if (existingByUser.has(uid)) {
+          // Was previously set but now cleared -> delete
+          batch.delete(doc(db, 'absences', absenceId));
+        }
+      });
+
+      await batch.commit();
+
+      // Reflect in local calendar state
+      setAbsencesByDate((prev) => {
+        const copy = { ...prev };
+        const entries = [];
+        Object.entries(dailySelections).forEach(([uid, sel]) => {
+          if (sel && sel.type) {
+            entries.push({ id: `${uid}_${absenceDate}`, userId: uid, type: sel.type, reason: sel.reason || '', absentReason: sel.absentReason || '' });
+          }
+        });
+        copy[absenceDate] = entries;
+        if (entries.length === 0) delete copy[absenceDate];
+        return copy;
+      });
+
+      toast.success('Day markings saved');
+      setShowDayMarkModal(false);
+      setDailySelections({});
+    } catch (e) {
+      console.error('Failed to save day markings:', e);
+      toast.error('Failed to save day markings');
+    }
   };
 
   const selectedUserAbsenceType = (dateStr) => {
@@ -707,6 +842,78 @@ function ManagerFunctionsView() {
                 ))}
               </DeptFilterSelect>
             )}
+
+      {/* Per-Type List Modal for a Day */}
+      {showTypeListModal && (
+        <Modal>
+          <TypeListModalContent>
+            <ModalHeader>
+              <h3>
+                {formatLongDate(typeListDate)} · {typeListType === 'absent' ? 'Absent' : typeListType === 'pto' ? 'PTO' : 'No Call No Show'}
+              </h3>
+              <CloseButton onClick={() => setShowTypeListModal(false)}>
+                <X size={20} />
+              </CloseButton>
+            </ModalHeader>
+
+            <ModalBody>
+              <TypeListHeader>
+                <span>Members</span>
+                <span style={{ color: '#666' }}>{Object.keys(typeListEdits).length} total</span>
+              </TypeListHeader>
+              <TypeList>
+                {Object.keys(typeListEdits).length === 0 ? (
+                  <NoDataMessage>No members for this tag.</NoDataMessage>
+                ) : (
+                  Object.entries(typeListEdits).map(([uid, sel]) => (
+                    <TypeListRow key={uid}>
+                      <TypeListName>{userById[uid]?.name || uid}</TypeListName>
+                      <TypeListControls>
+                        <Select
+                          value={sel.type}
+                          onChange={(e) => updateTypeListField(uid, 'type', e.target.value)}
+                        >
+                          <option value="absent">Absent</option>
+                          <option value="pto">PTO</option>
+                          <option value="ncns">NCNS</option>
+                        </Select>
+                        {sel.type === 'absent' && (
+                          <Select
+                            value={sel.absentReason || ''}
+                            onChange={(e) => updateTypeListField(uid, 'absentReason', e.target.value)}
+                          >
+                            <option value="">Type</option>
+                            <option value="medical">Medical</option>
+                            <option value="emergency">Emergency</option>
+                            <option value="personal">Personal</option>
+                            <option value="transportation">Transportation/Inclement Weather</option>
+                            <option value="maternity">Maternity/Paternity Leave</option>
+                            <option value="others">Others</option>
+                          </Select>
+                        )}
+                        <Input
+                          type="text"
+                          placeholder="Reason (Optional)"
+                          value={sel.reason || ''}
+                          onChange={(e) => updateTypeListField(uid, 'reason', e.target.value)}
+                        />
+                      </TypeListControls>
+                      <TypeListActions>
+                        <InlineButton onClick={() => saveTypeListRow(uid)}>Save</InlineButton>
+                        <InlineButton onClick={() => deleteTypeListRow(uid)} style={{ borderColor: '#f5c2c2', background: '#ffecec' }}>Delete</InlineButton>
+                      </TypeListActions>
+                    </TypeListRow>
+                  ))
+                )}
+              </TypeList>
+            </ModalBody>
+
+            <ModalFooter>
+              <CancelButton onClick={() => setShowTypeListModal(false)}>Close</CancelButton>
+            </ModalFooter>
+          </TypeListModalContent>
+        </Modal>
+      )}
           </ControlsBar>
           <SectionHeader>
             <SectionTitle>
@@ -838,25 +1045,52 @@ function ManagerFunctionsView() {
                           )}
                         </DayCellTop>
                         <DayCellBody>
-                          {entries.map((a) => (
-                            <AbsenceTag
-                              key={a.id}
-                              $type={a.type}
-                              title={`${a.type}${a.reason ? ': ' + a.reason : ''}`}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {a.type}
-                              <RemoveAbsenceBtn
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteAbsence(dateStr, a.id);
-                                }}
-                                title="Remove"
-                              >
-                                <X size={12} />
-                              </RemoveAbsenceBtn>
-                            </AbsenceTag>
-                          ))}
+                          {(() => {
+                            const counts = { absent: 0, pto: 0, ncns: 0 };
+                            entries.forEach((e) => {
+                              if (e?.type === 'absent') counts.absent += 1;
+                              else if (e?.type === 'pto') counts.pto += 1;
+                              else if (e?.type === 'ncns') counts.ncns += 1;
+                            });
+                            const out = [];
+                            if (counts.absent > 0) {
+                              out.push(
+                                <TypeTag
+                                  key={`${dateStr}-absent`}
+                                  $type="absent"
+                                  onClick={(e) => { e.stopPropagation(); openTypeListModal(dateStr, 'absent'); }}
+                                  title="View Absent list"
+                                >
+                                  Absent <CountBadge>{counts.absent}</CountBadge>
+                                </TypeTag>
+                              );
+                            }
+                            if (counts.pto > 0) {
+                              out.push(
+                                <TypeTag
+                                  key={`${dateStr}-pto`}
+                                  $type="pto"
+                                  onClick={(e) => { e.stopPropagation(); openTypeListModal(dateStr, 'pto'); }}
+                                  title="View PTO list"
+                                >
+                                  PTO <CountBadge>{counts.pto}</CountBadge>
+                                </TypeTag>
+                              );
+                            }
+                            if (counts.ncns > 0) {
+                              out.push(
+                                <TypeTag
+                                  key={`${dateStr}-ncns`}
+                                  $type="ncns"
+                                  onClick={(e) => { e.stopPropagation(); openTypeListModal(dateStr, 'ncns'); }}
+                                  title="View NCNS list"
+                                >
+                                  NCNS <CountBadge>{counts.ncns}</CountBadge>
+                                </TypeTag>
+                              );
+                            }
+                            return out;
+                          })()}
                         </DayCellBody>
                       </DayCell>
                     );
@@ -939,6 +1173,121 @@ function ManagerFunctionsView() {
               <SubmitButton onClick={handleMarkAbsence}>Mark {absenceType === 'pto' ? 'PTO' : 'Absence'}</SubmitButton>
             </ModalFooter>
           </ModalContent>
+        </Modal>
+      )}
+
+      {/* Day Mark Modal (Absent / PTO / NCNS) */}
+      {showDayMarkModal && (
+        <Modal>
+          <DayMarkModalContent>
+            <ModalHeader>
+              <h3>{formatLongDate(absenceDate)}</h3>
+              <CloseButton onClick={() => setShowDayMarkModal(false)}>
+                <X size={20} />
+              </CloseButton>
+            </ModalHeader>
+
+            <ModalBody>
+              <DayMarkToolbar>
+                <DayMarkSearchInput
+                  type="text"
+                  placeholder="Search members by name, email, or position..."
+                  value={dayMarkSearch}
+                  onChange={(e) => setDayMarkSearch(e.target.value)}
+                />
+              </DayMarkToolbar>
+              <DayMarkGrid>
+                <DayMarkColumn $variant="absent">
+                  <DayMarkTitle>Absent</DayMarkTitle>
+                  <DayMarkList>
+                    {modalFilteredUsers.map((u) => {
+                      const active = dailySelections[u.id]?.type === 'absent';
+                      return (
+                        <DayMarkRow key={`abs-${u.id}`}>
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={(e) => toggleSelection(u.id, 'absent', e.target.checked)}
+                          />
+                          <NameField>{u.name}</NameField>
+                          <Select
+                            disabled={!active}
+                            value={dailySelections[u.id]?.absentReason || ''}
+                            onChange={(e) => updateReason(u.id, 'absentReason', e.target.value)}
+                          >
+                            <option value="">Type</option>
+                            <option value="medical">Medical</option>
+                            <option value="emergency">Emergency</option>
+                            <option value="personal">Personal</option>
+                            <option value="transportation">Transportation/Inclement Weather</option>
+                            <option value="maternity">Maternity/Paternity Leave</option>
+                            <option value="others">Others</option>
+                          </Select>
+                          <Input
+                            type="text"
+                            placeholder="Reason (Optional)"
+                            disabled={!active}
+                            value={dailySelections[u.id]?.reason || ''}
+                            onChange={(e) => updateReason(u.id, 'reason', e.target.value)}
+                          />
+                        </DayMarkRow>
+                      );
+                    })}
+                  </DayMarkList>
+                </DayMarkColumn>
+
+                <DayMarkColumn $variant="pto">
+                  <DayMarkTitle>PTO</DayMarkTitle>
+                  <DayMarkList>
+                    {modalFilteredUsers.map((u) => {
+                      const active = dailySelections[u.id]?.type === 'pto';
+                      return (
+                        <DayMarkRow key={`pto-${u.id}`}>
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={(e) => toggleSelection(u.id, 'pto', e.target.checked)}
+                          />
+                          <NameField>{u.name}</NameField>
+                          <Input
+                            type="text"
+                            placeholder="Reason (Optional)"
+                            disabled={!active}
+                            value={dailySelections[u.id]?.reason || ''}
+                            onChange={(e) => updateReason(u.id, 'reason', e.target.value)}
+                          />
+                        </DayMarkRow>
+                      );
+                    })}
+                  </DayMarkList>
+                </DayMarkColumn>
+
+                <DayMarkColumn $variant="ncns">
+                  <DayMarkTitle>No Call No Show</DayMarkTitle>
+                  <DayMarkList>
+                    {modalFilteredUsers.map((u) => {
+                      const active = dailySelections[u.id]?.type === 'ncns';
+                      return (
+                        <DayMarkRow key={`ncns-${u.id}`}>
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={(e) => toggleSelection(u.id, 'ncns', e.target.checked)}
+                          />
+                          <NameField>{u.name}</NameField>
+                        </DayMarkRow>
+                      );
+                    })}
+                  </DayMarkList>
+                </DayMarkColumn>
+              </DayMarkGrid>
+            </ModalBody>
+
+            <ModalFooter>
+              <CancelButton onClick={() => setShowDayMarkModal(false)}>Cancel</CancelButton>
+              <SubmitButton onClick={handleSubmitDayMarkings}>Submit</SubmitButton>
+            </ModalFooter>
+          </DayMarkModalContent>
         </Modal>
       )}
       
@@ -1447,6 +1796,96 @@ const SearchInput = styled.input`
     border-color: #4caf50;
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
   }
+`;
+
+// Calendar per-type tag styles
+const TypeTag = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid;
+  cursor: pointer;
+  user-select: none;
+  background: ${p => p.$type === 'absent' ? '#FDECEA'
+    : p.$type === 'pto' ? '#E3F2FD'
+    : '#f3f4f6'};
+  color: ${p => p.$type === 'absent' ? '#C62828'
+    : p.$type === 'pto' ? '#1565C0'
+    : '#111827'};
+  border-color: ${p => p.$type === 'absent' ? '#F5C6CB'
+    : p.$type === 'pto' ? '#90CAF9'
+    : '#D1D5DB'};
+  &:hover { opacity: 0.9; }
+`;
+
+const CountBadge = styled.span`
+  background: rgba(0,0,0,0.06);
+  border-radius: 10px;
+  padding: 0 6px;
+  font-weight: 800;
+`;
+
+// Type List Modal styles
+const TypeListModalContent = styled.div`
+  background: white;
+  border-radius: 8px;
+  max-width: 900px;
+  width: 96%;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const TypeListHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 0.25rem;
+`;
+
+const TypeList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const TypeListRow = styled.div`
+  display: grid;
+  grid-template-columns: 1.2fr 2fr auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+`;
+
+const TypeListName = styled.div`
+  font-weight: 600;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const TypeListControls = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.5fr;
+  gap: 8px;
+  align-items: center;
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const TypeListActions = styled.div`
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
 `;
 
 const DeptFilterSelect = styled.select`
@@ -2218,6 +2657,89 @@ const PetitionTextArea = styled.textarea`
   font-size: 0.9rem;
   resize: vertical;
   
+  &:focus {
+    outline: none;
+    border-color: #4caf50;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+  }
+`;
+
+// Day Mark Modal Styled Components (placed at the bottom per project preference)
+const DayMarkModalContent = styled.div`
+  background: white;
+  border-radius: 8px;
+  max-width: 1100px;
+  width: 96%;
+  max-height: 90vh;
+  overflow-y: auto;
+`;
+
+const DayMarkGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+`;
+
+const DayMarkColumn = styled.div`
+  background: ${({ $variant }) =>
+    $variant === 'absent' ? '#f6d4d4' : $variant === 'pto' ? '#d9c8ea' : '#bdbdbd'};
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid rgba(0,0,0,0.1);
+`;
+
+const DayMarkTitle = styled.h4`
+  margin: 0 0 12px;
+  color: #222;
+`;
+
+const DayMarkList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+`;
+
+const DayMarkRow = styled.div`
+  display: grid;
+  grid-template-columns: 24px 1.1fr 0.9fr 1.2fr;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+`;
+
+const NameField = styled.div`
+  font-size: 0.9rem;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+// Day Mark modal toolbar styles
+const DayMarkToolbar = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+`;
+
+const DayMarkSearchInput = styled.input`
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: #fff;
+  color: #333;
+  
+  &::placeholder {
+    color: #999;
+  }
+
   &:focus {
     outline: none;
     border-color: #4caf50;
