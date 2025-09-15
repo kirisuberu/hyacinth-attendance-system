@@ -1,0 +1,20 @@
+version = 0.1
+
+[default.build.parameters]
+template_file = "aws/template.yaml"
+cached = true
+parallel = true
+
+[default.validate.parameters]
+template_file = "aws/template.yaml"
+
+[default.deploy.parameters]
+stack_name = "hyacinth-media"
+template_file = "aws/template.yaml"
+resolve_s3 = true
+s3_prefix = "hyacinth-media"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "BucketName=\"hyattend-main\" AllowedOrigins=\"http://localhost:4000,http://localhost:4173,https://hyacinthattendance.web.app,https://hyacinthattendance.firebaseapp.com,https://hyattend.web.app,https://hyattend.firebaseapp.com\" FirebaseProjectId=\"hyacinthattendance\""
+image_repositories = []

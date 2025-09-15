@@ -24,7 +24,7 @@ const ScheduleView = ({ user, userData }) => {
   const [availableDepartments, setAvailableDepartments] = useState([]); // {id, name}
   const [selectedDepartmentIds, setSelectedDepartmentIds] = useState([]);
   const { use24HourFormat } = useTimeFormat();
-  const userTimeRegion = userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila';
+  const userTimeRegion = userData?.timeRegion || 'Asia/Manila';
   const [deptDisplayTimeZone, setDeptDisplayTimeZone] = useState(userTimeRegion);
   const [showVisualSchedule, setShowVisualSchedule] = useState(true);
   const supportedTimeZones = React.useMemo(() => {

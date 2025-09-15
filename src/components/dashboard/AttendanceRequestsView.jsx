@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { 
   getAllRequests, 
   updateRequestStatus, 
   REQUEST_TYPES, 
   REQUEST_STATUS 
 } from '../../services/requestService';
-import {
+import { 
   getAllAttendanceRecords,
   overrideAttendanceRecord,
   deleteAttendanceRecord,
@@ -114,6 +114,7 @@ const AttendanceRequestsView = () => {
   });
   const [overrideHistory, setOverrideHistory] = useState([]);
   const [expandedHistoryItems, setExpandedHistoryItems] = useState({});
+  const [userRegions, setUserRegions] = useState({}); // userId -> timeRegion
   
   // Fetch requests on component mount and when tab changes
   useEffect(() => {
@@ -138,6 +139,48 @@ const AttendanceRequestsView = () => {
       toast.error('Failed to load requests');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load the timeRegion for users present in the current records to ensure display respects admin setting
+  useEffect(() => {
+    const loadUserRegions = async () => {
+      try {
+        const missingIds = Array.from(new Set((attendanceRecords || []).map(r => r.userId).filter(Boolean)))
+          .filter(uid => !userRegions[uid]);
+        if (missingIds.length === 0) return;
+        const updates = {};
+        for (const uid of missingIds) {
+          try {
+            const userDocRef = doc(db, 'users', uid);
+            const snap = await getDoc(userDocRef);
+            updates[uid] = (snap.exists() ? (snap.data().timeRegion || 'Asia/Manila') : 'Asia/Manila');
+          } catch (e) {
+            updates[uid] = 'Asia/Manila';
+          }
+        }
+        if (Object.keys(updates).length) {
+          setUserRegions(prev => ({ ...prev, ...updates }));
+        }
+      } catch (e) {
+        // Non-blocking
+      }
+    };
+    loadUserRegions();
+  }, [attendanceRecords]);
+
+  const formatRecordDateTime = (record) => {
+    try {
+      const tz = userRegions[record.userId] || 'Asia/Manila';
+      const date = toJsDate(record.timestamp);
+      if (!date) return 'N/A';
+      const opts = {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true, timeZone: tz
+      };
+      return new Intl.DateTimeFormat('en-US', opts).format(date);
+    } catch (e) {
+      return record.formattedDate || 'N/A';
     }
   };
   
@@ -722,7 +765,7 @@ const AttendanceRequestsView = () => {
               {attendanceRecords.map(record => (
                 <tr key={record.id} style={record.isOverridden ? { backgroundColor: '#fff8e1' } : {}}>
                   <td>{record.name}</td>
-                  <td>{record.formattedDate}</td>
+                  <td>{formatRecordDateTime(record)}</td>
                   <td>{record.type}</td>
                   <td>
                     <StatusBadge status={record.status === 'Late' ? REQUEST_STATUS.REJECTED : 

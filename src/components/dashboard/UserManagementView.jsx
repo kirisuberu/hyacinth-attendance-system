@@ -3,7 +3,7 @@ import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
-import { Users, UserCircle, Pencil, Trash, X, Check, Calendar, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings, BookmarkSimple } from 'phosphor-react';
+import { Users, User, UserCircle, Pencil, Trash, X, Check, Calendar, CalendarBlank, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings, BookmarkSimple, EnvelopeSimple, Briefcase, GlobeHemisphereEast, Phone, MapPin, IdentificationCard, Shield } from 'phosphor-react';
 import * as XLSX from 'xlsx';
 import styled from 'styled-components';
 import { Card, CardTitle, CardContent, Grid } from './DashboardComponents';
@@ -90,6 +90,7 @@ function UserManagementView({ isSuperAdmin }) {
     emergencyContactName: '',
     emergencyContactPhone: '',
     emergencyContactRelationship: '',
+    timeRegion: 'Asia/Manila',
     departments: [],
     companies: []
   });
@@ -107,6 +108,7 @@ function UserManagementView({ isSuperAdmin }) {
     contactNumber: '',
     preemploymentDate: '',
     regularDate: '',
+    timeRegion: 'Asia/Manila',
     departments: [],
     companies: []
   });
@@ -356,7 +358,8 @@ function UserManagementView({ isSuperAdmin }) {
       emergencyContactPhone: user.emergencyContactPhone || '',
       emergencyContactRelationship: user.emergencyContactRelationship || '',
       departments: user.departments || [],
-      companies: user.companies || (user.company ? [user.company] : [])
+      companies: user.companies || (user.company ? [user.company] : []),
+      timeRegion: user.timeRegion || 'Asia/Manila'
     });
     
     // Set the modal visibility after setting the selected user
@@ -526,6 +529,7 @@ function UserManagementView({ isSuperAdmin }) {
         position: editUserData.position.trim(),
         employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
+        timeRegion: editUserData.timeRegion || 'Asia/Manila',
         dateOfBirth: editUserData.dateOfBirth,
         dateHired: editUserData.dateHired,
         preemploymentDate: editUserData.preemploymentDate,
@@ -556,6 +560,7 @@ function UserManagementView({ isSuperAdmin }) {
           position: editUserData.position.trim(),
           employmentStatus: editUserData.employmentStatus,
           role: editUserData.role,
+          timeRegion: editUserData.timeRegion || 'Asia/Manila',
           dateOfBirth: editUserData.dateOfBirth,
           dateHired: editUserData.dateHired,
           preemploymentDate: editUserData.preemploymentDate,
@@ -615,6 +620,7 @@ function UserManagementView({ isSuperAdmin }) {
         employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
         status: 'active',
+        timeRegion: newUserData.timeRegion || 'Asia/Manila',
         preemploymentDate: newUserData.preemploymentDate || '',
         regularDate: newUserData.regularDate || '',
         createdAt: serverTimestamp(),
@@ -661,6 +667,7 @@ function UserManagementView({ isSuperAdmin }) {
         contactNumber: '',
         preemploymentDate: '',
         regularDate: '',
+        timeRegion: 'Asia/Manila',
         departments: [],
         companies: []
       });
@@ -1604,25 +1611,22 @@ function UserManagementView({ isSuperAdmin }) {
               </div>
             </ModalTitle>
             
-            {/* All information in a single page with two columns */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: '1.5rem', marginBottom: '1.5rem' }}>
-              {/* Left Column - Basic Information */}
-              <div>
-                <h4 style={{ marginTop: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Basic Information</h4>
-                
-                <FormGroup>
-                  <Label>First Name</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.firstName}
-                    onChange={(e) => setEditUserData({...editUserData, firstName: e.target.value})}
-                    placeholder="First Name"
-                  />
-                </FormGroup>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
+            {/* Redesigned responsive layout with more columns on wide screens to reduce vertical scroll */}
+            <ModalFormGrid>
+              <SectionIdentity>
+                <FormSectionTitle>Identity & Contact</FormSectionTitle>
+                <GridName>
                   <FormGroup>
-                    <Label>Middle Initial</Label>
+                    <Label><LabelIcon><IdentificationCard size={16} /></LabelIcon>First Name</Label>
+                    <Input 
+                      type="text" 
+                      value={editUserData.firstName}
+                      onChange={(e) => setEditUserData({...editUserData, firstName: e.target.value})}
+                      placeholder="First Name"
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><IdentificationCard size={16} /></LabelIcon>Middle Initial</Label>
                     <Input 
                       type="text" 
                       value={editUserData.middleInitial}
@@ -1631,9 +1635,8 @@ function UserManagementView({ isSuperAdmin }) {
                       maxLength={1}
                     />
                   </FormGroup>
-                  
                   <FormGroup>
-                    <Label>Last Name</Label>
+                    <Label><LabelIcon><IdentificationCard size={16} /></LabelIcon>Last Name</Label>
                     <Input 
                       type="text" 
                       value={editUserData.lastName}
@@ -1641,31 +1644,69 @@ function UserManagementView({ isSuperAdmin }) {
                       placeholder="Last Name"
                     />
                   </FormGroup>
-                </div>
-                
+                </GridName>
+                <GridFour>
+                  <FormGroup>
+                    <Label><LabelIcon><User size={16} /></LabelIcon>Preferred Name</Label>
+                    <Input 
+                      type="text" 
+                      value={editUserData.preferredName || ''}
+                      onChange={(e) => setEditUserData({...editUserData, preferredName: e.target.value})}
+                      placeholder="You can call me..."
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><EnvelopeSimple size={16} /></LabelIcon>Email</Label>
+                    <Input 
+                      type="email" 
+                      value={editUserData.email}
+                      onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
+                      placeholder="Email Address"
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><Phone size={16} /></LabelIcon>Phone Number</Label>
+                    <Input 
+                      type="text" 
+                      value={editUserData.phoneNumber}
+                      onChange={(e) => setEditUserData({...editUserData, phoneNumber: e.target.value})}
+                      placeholder="e.g., +63 9XX XXX XXXX"
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><CalendarBlank size={16} /></LabelIcon>Date of Birth</Label>
+                    <Input 
+                      type="date" 
+                      value={editUserData.dateOfBirth}
+                      onChange={(e) => setEditUserData({...editUserData, dateOfBirth: e.target.value})}
+                    />
+                  </FormGroup>
+                </GridFour>
                 <FormGroup>
-                  <Label>You can call me as (Preferred Name)</Label>
+                  <Label><LabelIcon><MapPin size={16} /></LabelIcon>Complete Address</Label>
                   <Input 
                     type="text" 
-                    value={editUserData.preferredName || ''}
-                    onChange={(e) => setEditUserData({...editUserData, preferredName: e.target.value})}
-                    placeholder="Preferred Name"
+                    value={editUserData.address}
+                    onChange={(e) => setEditUserData({...editUserData, address: e.target.value})}
+                    placeholder="Street, City, Province/State, Country"
                   />
                 </FormGroup>
-                
-                <FormGroup>
-                  <Label>Email</Label>
-                  <Input 
-                    type="email" 
-                    value={editUserData.email}
-                    onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
-                    placeholder="Email Address"
-                  />
-                </FormGroup>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              </SectionIdentity>
+
+              <SectionEmployment>
+                <FormSectionTitle>Employment</FormSectionTitle>
+                <GridFour>
                   <FormGroup>
-                    <Label>Employment Status</Label>
+                    <Label><LabelIcon><Briefcase size={16} /></LabelIcon>Position</Label>
+                    <Input 
+                      type="text" 
+                      value={editUserData.position || ''}
+                      onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
+                      placeholder="Job Position"
+                    />
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><Briefcase size={16} /></LabelIcon>Employment Status</Label>
                     <Select
                       value={editUserData.employmentStatus || editUserData.position}
                       onChange={(e) => setEditUserData({...editUserData, employmentStatus: e.target.value})}
@@ -1675,209 +1716,180 @@ function UserManagementView({ isSuperAdmin }) {
                       <option value="intern">Intern</option>
                     </Select>
                   </FormGroup>
-                  
                   <FormGroup>
-                    <Label>Date Hired</Label>
+                    <Label><LabelIcon><GlobeHemisphereEast size={16} /></LabelIcon>Time-Zone</Label>
+                    <Select
+                      value={editUserData.timeRegion || 'Asia/Manila'}
+                      onChange={(e) => setEditUserData({ ...editUserData, timeRegion: e.target.value })}
+                    >
+                      <option value="Asia/Manila">PHT (Asia/Manila)</option>
+                      <option value="America/New_York">Eastern (ET)</option>
+                      <option value="America/Chicago">Central (CT)</option>
+                      <option value="America/Denver">Mountain (MT)</option>
+                      <option value="America/Los_Angeles">Pacific (PT)</option>
+                    </Select>
+                    <HelperText>
+                      This controls how schedules and time-related records are displayed for this user.
+                    </HelperText>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><Shield size={16} /></LabelIcon>Role {!isSuperAdmin && <span style={{ fontSize: '0.8rem', color: '#f44336' }}>(Super Admin only)</span>}</Label>
+                    <Select
+                      value={editUserData.role}
+                      onChange={(e) => setEditUserData({...editUserData, role: e.target.value})}
+                      disabled={!isSuperAdmin}
+                      style={!isSuperAdmin ? { backgroundColor: '#f5f5f5', cursor: 'not-allowed' } : {}}
+                    >
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                      <option value="super_admin">Super Admin</option>
+                    </Select>
+                    {!isSuperAdmin && (
+                      <HelperText>Only Super Admins can change user roles</HelperText>
+                    )}
+                  </FormGroup>
+                </GridFour>
+                <GridThree>
+                  <FormGroup>
+                    <Label><LabelIcon><CalendarBlank size={16} /></LabelIcon>Date Hired</Label>
                     <Input 
                       type="date" 
                       value={editUserData.dateHired || ''}
                       onChange={(e) => setEditUserData({...editUserData, dateHired: e.target.value})}
                     />
                   </FormGroup>
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <FormGroup>
-                    <Label>Preemployment Date</Label>
+                    <Label><LabelIcon><CalendarBlank size={16} /></LabelIcon>Preemployment Date</Label>
                     <Input 
                       type="date" 
                       value={editUserData.preemploymentDate || ''}
                       onChange={(e) => setEditUserData({...editUserData, preemploymentDate: e.target.value})}
                     />
                   </FormGroup>
-                  
                   <FormGroup>
-                    <Label>Regular Date</Label>
+                    <Label><LabelIcon><CalendarBlank size={16} /></LabelIcon>Regular Date</Label>
                     <Input 
                       type="date" 
                       value={editUserData.regularDate || ''}
                       onChange={(e) => setEditUserData({...editUserData, regularDate: e.target.value})}
                     />
                   </FormGroup>
-                </div>
-                
-                <FormGroup>
-                  <Label>Position</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.position || ''}
-                    onChange={(e) => setEditUserData({...editUserData, position: e.target.value})}
-                    placeholder="Job Position"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Companies</Label>
-                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
-                    Select one or more companies to assign to this user
-                  </div>
-                  <CheckboxContainer>
-                    {companies.map(company => (
-                      <CheckboxLabel 
-                        key={company.id} 
-                        checked={editUserData.companies?.includes(company.id)}
-                      >
-                        <input
-                          type="checkbox"
+                </GridThree>
+              </SectionEmployment>
+
+              <ColumnRoleAddressEmergency>
+                <FormSection>
+                  <FormSectionTitle>Emergency Contact</FormSectionTitle>
+                  <GridThree>
+                    <FormGroup>
+                      <Label><LabelIcon><User size={16} /></LabelIcon>Contact Name</Label>
+                      <Input 
+                        type="text" 
+                        value={editUserData.emergencyContactName}
+                        onChange={(e) => setEditUserData({...editUserData, emergencyContactName: e.target.value})}
+                        placeholder="Emergency Contact Name"
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label><LabelIcon><Phone size={16} /></LabelIcon>Contact Phone</Label>
+                      <Input 
+                        type="text" 
+                        value={editUserData.emergencyContactPhone}
+                        onChange={(e) => setEditUserData({...editUserData, emergencyContactPhone: e.target.value})}
+                        placeholder="Phone Number"
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label><LabelIcon><IdentificationCard size={16} /></LabelIcon>Relationship</Label>
+                      <Input 
+                        type="text" 
+                        value={editUserData.emergencyContactRelationship}
+                        onChange={(e) => setEditUserData({...editUserData, emergencyContactRelationship: e.target.value})}
+                        placeholder="Relationship to Employee"
+                      />
+                    </FormGroup>
+                  </GridThree>
+                </FormSection>
+              </ColumnRoleAddressEmergency>
+
+              <SectionAssignments>
+                <FormSectionTitle>Assignments</FormSectionTitle>
+                <GridTwo>
+                  <FormGroup>
+                    <Label><LabelIcon><Buildings size={16} /></LabelIcon>Companies</Label>
+                    <HelperText>Select one or more companies to assign to this user</HelperText>
+                    <CheckboxContainer>
+                      {companies.map(company => (
+                        <CheckboxLabel 
+                          key={company.id} 
                           checked={editUserData.companies?.includes(company.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditUserData({
-                                ...editUserData, 
-                                companies: [...(editUserData.companies || []), company.id]
-                              });
-                            } else {
-                              setEditUserData({
-                                ...editUserData, 
-                                companies: (editUserData.companies || []).filter(id => id !== company.id)
-                              });
-                            }
-                          }}
-                        />
-                        {company.name}
-                      </CheckboxLabel>
-                    ))}
-                  </CheckboxContainer>
-                  {companies.length === 0 && (
-                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                      No companies available. Add companies in the Company Management page.
-                    </div>
-                  )}
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Role {!isSuperAdmin && <span style={{ fontSize: '0.8rem', color: '#f44336' }}>(Super Admin only)</span>}</Label>
-                  <Select
-                    value={editUserData.role}
-                    onChange={(e) => setEditUserData({...editUserData, role: e.target.value})}
-                    disabled={!isSuperAdmin}
-                    style={!isSuperAdmin ? { backgroundColor: '#f5f5f5', cursor: 'not-allowed' } : {}}
-                  >
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                    <option value="super_admin">Super Admin</option>
-                  </Select>
-                  {!isSuperAdmin && (
-                    <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
-                      Only Super Admins can change user roles
-                    </div>
-                  )}
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Date of Birth</Label>
-                  <Input 
-                    type="date" 
-                    value={editUserData.dateOfBirth}
-                    onChange={(e) => setEditUserData({...editUserData, dateOfBirth: e.target.value})}
-                  />
-                </FormGroup>
-              </div>
-              
-              {/* Right Column - Additional Information */}
-              <div>
-                <h4 style={{ marginTop: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Additional Information</h4>
-                
-                <FormGroup>
-                  <Label>Phone #</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.phoneNumber}
-                    onChange={(e) => setEditUserData({...editUserData, phoneNumber: e.target.value})}
-                    placeholder="Phone Number"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Address</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.address}
-                    onChange={(e) => setEditUserData({...editUserData, address: e.target.value})}
-                    placeholder="Complete Address"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Emergency Contact Name</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.emergencyContactName}
-                    onChange={(e) => setEditUserData({...editUserData, emergencyContactName: e.target.value})}
-                    placeholder="Emergency Contact Name"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Emergency Contact Phone</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.emergencyContactPhone}
-                    onChange={(e) => setEditUserData({...editUserData, emergencyContactPhone: e.target.value})}
-                    placeholder="Emergency Contact Phone"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Relationship</Label>
-                  <Input 
-                    type="text" 
-                    value={editUserData.emergencyContactRelationship}
-                    onChange={(e) => setEditUserData({...editUserData, emergencyContactRelationship: e.target.value})}
-                    placeholder="Relationship to Employee"
-                  />
-                </FormGroup>
-                
-                <FormGroup>
-                  <Label>Departments</Label>
-                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.5rem' }}>
-                    Select one or more departments to assign to this user
-                  </div>
-                  <CheckboxContainer>
-                    {departments.map(dept => (
-                      <CheckboxLabel 
-                        key={dept.id} 
-                        checked={editUserData.departments?.includes(dept.id)}
-                      >
-                        <input
-                          type="checkbox"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editUserData.companies?.includes(company.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditUserData({
+                                  ...editUserData, 
+                                  companies: [...(editUserData.companies || []), company.id]
+                                });
+                              } else {
+                                setEditUserData({
+                                  ...editUserData, 
+                                  companies: (editUserData.companies || []).filter(id => id !== company.id)
+                                });
+                              }
+                            }}
+                          />
+                          {company.name}
+                        </CheckboxLabel>
+                      ))}
+                    </CheckboxContainer>
+                    {companies.length === 0 && (
+                      <HelperText style={{ fontStyle: 'italic' }}>
+                        No companies available. Add companies in the Company Management page.
+                      </HelperText>
+                    )}
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><Users size={16} /></LabelIcon>Departments</Label>
+                    <HelperText>Select one or more departments to assign to this user</HelperText>
+                    <CheckboxContainer>
+                      {departments.map(dept => (
+                        <CheckboxLabel 
+                          key={dept.id} 
                           checked={editUserData.departments?.includes(dept.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditUserData({
-                                ...editUserData, 
-                                departments: [...(editUserData.departments || []), dept.id]
-                              });
-                            } else {
-                              setEditUserData({
-                                ...editUserData, 
-                                departments: (editUserData.departments || []).filter(id => id !== dept.id)
-                              });
-                            }
-                          }}
-                        />
-                        {dept.name} ({dept.code})
-                      </CheckboxLabel>
-                    ))}
-                  </CheckboxContainer>
-                  {departments.length === 0 && (
-                    <div style={{ color: '#999', fontStyle: 'italic', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                      No departments available. Please add departments in the Department Management page.
-                    </div>
-                  )}
-                </FormGroup>
-              </div>
-            </div>
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editUserData.departments?.includes(dept.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditUserData({
+                                  ...editUserData, 
+                                  departments: [...(editUserData.departments || []), dept.id]
+                                });
+                              } else {
+                                setEditUserData({
+                                  ...editUserData, 
+                                  departments: (editUserData.departments || []).filter(id => id !== dept.id)
+                                });
+                              }
+                            }}
+                          />
+                          {dept.name} ({dept.code})
+                        </CheckboxLabel>
+                      ))}
+                    </CheckboxContainer>
+                    {departments.length === 0 && (
+                      <HelperText style={{ fontStyle: 'italic' }}>
+                        No departments available. Please add departments in the Department Management page.
+                      </HelperText>
+                    )}
+                  </FormGroup>
+                </GridTwo>
+              </SectionAssignments>
+            </ModalFormGrid>
             
             <ModalButtons>
               <Button onClick={() => setShowEditModal(false)}>Cancel</Button>
@@ -2950,7 +2962,7 @@ const ModalContent = styled.div`
   background-color: var(--card);
   padding: 2rem;
   border-radius: 12px;
-  max-width: 800px;
+  max-width: 1280px;
   width: 100%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   max-height: 90vh;
@@ -2960,6 +2972,8 @@ const ModalContent = styled.div`
 const ModalTitle = styled.h3`
   margin-top: 0;
   color: var(--text);
+  font-size: 1.25rem;
+  font-weight: 700;
 `;
 
 const ModalText = styled.p`
@@ -3028,8 +3042,134 @@ const DayCheckbox = styled.div`
 const Label = styled.label`
   display: block;
   margin-bottom: 0.5rem;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.95rem;
   color: var(--text);
+`;
+
+// Icon wrapper for form labels
+const LabelIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.5rem;
+  color: var(--primary);
+`;
+
+// Helper text for inputs
+const HelperText = styled.div`
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.25rem;
+`;
+
+// Stacked row layout (single column) for the modal form
+const ModalFormGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  align-items: start;
+  grid-template-areas:
+    'identity'
+    'employment'
+    'role'
+    'assignments';
+`;
+
+// Section wrapper to group related fields
+const FormSection = styled.div`
+  background: #fafafa;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+`;
+
+const FormSectionTitle = styled.h4`
+  margin: 0 0 0.75rem 0;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+`;
+
+// Column placement wrappers using grid areas
+const SectionIdentity = styled(FormSection)`
+  grid-area: identity;
+`;
+
+const SectionEmployment = styled(FormSection)`
+  grid-area: employment;
+`;
+
+const SectionAssignments = styled(FormSection)`
+  grid-area: assignments;
+`;
+
+const ColumnRoleAddressEmergency = styled.div`
+  grid-area: role;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
+// General two-column grid for pairs of inputs
+const GridTwo = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+// Three-column layout for compact rows (e.g., dates and emergency contact)
+const GridThree = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+// Four-column layout for dense rows
+const GridFour = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 1rem;
+
+  @media (max-width: 1100px) {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+// Name row optimized: First | MI | Last
+const GridName = styled.div`
+  display: grid;
+  grid-template-columns: 1.5fr 0.5fr 1.5fr;
+  gap: 1rem;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+// 1:2 column grid for name row
+const GridOneTwo = styled(GridTwo)`
+  grid-template-columns: 1fr 2fr;
 `;
 
 const Input = styled.input`

@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Hyacinth Attendance - AWS integration for S3 uploads and downloads
+  via Lambda with Firebase auth verification.
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Name of the S3 bucket to store media files
+  AllowedOrigins:
+    Type: String
+    Default: '*'
+    Description: Comma-separated list of allowed origins for CORS on API Gateway
+  FirebaseProjectId:
+    Type: String
+    Description: Firebase project ID used to verify ID tokens
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Timeout: 10
+    MemorySize: 256
+    Environment:
+      Variables:
+        BUCKET_NAME: !Ref BucketName
+        FIREBASE_PROJECT_ID: !Ref FirebaseProjectId
+        ALLOWED_MIME_PREFIXES: image/,video/,application/pdf
+        MAX_FILE_SIZE_MB: '20'
+
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - '*'
+        AllowCredentials: true
+        AllowOrigins: !Split
+          - ','
+          - !Ref AllowedOrigins
+
+  PresignUploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/presign-upload/
+      Handler: index.handler
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /presign-upload
+            Method: POST
+            ApiId: !Ref HttpApi
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:PutObjectAcl
+                - s3:PutObjectTagging
+              Resource:
+                - !Sub arn:aws:s3:::${BucketName}/*
+
+  PresignDownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: functions/presign-download/
+      Handler: index.handler
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /presign-download
+            Method: POST
+            ApiId: !Ref HttpApi
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub arn:aws:s3:::${BucketName}/*
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL for the deployed HTTP API
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com

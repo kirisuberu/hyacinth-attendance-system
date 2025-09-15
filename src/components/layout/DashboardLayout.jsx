@@ -23,6 +23,7 @@ import {
   Question, 
   Wrench
 } from 'phosphor-react';
+import { FileText } from 'phosphor-react';
 import UserPlus from '../icons/UserPlus';
 import { auth, db } from '../../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -42,7 +43,7 @@ function DashboardLayout() {
   const [loading, setLoading] = useState(false);
   const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
   const [showTimeFormatModal, setShowTimeFormatModal] = useState(false);
-  const [selectedTimeRegion, setSelectedTimeRegion] = useState('');
+  const [selectedTimeRegion, setSelectedTimeRegion] = useState('Asia/Manila');
   const [processingTimeIn, setProcessingTimeIn] = useState(false);
   const [processingTimeOut, setProcessingTimeOut] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
@@ -139,60 +140,39 @@ function DashboardLayout() {
     setIsUsingMobileDevice(isMobile);
   }, []);
 
-  // Detect user's device time zone and check time region lock setting
+  // Detect user's device time zone for display purposes only; do not auto-set user timeRegion
   useEffect(() => {
     try {
       const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setDetectedTimeZone(deviceTimeZone);
       console.log('Detected device time zone:', deviceTimeZone);
-      
-      // Check if time region is locked in system settings
+
       const checkTimeRegionLock = async () => {
         try {
           const rules = await getAttendanceRules();
           const isLocked = rules.timeRegion?.lockToDeviceRegion || false;
           setTimeRegionLocked(isLocked);
-          
-          // If time region is locked and we have a detected time zone,
-          // automatically update the user's time region if it doesn't match
-          if (isLocked && deviceTimeZone && user?.uid && userData && 
-              userData.timeRegion !== deviceTimeZone) {
-            // Update the user document in Firestore
-            const userDocRef = doc(db, 'users', user.uid);
-            await updateDoc(userDocRef, {
-              timeRegion: deviceTimeZone
-            });
-            
-            // Update local state
-            setUserData(prev => ({
-              ...prev,
-              timeRegion: deviceTimeZone
-            }));
-            
-            setSelectedTimeRegion(deviceTimeZone);
-            toast.info('Your time region has been automatically set to match your device.');
-          }
         } catch (error) {
           console.error('Error checking time region lock setting:', error);
         }
       };
-      
+
       checkTimeRegionLock();
     } catch (error) {
       console.error('Error detecting time zone:', error);
       setDetectedTimeZone('Unable to detect');
     }
-  }, [user?.uid, userData, setUserData]);
+  }, [user?.uid]);
 
   // Update selected time region when userData changes
   useEffect(() => {
     if (userData?.timeRegion) {
       setSelectedTimeRegion(userData.timeRegion);
-    } else if (detectedTimeZone && !userData?.timeRegion) {
-      // If user doesn't have a time region set but we detected their device time zone, use that
-      setSelectedTimeRegion(detectedTimeZone);
+    } else {
+      // Default to Asia/Manila when user has no timeRegion; do not fallback to device
+      setSelectedTimeRegion('Asia/Manila');
     }
-  }, [userData, detectedTimeZone]);
+  }, [userData]);
 
 
   const handleLogout = async () => {
@@ -234,6 +214,11 @@ function DashboardLayout() {
           <NavItem to="/dashboard/profile" className={isActive('/dashboard/profile') ? 'active' : ''}>
             <Icon><User size={16} /></Icon>
             Profile
+          </NavItem>
+
+          <NavItem to="/dashboard/documents" className={isActive('/dashboard/documents') ? 'active' : ''}>
+            <Icon><FileText size={16} /></Icon>
+            Documents
           </NavItem>
           
           <NavItem to="/dashboard/tutorials" className={isActive('/dashboard/tutorials') ? 'active' : ''} style={{ display: 'none' }}>
@@ -288,6 +273,17 @@ function DashboardLayout() {
                     >
                       <Icon><Users size={16} /></Icon>
                       User Management
+                    </NavItem>
+                  )}
+
+                  {/* Admin Documents - Available to super admins and admins */}
+                  {(isSuperAdmin || isAdmin) && (
+                    <NavItem 
+                      to="/dashboard/admin-documents"
+                      className={isActive('/dashboard/admin-documents') ? 'active' : ''}
+                    >
+                      <Icon><FileText size={16} /></Icon>
+                      Admin Documents
                     </NavItem>
                   )}
                   

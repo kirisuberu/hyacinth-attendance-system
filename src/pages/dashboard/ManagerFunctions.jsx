@@ -26,7 +26,6 @@ function ManagerFunctions() {
 
   return (
     <PageContainer>
-      <PageTitle>Manager Functions</PageTitle>
       <ManagerFunctionsView />
     </PageContainer>
   );
@@ -39,8 +38,3 @@ const PageContainer = styled.div`
   padding: 1rem;
 `;
 
-const PageTitle = styled.h1`
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: #333;
-`;

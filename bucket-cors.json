@@ -1,0 +1,18 @@
+{
+  "CORSRules": [
+    {
+      "AllowedHeaders": ["*"],
+      "AllowedMethods": ["PUT", "GET","POST", "DELETE", "HEAD"],
+      "AllowedOrigins": [
+        "http://localhost:4000",
+        "http://localhost:4173",
+        "https://hyattend.web.app",
+        "https://hyattend.firebaseapp.com",
+        "https://hyacinthattendance.web.app",
+        "https://hyacinthattendance.firebaseapp.com"
+    ],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+}
+  ]
+}

@@ -27,6 +27,8 @@ import AdminPrivileges from './pages/dashboard/AdminPrivileges';
 import ManagerFunctions from './pages/dashboard/ManagerFunctions';
 import Rules from './pages/dashboard/Rules';
 import AbsentService from './pages/dashboard/AbsentService';
+import AdminDocuments from './pages/dashboard/AdminDocuments';
+import MemberDocuments from './pages/dashboard/MemberDocuments';
 
 // Layouts
 import AuthLayout from './components/layout/AuthLayout';
@@ -98,6 +100,8 @@ function App() {
                   <Route path="/dashboard/rules" element={<Rules />} />
                   <Route path="/dashboard/absent-service" element={<AbsentService />} />
                   <Route path="/dashboard/departments" element={<DepartmentManagement />} />
+                  <Route path="/dashboard/documents" element={<MemberDocuments />} />
+                  <Route path="/dashboard/admin-documents" element={<AdminDocuments />} />
                   <Route path="/changelog" element={<Changelog />} />
                 </Route>
                 

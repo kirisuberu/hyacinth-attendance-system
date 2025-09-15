@@ -63,7 +63,7 @@ const DashboardLayout = ({
   const navigate = useNavigate();
   const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
   const [showTimeRegionModal, setShowTimeRegionModal] = useState(false);
-  const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Manila');
+  const [selectedTimeRegion, setSelectedTimeRegion] = useState(userData?.timeRegion || 'Asia/Manila');
   const [updatingTimeRegion, setUpdatingTimeRegion] = useState(false);
   const [detectedTimeZone, setDetectedTimeZone] = useState('');
   const [updatingTimeFormat, setUpdatingTimeFormat] = useState(false);
@@ -100,44 +100,24 @@ const DashboardLayout = ({
     }
   };
 
-  // Detect user's device time zone and check time region lock setting
+  // Detect device time zone (for display only). Do NOT auto-update user timeRegion.
   useEffect(() => {
     try {
       const deviceTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setDetectedTimeZone(deviceTimeZone);
       console.log('Detected device time zone:', deviceTimeZone);
-      
-      // Check if time region is locked in system settings
+
+      // Optionally read the lock setting to control UI only; do not auto-set user timeRegion
       const checkTimeRegionLock = async () => {
         try {
           const rules = await getAttendanceRules();
           const isLocked = rules.timeRegion?.lockToDeviceRegion || false;
           setTimeRegionLocked(isLocked);
-          
-          // If time region is locked and we have a detected time zone,
-          // automatically update the user's time region if it doesn't match
-          if (isLocked && deviceTimeZone && user?.uid && userData && 
-              userData.timeRegion !== deviceTimeZone) {
-            // Update the user document in Firestore
-            const userDocRef = doc(db, 'users', user.uid);
-            await updateDoc(userDocRef, {
-              timeRegion: deviceTimeZone
-            });
-            
-            // Update local state
-            setUserData(prev => ({
-              ...prev,
-              timeRegion: deviceTimeZone
-            }));
-            
-            setSelectedTimeRegion(deviceTimeZone);
-            toast.info('Your time region has been automatically set to match your device.');
-          }
         } catch (error) {
           console.error('Error checking time region lock setting:', error);
         }
       };
-      
+
       checkTimeRegionLock();
     } catch (error) {
       console.error('Error detecting time zone:', error);
@@ -151,11 +131,11 @@ const DashboardLayout = ({
   useEffect(() => {
     if (userData?.timeRegion) {
       setSelectedTimeRegion(userData.timeRegion);
-    } else if (detectedTimeZone && !userData?.timeRegion) {
-      // If user doesn't have a time region set but we detected their device time zone, use that
-      setSelectedTimeRegion(detectedTimeZone);
+    } else {
+      // Default to Asia/Manila when user has no timeRegion; do not fallback to device
+      setSelectedTimeRegion('Asia/Manila');
     }
-  }, [userData, detectedTimeZone]);
+  }, [userData]);
 
   const handleTimeRegionChange = async () => {
     if (!user?.uid || updatingTimeRegion) return;

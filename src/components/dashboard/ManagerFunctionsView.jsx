@@ -3,13 +3,17 @@ import { useOutletContext } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { toast } from 'react-toastify';
-import { Users, Calendar, Clock, X, Check, Plus, Pencil, CalendarX, CalendarPlus, SquaresFour, ListBullets, FileText } from 'phosphor-react';
+import { Users, Calendar, Clock, X, Check, Plus, Pencil, CalendarPlus, SquaresFour, FileText, ChartLine, Table } from 'phosphor-react';
 import styled from 'styled-components';
 import { getAllRequests, updateRequestStatus, REQUEST_TYPES, REQUEST_STATUS } from '../../services/requestService';
+import { useTimeFormat } from '../../contexts/TimeFormatContext';
+import { utcToZonedTime, zonedTimeToUtc, format as formatTZ } from 'date-fns-tz';
+import { addHours, parse } from 'date-fns';
 
 function ManagerFunctionsView() {
   const context = useOutletContext();
   const userData = context?.userData || null;
+  const { use24HourFormat } = useTimeFormat();
   const [departmentUsers, setDepartmentUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -36,7 +40,7 @@ function ManagerFunctionsView() {
   });
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [viewMode, setViewMode] = useState('rows'); // 'tiles' or 'rows'
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDeptId, setSelectedDeptId] = useState('all');
   const [deptOptions, setDeptOptions] = useState([]); // [{ id, name }]
@@ -54,6 +58,8 @@ function ManagerFunctionsView() {
   const [petitionAction, setPetitionAction] = useState(null);
   const [adminRemarks, setAdminRemarks] = useState('');
   const [processingPetition, setProcessingPetition] = useState(false);
+  // Tabs: 'absences' | 'schedule'
+  const [activeTab, setActiveTab] = useState('absences');
   // Day marking modal state (tri-column Absent/PTO/NCNS)
   const [showDayMarkModal, setShowDayMarkModal] = useState(false);
   // Map of userId -> { type: 'absent'|'pto'|'ncns'|null, reason: string, absentReason: string }
@@ -98,6 +104,130 @@ function ManagerFunctionsView() {
     return map;
   }, [departmentUsers]);
 
+  // Schedule tab: department filter chips (separate from top filter)
+  const [selectedScheduleDeptIds, setSelectedScheduleDeptIds] = useState([]);
+  useEffect(() => {
+    // initialize to all available
+    setSelectedScheduleDeptIds(deptOptions.map(d => d.id));
+  }, [JSON.stringify(deptOptions)]);
+
+  const scheduleDeptUsers = React.useMemo(() => {
+    if (!selectedScheduleDeptIds.length) return [];
+    const allow = new Set(selectedScheduleDeptIds);
+    return departmentUsers.filter(u => Array.isArray(u.departments) && u.departments.some(id => allow.has(id)));
+  }, [departmentUsers, selectedScheduleDeptIds]);
+
+  const toggleScheduleDept = (id) => {
+    setSelectedScheduleDeptIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const selectAllScheduleDepts = () => setSelectedScheduleDeptIds(deptOptions.map(d => d.id));
+  const clearAllScheduleDepts = () => setSelectedScheduleDeptIds([]);
+
+  const endTimeOf = (timeIn, durationHours) => {
+    try {
+      const [h, m] = String(timeIn || '00:00').split(':').map(Number);
+      const start = new Date();
+      start.setHours(h || 0, m || 0, 0, 0);
+      const ms = (Number(durationHours) || 0) * 60 * 60 * 1000;
+      const end = new Date(start.getTime() + ms);
+      const eh = String(end.getHours()).padStart(2, '0');
+      const em = String(end.getMinutes()).padStart(2, '0');
+      return `${eh}:${em}`;
+    } catch {
+      return timeIn;
+    }
+  };
+
+  // Visual schedule toggle and timezone selection (style parity with Department Schedule)
+  const [showVisualSchedule, setShowVisualSchedule] = useState(true);
+  const [deptDisplayTimeZone, setDeptDisplayTimeZone] = useState(userData?.timeRegion || 'Asia/Manila');
+  const supportedTimeZones = React.useMemo(() => ([
+    { value: 'Asia/Manila', code: 'PHT', title: 'Philippine Time' },
+    { value: 'America/Los_Angeles', code: 'PST', title: 'Pacific Time (US & Canada)' },
+    { value: 'America/Denver', code: 'MST', title: 'Mountain Time (US & Canada)' },
+    { value: 'America/Phoenix', code: 'MST-noDST', title: 'Mountain Time (no DST, Arizona)' },
+    { value: 'America/Chicago', code: 'CST', title: 'Central Time (US & Canada)' },
+    { value: 'America/New_York', code: 'EST', title: 'Eastern Time (US & Canada)' },
+    { value: 'Pacific/Honolulu', code: 'HST', title: 'Hawaii–Aleutian (no DST)' },
+  ]), []);
+  const getTimePosition = (timeString) => {
+    try {
+      let hours, minutes;
+      if (typeof timeString === 'string' && (/AM|PM/i.test(timeString))) {
+        const d = parse(timeString, 'h:mm a', new Date());
+        hours = d.getHours();
+        minutes = d.getMinutes();
+      } else {
+        [hours, minutes] = String(timeString || '00:00').split(':').map(Number);
+      }
+      const total = (hours * 60) + (minutes || 0);
+      return (total / (24 * 60)) * 100;
+    } catch { return 0; }
+  };
+
+  // Timezone helpers (mirroring ScheduleView)
+  const formatTime = (timeString, sourceTimeRegion = null, targetTimeRegion = deptDisplayTimeZone) => {
+    if (!timeString) return 'N/A';
+    try {
+      if (!sourceTimeRegion || sourceTimeRegion === targetTimeRegion) {
+        const [hours, minutes] = timeString.split(':');
+        const date = new Date();
+        date.setHours(parseInt(hours, 10));
+        date.setMinutes(parseInt(minutes, 10));
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: !use24HourFormat });
+      }
+      const [hours, minutes] = timeString.split(':');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const sourceDate = new Date(today);
+      sourceDate.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+      const sourceZonedDate = zonedTimeToUtc(sourceDate, sourceTimeRegion);
+      const targetZonedDate = utcToZonedTime(sourceZonedDate, targetTimeRegion);
+      const fmt = use24HourFormat ? 'HH:mm' : 'h:mm a';
+      return formatTZ(targetZonedDate, fmt, { timeZone: targetTimeRegion });
+    } catch {
+      return timeString;
+    }
+  };
+
+  const calculateEndTime = (startTime, duration) => {
+    try {
+      const [hours, minutes] = startTime.split(':').map(Number);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const startDate = new Date(today);
+      startDate.setHours(hours, minutes, 0, 0);
+      const endDate = addHours(startDate, Number(duration) || 0);
+      return `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+    } catch {
+      let [h, m] = String(startTime || '00:00').split(':').map(Number);
+      h = ((h || 0) + (Number(duration) || 0)) % 24;
+      return `${String(h).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`;
+    }
+  };
+
+  const convertScheduleToTimezone = (scheduleItem, sourceTimeRegion, targetTimeRegion) => {
+    try {
+      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayIndex = dayNames.indexOf(scheduleItem.dayOfWeek);
+      if (dayIndex === -1) return { ...scheduleItem, convertedDayOfWeek: scheduleItem.dayOfWeek };
+      const [hours, minutes] = scheduleItem.timeIn.split(':').map(Number);
+      const today = new Date();
+      const currentDayIndex = today.getDay();
+      const daysUntilTargetDay = (dayIndex - currentDayIndex + 7) % 7;
+      const scheduleDate = new Date(today);
+      scheduleDate.setDate(today.getDate() + daysUntilTargetDay);
+      scheduleDate.setHours(hours, minutes, 0, 0);
+      const sourceZonedDate = zonedTimeToUtc(scheduleDate, sourceTimeRegion);
+      const targetZonedDate = utcToZonedTime(sourceZonedDate, targetTimeRegion);
+      const convertedDayIndex = targetZonedDate.getDay();
+      const convertedDayOfWeek = dayNames[convertedDayIndex];
+      return { ...scheduleItem, convertedDayOfWeek, convertedTimeIn: formatTZ(targetZonedDate, 'HH:mm', { timeZone: targetTimeRegion }) };
+    } catch {
+      return { ...scheduleItem, convertedDayOfWeek: scheduleItem.dayOfWeek };
+    }
+  };
+
   // (moved) modalFilteredUsers is defined after filteredUsers
 
   const handleBulkMarkAbsences = async () => {
@@ -134,7 +264,7 @@ function ManagerFunctionsView() {
       await batch.commit();
       console.log('[DEBUG] Batch commit successful');
 
-      if (viewMode === 'calendar') {
+      if (activeTab === 'absences') {
         setAbsencesByDate((prev) => {
           const copy = { ...prev };
           const arr = copy[absenceDate] ? [...copy[absenceDate]] : [];
@@ -324,21 +454,28 @@ function ManagerFunctionsView() {
     });
   }, [departmentUsers, searchTerm, selectedDeptId]);
 
-  // Filtered users within the Day Mark modal
+  // Filtered users within the Day Mark modal (sorted alphabetically)
   const modalFilteredUsers = React.useMemo(() => {
     const t = (dayMarkSearch || '').trim().toLowerCase();
-    if (!t) return filteredUsers;
-    return filteredUsers.filter((u) => {
-      const name = (u.name || '').toLowerCase();
-      const email = (u.email || '').toLowerCase();
-      const pos = (u.position || '').toLowerCase();
-      return name.includes(t) || email.includes(t) || pos.includes(t);
+    let list = filteredUsers;
+    if (t) {
+      list = filteredUsers.filter((u) => {
+        const name = (u.name || '').toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        const pos = (u.position || '').toLowerCase();
+        return name.includes(t) || email.includes(t) || pos.includes(t);
+      });
+    }
+    return [...list].sort((a, b) => {
+      const an = (a.name || a.email || a.id || '').toString().trim().toLowerCase();
+      const bn = (b.name || b.email || b.id || '').toString().trim().toLowerCase();
+      return an.localeCompare(bn);
     });
   }, [filteredUsers, dayMarkSearch]);
 
-  // Load monthly absences for filtered users when in calendar view
+  // Load monthly absences for filtered users when in Absences tab
   useEffect(() => {
-    if (viewMode !== 'calendar') return;
+    if (activeTab !== 'absences') return;
     const loadMonthlyAbsences = async () => {
       try {
         const y = calendarDate.getFullYear();
@@ -367,7 +504,7 @@ function ManagerFunctionsView() {
       }
     };
     loadMonthlyAbsences();
-  }, [viewMode, calendarDate, filteredUsers]);
+  }, [activeTab, calendarDate, filteredUsers]);
 
   const handleMarkAbsence = async () => {
     if (!selectedUser || !absenceDate) {
@@ -392,7 +529,7 @@ function ManagerFunctionsView() {
       const absenceId = `${selectedUser.id}_${absenceDate}`;
       await setDoc(doc(db, 'absences', absenceId), absenceData);
       // Optimistically update calendar state
-      if (viewMode === 'calendar') {
+      if (activeTab === 'absences') {
         setAbsencesByDate(prev => {
           const copy = { ...prev };
           const arr = copy[absenceDate] ? [...copy[absenceDate]] : [];
@@ -692,6 +829,66 @@ function ManagerFunctionsView() {
     }));
   };
 
+  // Selection counts for summary chips
+  const selectionCounts = React.useMemo(() => {
+    const counts = { absent: 0, pto: 0, ncns: 0 };
+    Object.values(dailySelections || {}).forEach((sel) => {
+      if (sel?.type === 'absent') counts.absent += 1;
+      if (sel?.type === 'pto') counts.pto += 1;
+      if (sel?.type === 'ncns') counts.ncns += 1;
+    });
+    return counts;
+  }, [dailySelections]);
+
+  // Bulk helpers for column toolbars
+  const selectAllOfType = (type) => {
+    if (!['absent', 'pto', 'ncns'].includes(type)) return;
+    setDailySelections((prev) => {
+      const next = { ...prev };
+      modalFilteredUsers.forEach((u) => {
+        next[u.id] = {
+          type,
+          reason: prev[u.id]?.reason || '',
+          absentReason: type === 'absent' ? (prev[u.id]?.absentReason || '') : ''
+        };
+      });
+      return next;
+    });
+  };
+
+  const clearAllOfType = (type) => {
+    if (!['absent', 'pto', 'ncns'].includes(type)) return;
+    setDailySelections((prev) => {
+      const next = { ...prev };
+      modalFilteredUsers.forEach((u) => {
+        if (next[u.id]?.type === type) {
+          next[u.id] = { type: null, reason: '', absentReason: '' };
+        }
+      });
+      return next;
+    });
+  };
+
+  // Keyboard navigation for rows: Up/Down to move focus, Space to toggle
+  const handleRowKeyDown = (e, type, userId) => {
+    const key = e.key;
+    if (key === ' ' || key === 'Spacebar') {
+      e.preventDefault();
+      const isActive = dailySelections[userId]?.type === type;
+      toggleSelection(userId, type, !isActive);
+      return;
+    }
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+      e.preventDefault();
+      const rows = e.currentTarget?.parentElement?.querySelectorAll('[data-row="true"]');
+      if (!rows || rows.length === 0) return;
+      const currentIndex = Array.prototype.indexOf.call(rows, e.currentTarget);
+      const nextIndex = key === 'ArrowDown' ? Math.min(currentIndex + 1, rows.length - 1) : Math.max(currentIndex - 1, 0);
+      const nextEl = rows[nextIndex];
+      if (nextEl && typeof nextEl.focus === 'function') nextEl.focus();
+    }
+  };
+
   const handleSubmitDayMarkings = async () => {
     if (!absenceDate) {
       toast.error('Please select a date');
@@ -823,6 +1020,14 @@ function ManagerFunctionsView() {
         </NoDataMessage>
       ) : (
         <>
+          <TabsBar>
+            <TabButton active={activeTab === 'absences'} onClick={() => setActiveTab('absences')}>
+              Absences / PTO / NCNS
+            </TabButton>
+            <TabButton active={activeTab === 'schedule'} onClick={() => setActiveTab('schedule')}>
+              Schedule
+            </TabButton>
+          </TabsBar>
           <ControlsBar>
             <SearchInput
               type="text"
@@ -915,77 +1120,19 @@ function ManagerFunctionsView() {
         </Modal>
       )}
           </ControlsBar>
+          {activeTab === 'absences' && (
+            <>
           <SectionHeader>
             <SectionTitle>
               <Users size={20} />
               Department Users ({filteredUsers.length})
             </SectionTitle>
-            <ViewToggle>
-              <ToggleButton 
-                active={viewMode === 'rows'} 
-                onClick={() => setViewMode('rows')}
-                title="Rows view"
-              >
-                <ListBullets size={16} />
-              </ToggleButton>
-              <ToggleButton 
-                active={viewMode === 'calendar'} 
-                onClick={() => setViewMode('calendar')}
-                title="Calendar view"
-              >
-                <Calendar size={16} />
-              </ToggleButton>
-            </ViewToggle>
           </SectionHeader>
           
           {filteredUsers.length === 0 ? (
             <NoDataMessage>
               No matching users. Try adjusting search or department filters.
             </NoDataMessage>
-          ) : viewMode === 'rows' ? (
-            <UsersTable>
-              <TableHeader>
-                <TableRow>
-                  <TableHeaderCell>Name</TableHeaderCell>
-                  <TableHeaderCell>Email</TableHeaderCell>
-                  <TableHeaderCell>Position</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell>Actions</TableHeaderCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map(user => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <UserName>{user.name}</UserName>
-                    </TableCell>
-                    <TableCell>
-                      <UserEmail>{user.email}</UserEmail>
-                    </TableCell>
-                    <TableCell>
-                      <UserPosition>{user.position}</UserPosition>
-                    </TableCell>
-                    <TableCell>
-                      <UserStatus status={user.status}>
-                        {user.status === 'active' ? 'Active' : 'Inactive'}
-                      </UserStatus>
-                    </TableCell>
-                    <TableCell>
-                      <TableActions>
-                        <ActionButton $variant="primary" onClick={() => openScheduleModal(user)}>
-                          <Calendar size={16} />
-                          Schedule
-                        </ActionButton>
-                        <ActionButton $variant="warning" onClick={() => openAbsenceModal(user)}>
-                          <CalendarX size={16} />
-                          Mark Absence/PTO
-                        </ActionButton>
-                      </TableActions>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </UsersTable>
           ) : (
             <CalendarContainer>
               <CalendarHeader>
@@ -1099,6 +1246,239 @@ function ManagerFunctionsView() {
               </CalendarGrid>
             </CalendarContainer>
           )}
+            </>
+          )}
+
+          {activeTab === 'schedule' && (
+            <>
+              <SectionHeader>
+                <SectionTitle>
+                  <Calendar size={20} />
+                  Department Schedule
+                </SectionTitle>
+              </SectionHeader>
+
+              <DeptFiltersBar>
+                <div className="left">
+                  <div className="left-header">
+                    <div className="label">
+                      <Users size={18} /> Departments
+                      <span className="count">{selectedScheduleDeptIds.length}/{deptOptions.length}</span>
+                    </div>
+                    <div className="actions">
+                      <button type="button" className="link" onClick={selectAllScheduleDepts}>Select all</button>
+                      <span className="sep">•</span>
+                      <button type="button" className="link" onClick={clearAllScheduleDepts}>Clear</button>
+                    </div>
+                  </div>
+                  <div className={`chips ${deptOptions.length > 6 ? 'chips-scroll' : ''}`}>
+                    {deptOptions.length === 0 ? (
+                      <span className="hint">No departments assigned</span>
+                    ) : (
+                      deptOptions.map(dep => (
+                        <label key={dep.id} className={`chip ${selectedScheduleDeptIds.includes(dep.id) ? 'active' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={selectedScheduleDeptIds.includes(dep.id)}
+                            onChange={() => toggleScheduleDept(dep.id)}
+                          />
+                          <span>{dep.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="right">
+                  <div className="view-group">
+                    <span className="label">View</span>
+                    <div className="view-toggle">
+                      <button
+                        type="button"
+                        className={`toggle-btn ${showVisualSchedule ? 'active' : ''}`}
+                        onClick={() => setShowVisualSchedule(true)}
+                        title="Timeline"
+                        aria-pressed={showVisualSchedule}
+                      >
+                        <ChartLine size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`toggle-btn ${!showVisualSchedule ? 'active' : ''}`}
+                        onClick={() => setShowVisualSchedule(false)}
+                        title="Table"
+                        aria-pressed={!showVisualSchedule}
+                      >
+                        <Table size={18} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="timezone-group">
+                    <span className="label">Time zone</span>
+                    <select
+                      className="tzSelect"
+                      value={deptDisplayTimeZone}
+                      onChange={(e) => setDeptDisplayTimeZone(e.target.value)}
+                    >
+                      {supportedTimeZones.map((tz) => (
+                        <option key={tz.value} value={tz.value} title={tz.title}>{tz.code}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </DeptFiltersBar>
+
+              {selectedScheduleDeptIds.length === 0 ? (
+                <NoDataMessage>No Departments Selected</NoDataMessage>
+              ) : scheduleDeptUsers.length === 0 ? (
+                <NoDataMessage>No Department Members Found</NoDataMessage>
+              ) : (
+                <>
+                  {showVisualSchedule ? (
+                    <DeptScheduleGrid>
+                      <div className="grid-header">Name</div>
+                      <div className="grid-header">Sun</div>
+                      <div className="grid-header">Mon</div>
+                      <div className="grid-header">Tue</div>
+                      <div className="grid-header">Wed</div>
+                      <div className="grid-header">Thu</div>
+                      <div className="grid-header">Fri</div>
+                      <div className="grid-header">Sat</div>
+
+                      {scheduleDeptUsers.map((u) => {
+                        const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                        const sched = (userSchedules[u.id]?.schedule) || [];
+                        const converted = Array.isArray(sched)
+                          ? sched.map(s => {
+                              const tz = s.timeRegion || u.timeRegion || 'Asia/Manila';
+                              const conv = convertScheduleToTimezone(s, tz, deptDisplayTimeZone);
+                              return { ...s, ...conv, _tz: tz };
+                            })
+                          : [];
+                        return (
+                          <React.Fragment key={u.id}>
+                            <div className="grid-name">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                  <div style={{ fontWeight: 600 }}>{u.name}</div>
+                                  <div style={{ fontSize: '0.8rem', color: '#666' }}>{u.position || 'Staff'}</div>
+                                </div>
+                                <InlineButton type="button" onClick={() => openScheduleModal(u)}>Edit</InlineButton>
+                              </div>
+                            </div>
+                            {days.map((dayName, dayIndex) => {
+                              const items = converted.filter(s => s.convertedDayOfWeek === dayName);
+                              const prevDayName = days[(dayIndex - 1 + 7) % 7];
+                              const prevDayItems = converted.filter(s => s.convertedDayOfWeek === prevDayName).filter(s => {
+                                const tin = formatTime(s.timeIn, s._tz, deptDisplayTimeZone);
+                                const toutRaw = calculateEndTime(s.timeIn, s.shiftDuration || 8);
+                                const tout = formatTime(toutRaw, s._tz, deptDisplayTimeZone);
+                                const startPos = getTimePosition(tin);
+                                const endPos = getTimePosition(tout);
+                                return endPos < startPos; // overnight shift spills into current day
+                              });
+                              return (
+                                <div key={`${u.id}-${dayName}`} className="grid-day">
+                                  {items.map((s, idx) => {
+                                    const tin = formatTime(s.timeIn, s._tz, deptDisplayTimeZone);
+                                    const toutRaw = calculateEndTime(s.timeIn, s.shiftDuration || 8);
+                                    const tout = formatTime(toutRaw, s._tz, deptDisplayTimeZone);
+                                    const startPos = getTimePosition(tin);
+                                    const endPos = getTimePosition(tout);
+                                    if (endPos < startPos) {
+                                      const todayWidth = 100 - startPos;
+                                      return (
+                                        <DeptScheduleBlock
+                                          key={`${idx}-overnight`}
+                                          startPos={startPos}
+                                          width={todayWidth}
+                                          title={`${tin} - ${tout} (overnight)`}
+                                          data-testid="overnight-block"
+                                        />
+                                      );
+                                    }
+                                    return (
+                                      <DeptScheduleBlock
+                                        key={idx}
+                                        startPos={startPos}
+                                        width={Math.max(endPos - startPos, 2)}
+                                        title={`${tin} - ${tout}`}
+                                      />
+                                    );
+                                  })}
+                                  {prevDayItems.map((s, idx) => {
+                                    const toutRaw = calculateEndTime(s.timeIn, s.shiftDuration || 8);
+                                    const tout = formatTime(toutRaw, s._tz, deptDisplayTimeZone);
+                                    const endPos = getTimePosition(tout);
+                                    return (
+                                      <DeptScheduleBlock
+                                        key={`overflow-${idx}`}
+                                        startPos={0}
+                                        width={Math.max(endPos, 2)}
+                                        title={`${formatTime(s.timeIn, s._tz, deptDisplayTimeZone)} - ${tout} (from previous day)`}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </React.Fragment>
+                        );
+                      })}
+                    </DeptScheduleGrid>
+                  ) : (
+                    <DeptScheduleTable>
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Sun</th>
+                          <th>Mon</th>
+                          <th>Tue</th>
+                          <th>Wed</th>
+                          <th>Thu</th>
+                          <th>Fri</th>
+                          <th>Sat</th>
+                          <th style={{ textAlign: 'right' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scheduleDeptUsers.map((u) => {
+                          const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                          const sched = (userSchedules[u.id]?.schedule) || [];
+                          const dayCells = days.map((day) => {
+                            const items = sched.filter(s => s.dayOfWeek === day);
+                            if (items.length === 0) return <td key={`${u.id}-${day}`} style={{ color: '#999' }}>—</td>;
+                            return (
+                              <td key={`${u.id}-${day}`}>
+                                {items.map((s, idx) => (
+                                  <div key={idx} style={{ whiteSpace: 'nowrap' }}>
+                                    {formatTime(s.timeIn, s.timeRegion || u.timeRegion || 'Asia/Manila', deptDisplayTimeZone)}
+                                    {' '} - {' '}
+                                    {formatTime(calculateEndTime(s.timeIn, s.shiftDuration || 8), s.timeRegion || u.timeRegion || 'Asia/Manila', deptDisplayTimeZone)}
+                                  </div>
+                                ))}
+                              </td>
+                            );
+                          });
+                          return (
+                            <tr key={u.id}>
+                              <td>
+                                <div style={{ fontWeight: 600 }}>{u.name}</div>
+                                <div style={{ fontSize: '0.85rem', color: '#666' }}>{u.position || 'Staff'}</div>
+                              </td>
+                              {dayCells}
+                              <td style={{ textAlign: 'right' }}>
+                                <InlineButton type="button" onClick={() => openScheduleModal(u)}>Edit</InlineButton>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </DeptScheduleTable>
+                  )}
+                </>
+              )}
+            </>
+          )}
         </>
       )}
       
@@ -1176,6 +1556,189 @@ function ManagerFunctionsView() {
         </Modal>
       )}
 
+      {/* Schedule Editing Modal */}
+      {showScheduleModal && (
+        <Modal>
+          <ScheduleModalContent>
+            <ModalHeader>
+              <ModalTitle>
+                Edit Schedule{selectedUser ? ` • ${selectedUser.name}` : ''}
+              </ModalTitle>
+              <CloseButton onClick={() => setShowScheduleModal(false)}>
+                <X size={20} />
+              </CloseButton>
+            </ModalHeader>
+            <ModalBody>
+              <ScheduleSummary>
+                <div>
+                  <strong>Total Shifts:</strong> {scheduleData.length}
+                </div>
+                <div>
+                  <strong>Total Hours:</strong> {calculateTotalHours(scheduleData)} hours/week
+                </div>
+              </ScheduleSummary>
+
+              <ScheduleModalBody>
+                <ScheduleColumn>
+                  <ColumnTitle>Current Schedule</ColumnTitle>
+                  {scheduleData.length > 0 ? (
+                    <ScheduleListContainer>
+                      <ScheduleGrid>
+                        {scheduleData.map(schedule => (
+                          <ScheduleCard key={schedule.id}>
+                            <ScheduleHeader>
+                              <ScheduleDay>{schedule.dayOfWeek}</ScheduleDay>
+                              <ScheduleActions>
+                                <ScheduleActionButton 
+                                  onClick={() => handleEditSchedule(schedule)}
+                                  title="Edit schedule"
+                                >
+                                  <Pencil size={16} />
+                                </ScheduleActionButton>
+                                <ScheduleActionButton 
+                                  onClick={() => handleDeleteSchedule(schedule.id)}
+                                  title="Delete schedule"
+                                  $danger
+                                >
+                                  <X size={16} />
+                                </ScheduleActionButton>
+                              </ScheduleActions>
+                            </ScheduleHeader>
+                            <ScheduleTime>
+                              <div><strong>Time In:</strong> {schedule.timeIn}</div>
+                              <div><strong>Region:</strong> {schedule.timeRegion}</div>
+                              <div><strong>Duration:</strong> {formatDuration(schedule.shiftDuration)}</div>
+                            </ScheduleTime>
+                          </ScheduleCard>
+                        ))}
+                      </ScheduleGrid>
+                    </ScheduleListContainer>
+                  ) : (
+                    <NoScheduleMessage>No schedules found. Add a new schedule.</NoScheduleMessage>
+                  )}
+                </ScheduleColumn>
+
+                <ScheduleColumn>
+                  <ColumnTitle>{isEditing ? 'Edit Schedule' : 'Add New Schedule'}</ColumnTitle>
+
+                  <FormGroup>
+                    <Label>Days of Week (select multiple)</Label>
+                    <DaysContainer>
+                      {daysOfWeek.map(day => (
+                        <DayCheckbox key={day}>
+                          <input
+                            type="checkbox"
+                            id={`day-${day}`}
+                            checked={newSchedule.selectedDays.includes(day)}
+                            onChange={() => {
+                              const updatedDays = newSchedule.selectedDays.includes(day)
+                                ? newSchedule.selectedDays.filter(d => d !== day)
+                                : [...newSchedule.selectedDays, day];
+                              setNewSchedule({...newSchedule, selectedDays: updatedDays});
+                            }}
+                          />
+                          <label htmlFor={`day-${day}`}>{day}</label>
+                        </DayCheckbox>
+                      ))}
+                    </DaysContainer>
+                  </FormGroup>
+
+                  <ScheduleInputRow>
+                    <FormGroup>
+                      <Label>Time In</Label>
+                      <Input 
+                        type="time" 
+                        value={newSchedule.timeIn}
+                        onChange={(e) => setNewSchedule({...newSchedule, timeIn: e.target.value})}
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label>Shift Duration</Label>
+                      <DurationRow>
+                        <DurationInput>
+                          <SmallLabel>Hours</SmallLabel>
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max="24" 
+                            value={newSchedule.shiftHours}
+                            onChange={(e) => setNewSchedule({...newSchedule, shiftHours: e.target.value})}
+                          />
+                        </DurationInput>
+                        <DurationInput>
+                          <SmallLabel>Minutes</SmallLabel>
+                          <Input 
+                            type="number" 
+                            min="0" 
+                            max="59" 
+                            value={newSchedule.shiftMinutes}
+                            onChange={(e) => setNewSchedule({...newSchedule, shiftMinutes: e.target.value})}
+                          />
+                        </DurationInput>
+                      </DurationRow>
+                    </FormGroup>
+                  </ScheduleInputRow>
+
+                  <FormGroup>
+                    <Label>Time Region</Label>
+                    <Select 
+                      value={newSchedule.timeRegion}
+                      onChange={(e) => setNewSchedule({...newSchedule, timeRegion: e.target.value})}
+                    >
+                      <optgroup label="Asia & Pacific">
+                        <option value="Asia/Manila">Asia/Manila (PHT)</option>
+                        <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                        <option value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</option>
+                      </optgroup>
+                      <optgroup label="Americas">
+                        <option value="America/New_York">America/New_York (Eastern)</option>
+                        <option value="America/Chicago">America/Chicago (Central)</option>
+                        <option value="America/Denver">America/Denver (Mountain)</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles (Pacific)</option>
+                        <option value="America/Anchorage">America/Anchorage (Alaska)</option>
+                        <option value="America/Adak">America/Adak (Hawaii-Aleutian)</option>
+                        <option value="Pacific/Honolulu">Pacific/Honolulu (Hawaii)</option>
+                        <option value="America/Phoenix">America/Phoenix (Arizona)</option>
+                        <option value="America/Toronto">America/Toronto (Eastern Canada)</option>
+                        <option value="America/Vancouver">America/Vancouver (Pacific Canada)</option>
+                      </optgroup>
+                      <optgroup label="Europe & Africa">
+                        <option value="Europe/London">Europe/London (GMT/BST)</option>
+                        <option value="Europe/Paris">Europe/Paris (CET/CEST)</option>
+                        <option value="Europe/Berlin">Europe/Berlin (CET/CEST)</option>
+                        <option value="Europe/Moscow">Europe/Moscow (MSK)</option>
+                      </optgroup>
+                    </Select>
+                  </FormGroup>
+
+                  <ScheduleButtonGroup>
+                    {isEditing ? (
+                      <>
+                        <SubmitButton onClick={handleUpdateSchedule}>
+                          Update Schedule
+                        </SubmitButton>
+                        <CancelButton onClick={cancelEdit}>
+                          Cancel Edit
+                        </CancelButton>
+                      </>
+                    ) : (
+                      <SubmitButton onClick={handleAddSchedule}>
+                        Add Schedule
+                      </SubmitButton>
+                    )}
+                  </ScheduleButtonGroup>
+                </ScheduleColumn>
+              </ScheduleModalBody>
+            </ModalBody>
+            <ModalFooter>
+              <CancelButton onClick={() => selectedUser && setScheduleData((userSchedules[selectedUser.id]?.schedule) || [])}>Discard Changes</CancelButton>
+              <SubmitButton onClick={handleSaveSchedule}>Save Changes</SubmitButton>
+            </ModalFooter>
+          </ScheduleModalContent>
+        </Modal>
+      )}
+
       {/* Day Mark Modal (Absent / PTO / NCNS) */}
       {showDayMarkModal && (
         <Modal>
@@ -1196,16 +1759,44 @@ function ManagerFunctionsView() {
                   onChange={(e) => setDayMarkSearch(e.target.value)}
                 />
               </DayMarkToolbar>
+              <SummaryBar>
+                <SummaryLeft>
+                  <strong>{modalFilteredUsers.length}</strong> member(s) shown
+                </SummaryLeft>
+                <SummaryChips>
+                  <SummaryChip $type="absent" title="Selected Absent">{selectionCounts.absent} Absent</SummaryChip>
+                  <SummaryChip $type="pto" title="Selected PTO">{selectionCounts.pto} PTO</SummaryChip>
+                  <SummaryChip $type="ncns" title="Selected NCNS">{selectionCounts.ncns} NCNS</SummaryChip>
+                </SummaryChips>
+              </SummaryBar>
               <DayMarkGrid>
                 <DayMarkColumn $variant="absent">
-                  <DayMarkTitle>Absent</DayMarkTitle>
+                  <DayMarkColumnHeader $variant="absent">
+                    <DayMarkTitle>Absent</DayMarkTitle>
+                    <ColumnToolbar>
+                      <InlineButton type="button" onClick={() => selectAllOfType('absent')}>Select all</InlineButton>
+                      <InlineButton type="button" onClick={() => clearAllOfType('absent')}>Clear</InlineButton>
+                      <ColumnCount title="Selected in column">{selectionCounts.absent}</ColumnCount>
+                    </ColumnToolbar>
+                  </DayMarkColumnHeader>
                   <DayMarkList>
                     {modalFilteredUsers.map((u) => {
                       const active = dailySelections[u.id]?.type === 'absent';
                       return (
-                        <DayMarkRow key={`abs-${u.id}`}>
-                          <input
-                            type="checkbox"
+                        <DayMarkRow
+                          key={`abs-${u.id}`}
+                          $active={active}
+                          tabIndex={0}
+                          role="checkbox"
+                          aria-checked={active}
+                          data-row="true"
+                          onKeyDown={(e) => handleRowKeyDown(e, 'absent', u.id)}
+                          onClick={(e) => {
+                            if (['INPUT','SELECT','TEXTAREA','BUTTON','LABEL'].includes(e.target.tagName)) return;
+                            toggleSelection(u.id, 'absent', !active);
+                          }}
+                        >
+                          <Checkbox
                             checked={active}
                             onChange={(e) => toggleSelection(u.id, 'absent', e.target.checked)}
                           />
@@ -1237,14 +1828,32 @@ function ManagerFunctionsView() {
                 </DayMarkColumn>
 
                 <DayMarkColumn $variant="pto">
-                  <DayMarkTitle>PTO</DayMarkTitle>
+                  <DayMarkColumnHeader $variant="pto">
+                    <DayMarkTitle>PTO</DayMarkTitle>
+                    <ColumnToolbar>
+                      <InlineButton type="button" onClick={() => selectAllOfType('pto')}>Select all</InlineButton>
+                      <InlineButton type="button" onClick={() => clearAllOfType('pto')}>Clear</InlineButton>
+                      <ColumnCount title="Selected in column">{selectionCounts.pto}</ColumnCount>
+                    </ColumnToolbar>
+                  </DayMarkColumnHeader>
                   <DayMarkList>
                     {modalFilteredUsers.map((u) => {
                       const active = dailySelections[u.id]?.type === 'pto';
                       return (
-                        <DayMarkRow key={`pto-${u.id}`}>
-                          <input
-                            type="checkbox"
+                        <DayMarkRow
+                          key={`pto-${u.id}`}
+                          $active={active}
+                          tabIndex={0}
+                          role="checkbox"
+                          aria-checked={active}
+                          data-row="true"
+                          onKeyDown={(e) => handleRowKeyDown(e, 'pto', u.id)}
+                          onClick={(e) => {
+                            if (['INPUT','SELECT','TEXTAREA','BUTTON','LABEL'].includes(e.target.tagName)) return;
+                            toggleSelection(u.id, 'pto', !active);
+                          }}
+                        >
+                          <Checkbox
                             checked={active}
                             onChange={(e) => toggleSelection(u.id, 'pto', e.target.checked)}
                           />
@@ -1263,14 +1872,32 @@ function ManagerFunctionsView() {
                 </DayMarkColumn>
 
                 <DayMarkColumn $variant="ncns">
-                  <DayMarkTitle>No Call No Show</DayMarkTitle>
+                  <DayMarkColumnHeader $variant="ncns">
+                    <DayMarkTitle>No Call No Show</DayMarkTitle>
+                    <ColumnToolbar>
+                      <InlineButton type="button" onClick={() => selectAllOfType('ncns')}>Select all</InlineButton>
+                      <InlineButton type="button" onClick={() => clearAllOfType('ncns')}>Clear</InlineButton>
+                      <ColumnCount title="Selected in column">{selectionCounts.ncns}</ColumnCount>
+                    </ColumnToolbar>
+                  </DayMarkColumnHeader>
                   <DayMarkList>
                     {modalFilteredUsers.map((u) => {
                       const active = dailySelections[u.id]?.type === 'ncns';
                       return (
-                        <DayMarkRow key={`ncns-${u.id}`}>
-                          <input
-                            type="checkbox"
+                        <DayMarkRow
+                          key={`ncns-${u.id}`}
+                          $active={active}
+                          tabIndex={0}
+                          role="checkbox"
+                          aria-checked={active}
+                          data-row="true"
+                          onKeyDown={(e) => handleRowKeyDown(e, 'ncns', u.id)}
+                          onClick={(e) => {
+                            if (['INPUT','SELECT','TEXTAREA','BUTTON','LABEL'].includes(e.target.tagName)) return;
+                            toggleSelection(u.id, 'ncns', !active);
+                          }}
+                        >
+                          <Checkbox
                             checked={active}
                             onChange={(e) => toggleSelection(u.id, 'ncns', e.target.checked)}
                           />
@@ -1795,6 +2422,28 @@ const SearchInput = styled.input`
     outline: none;
     border-color: #4caf50;
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.15);
+  }
+`;
+
+// Tabs (match UserManagement Tabs styles)
+const TabsBar = styled.div`
+  display: flex;
+  border-bottom: 2px solid #ddd;
+  margin-bottom: 1rem;
+`;
+
+const TabButton = styled.button`
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  font-weight: ${({active}) => (active ? '600' : '400')};
+  color: ${({active}) => (active ? '#800000' : '#333')};
+  border-bottom: ${({active}) => (active ? '2px solid #800000' : '2px solid transparent')};
+  margin-bottom: -2px;
+  transition: all 0.2s ease;
+  &:hover {
+    color: #800000;
   }
 `;
 
@@ -2681,11 +3330,15 @@ const DayMarkGrid = styled.div`
 `;
 
 const DayMarkColumn = styled.div`
+  display: flex;
+  flex-direction: column;
   background: ${({ $variant }) =>
     $variant === 'absent' ? '#f6d4d4' : $variant === 'pto' ? '#d9c8ea' : '#bdbdbd'};
   border-radius: 8px;
   padding: 16px;
   border: 1px solid rgba(0,0,0,0.1);
+  max-height: 520px;
+  overflow-y: auto;
 `;
 
 const DayMarkTitle = styled.h4`
@@ -2697,19 +3350,424 @@ const DayMarkList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 420px;
-  overflow-y: auto;
+`;
+
+// Department Schedule styles (mirroring ScheduleView) — placed at bottom
+const DeptFiltersBar = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #ffffff 0%, #fef9f9 100%);
+  border: 1px solid #f0e6e6;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08);
+
+  .left { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.75rem; 
+    flex: 1 1 auto; 
+  }
+  .left-header { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    gap: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #f0e6e6;
+  }
+  .label { 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    font-weight: 600; 
+    color: #7f1d1d;
+    font-size: 1rem;
+  }
+  .label .count { 
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); 
+    color: #dc2626; 
+    border: 1px solid #f87171; 
+    border-radius: 999px; 
+    padding: 4px 10px; 
+    font-size: 0.75rem; 
+    font-weight: 700;
+    box-shadow: 0 1px 3px rgba(220, 38, 38, 0.15);
+  }
+  .actions { 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 0.75rem; 
+    white-space: nowrap; 
+  }
+  .chips { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 0.6rem; 
+  }
+  .chips.chips-scroll { 
+    max-height: 110px; 
+    overflow-y: auto; 
+    padding-right: 0.5rem;
+  }
+  .hint { 
+    color: #9ca3af; 
+    font-size: 0.9rem;
+    font-style: italic;
+  }
+  .chip { 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    padding: 0.5rem 0.8rem; 
+    border: 2px solid #f3e8e8; 
+    border-radius: 999px; 
+    background: #fff; 
+    cursor: pointer; 
+    user-select: none;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+  .chip:hover {
+    border-color: #fca5a5;
+    background: #fef2f2;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.15);
+  }
+  .chip.active { 
+    border-color: #dc2626; 
+    background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+    color: #7f1d1d;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+  }
+  .chip input { 
+    accent-color: #dc2626; 
+  }
+  .right { 
+    display: flex; 
+    flex-direction: column;
+    align-items: flex-start; 
+    gap: 0.5rem; 
+    white-space: nowrap;
+    padding: 0.5rem;
+    background: rgba(254, 242, 242, 0.5);
+    border-radius: 8px;
+    border: 1px solid #f3e8e8;
+  }
+  .view-group, .timezone-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .tzSelect { 
+    padding: 0.45rem 0.6rem; 
+    border: 1px solid #f3e8e8; 
+    border-radius: 8px; 
+    background: #fff; 
+    color: #374151;
+    font-size: 0.9rem;
+    line-height: 1.2;
+    min-width: 110px;
+    transition: border-color 0.2s ease;
+  }
+  .tzSelect:focus {
+    outline: none;
+    border-color: #f87171;
+    box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.1);
+  }
+  .view-toggle {
+    display: flex;
+    background: #fef2f2;
+    border: 1px solid #f3e8e8;
+    border-radius: 8px;
+    padding: 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  .toggle-btn {
+    background: transparent;
+    border: none;
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    color: #7f1d1d;
+  }
+  .toggle-btn.active {
+    background: linear-gradient(135deg, #fecaca 0%, #fca5a5 60%, #f87171 100%);
+    color: #7f1d1d;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+    transform: translateY(-1px);
+  }
+  .toggle-btn:not(.active):hover {
+    background: #fdeaea;
+    color: #7f1d1d;
+    transform: translateY(-0.5px);
+  }
+  .link { 
+    background: none; 
+    border: none; 
+    padding: 0.25rem 0.5rem; 
+    color: #dc2626; 
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  .link:hover { 
+    background: #fee2e2;
+    color: #991b1b; 
+    text-decoration: none;
+  }
+  .sep { 
+    color: #d1d5db; 
+    font-weight: bold;
+  }
+  @media (max-width: 900px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 1rem;
+    .left-header { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+  }
+`;
+
+const DeptScheduleTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  th, td {
+    padding: 0.85rem 0.9rem;
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+  }
+  th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+  }
+  td:first-child, th:first-child {
+    border-right: 1px solid #eee;
+    width: 220px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover { background-color: #f5f5f5; }
+`;
+
+const DeptScheduleGrid = styled.div`
+  display: grid;
+  grid-template-columns: 200px repeat(7, 1fr);
+  gap: 0;
+  margin-top: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+
+  .grid-header {
+    background: #f8f9fa;
+    padding: 1rem;
+    font-weight: 600;
+    color: #333;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .grid-header:first-child {
+    justify-content: flex-start;
+    border-right: 1px solid #eee;
+  }
+  .grid-name {
+    padding: 1rem;
+    border-bottom: 1px solid #eee;
+    border-right: 1px solid #eee;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .grid-day {
+    position: relative;
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+    background: #fafafa;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  .grid-day::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(25% - 1px),
+      rgba(160, 160, 160, 0.65) calc(25% - 1px),
+      rgba(160, 160, 160, 0.65) 25%
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+  .grid-day::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: linear-gradient(
+      to right,
+      rgba(120, 120, 120, 0.95) 0,
+      rgba(120, 120, 120, 0.95) 2px,
+      transparent 2px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+`;
+
+const DeptScheduleBlock = styled.div`
+  position: absolute;
+  left: ${props => props.startPos}%;
+  width: ${props => props.width}%;
+  height: 20px;
+  background: linear-gradient(135deg, #FFD54F, #FFA000);
+  border-radius: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: default;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(255, 160, 0, 0.25);
+  z-index: 5;
+
+  &:hover {
+    transform: translateY(-50%) scale(1.03);
+    box-shadow: 0 4px 12px rgba(255, 160, 0, 0.35);
+    z-index: 10;
+  }
 `;
 
 const DayMarkRow = styled.div`
   display: grid;
-  grid-template-columns: 24px 1.1fr 0.9fr 1.2fr;
+  grid-template-columns: 26px 1.1fr 0.9fr 1.2fr;
   align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid #e5e7eb;
+  gap: 6px;
+  background: ${({ $active }) => ($active ? 'rgba(255, 255, 255, 0.98)' : 'rgba(255, 255, 255, 0.85)')};
+  border: 1px solid ${({ $active }) => ($active ? '#93c5fd' : '#e5e7eb')};
+  box-shadow: ${({ $active }) => ($active ? '0 0 0 2px rgba(59,130,246,0.15)' : 'none')};
+  border-left: 4px solid ${({ $active }) => ($active ? '#3b82f6' : 'transparent')};
   border-radius: 6px;
-  padding: 6px 8px;
+  padding: 6px;
+  transition: all 0.15s ease;
+  &:hover { border-color: #cbd5e1; }
+`;
+
+// Larger checkbox for better accessibility
+const Checkbox = styled.input.attrs({ type: 'checkbox' })`
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+`;
+
+// Day Mark summary and headers
+const SummaryBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 8px;
+`;
+
+const SummaryLeft = styled.div`
+  color: #333;
+`;
+
+const SummaryChips = styled.div`
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+`;
+
+const SummaryChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid;
+  background: ${p => p.$type === 'absent' ? '#FDECEA'
+    : p.$type === 'pto' ? '#E3F2FD'
+    : '#f3f4f6'};
+  color: ${p => p.$type === 'absent' ? '#C62828'
+    : p.$type === 'pto' ? '#1565C0'
+    : '#111827'};
+  border-color: ${p => p.$type === 'absent' ? '#F5C6CB'
+    : p.$type === 'pto' ? '#90CAF9'
+    : '#e5e7eb'};
+`;
+
+const DayMarkColumnHeader = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: ${({ $variant }) =>
+    $variant === 'absent' ? '#f6d4d4' : $variant === 'pto' ? '#d9c8ea' : '#bdbdbd'};
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+`;
+
+const ColumnToolbar = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const ColumnCount = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: #111827;
+  background: rgba(255,255,255,0.6);
+  border: 1px solid rgba(0,0,0,0.08);
 `;
 
 const NameField = styled.div`
