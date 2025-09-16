@@ -47,13 +47,21 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
   const { use24HourFormat, toggleTimeFormat } = useTimeFormat();
   const [activeTab, setActiveTab] = useState('personal');
 
-  // Helper function to format timestamps
+  // Helper function to format timestamps or date-only strings
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
-    
+
     try {
+      // Treat YYYY-MM-DD as a date-only value (no timezone)
+      if (typeof timestamp === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(timestamp)) {
+        const [y, m, d] = timestamp.split('-').map(Number);
+        // Construct using local year-month-day to avoid UTC shifting
+        const localDate = new Date(y, m - 1, d);
+        return format(localDate, 'PPP');
+      }
+
       // Check if it's a Firebase timestamp
-      if (timestamp.toDate) {
+      if (timestamp && typeof timestamp === 'object' && typeof timestamp.toDate === 'function') {
         return format(timestamp.toDate(), 'PPP');
       }
       // Handle Firestore-like object with seconds
@@ -70,7 +78,7 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
         const ms = timestamp > 1e12 ? timestamp : timestamp * 1000;
         return format(new Date(ms), 'PPP');
       }
-      // Handle ISO or date-like strings
+      // Handle other strings (ISO, etc.)
       if (typeof timestamp === 'string') {
         const d = new Date(timestamp);
         if (!isNaN(d.getTime())) {

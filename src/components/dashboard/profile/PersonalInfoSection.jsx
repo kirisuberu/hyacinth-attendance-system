@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { User, Phone, MapPin, EnvelopeSimple, PencilSimple, FloppyDisk, Calendar, UsersThree } from 'phosphor-react';
-import { updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { updateDoc, doc } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { toast } from 'react-toastify';
 import { verifyBeforeUpdateEmail, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
@@ -30,6 +30,10 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
     const ts = userData?.dateOfBirth;
     if (!ts) return '';
     try {
+      // If already stored as a YYYY-MM-DD string, use it directly
+      if (typeof ts === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ts)) {
+        return ts;
+      }
       let d;
       if (ts?.toDate) d = ts.toDate();
       else if (typeof ts === 'object' && (typeof ts.seconds === 'number' || typeof ts._seconds === 'number')) {
@@ -209,12 +213,9 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
         updateData.email = trimmedEmail;
       }
       
-      // Handle date of birth conversion to Timestamp if provided
-      if (formData.dateOfBirth) {
-        const d = new Date(formData.dateOfBirth);
-        if (!isNaN(d.getTime())) {
-          updateData.dateOfBirth = Timestamp.fromDate(d);
-        }
+      // Handle date of birth as a date-only string (YYYY-MM-DD) to avoid timezone shifts
+      if (formData.dateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(formData.dateOfBirth)) {
+        updateData.dateOfBirth = formData.dateOfBirth;
       }
       
       await updateDoc(userRef, updateData);

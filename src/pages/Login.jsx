@@ -462,7 +462,7 @@ function Login() {
     <LoginContainer>
       <LoginCard>
         <Logo>Hyacinth</Logo>
-        <Title>Attendance System</Title>
+        <Title>Hub</Title>
         
         <Form onSubmit={handleSubmit}>
           <FormGroup>

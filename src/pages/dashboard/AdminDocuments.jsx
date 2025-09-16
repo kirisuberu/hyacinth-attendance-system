@@ -5,7 +5,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { addUserDocument, listUserDocuments, deleteUserDocument } from '../../services/documentsService';
 import { presignUpload, uploadToS3 } from '../../services/awsMedia';
-import { Users, CloudArrowUp, Trash, FileText, FolderOpen } from 'phosphor-react';
+import { CloudArrowUp, Trash, FileText, FolderOpen, MagnifyingGlass, CaretUp, CaretDown } from 'phosphor-react';
 
 function AdminDocuments() {
   const { user, userData } = useOutletContext() || {};
@@ -18,6 +18,8 @@ function AdminDocuments() {
   const [rowState, setRowState] = useState({}); // { [uid]: { category, file, uploading, error } }
   const [items, setItems] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [search, setSearch] = useState('');
+  const [sortDir, setSortDir] = useState('asc'); // 'asc' | 'desc'
 
   const categories = useMemo(() => ['Contract', 'Training', 'Policy', 'Other'], []);
 
@@ -36,6 +38,29 @@ function AdminDocuments() {
     };
     if (canAccess) loadUsers();
   }, [canAccess]);
+
+  const getUserName = (u = {}) => {
+    const fullName = [u.firstName, u.lastName].filter(Boolean).join(' ').trim();
+    return (u.displayName || fullName || u.email || u.id || '').trim();
+  };
+
+  const displayUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = users.slice();
+    if (q) {
+      list = list.filter(u => {
+        const name = getUserName(u).toLowerCase();
+        const email = (u.email || '').toLowerCase();
+        return name.includes(q) || email.includes(q);
+      });
+    }
+    list.sort((a, b) => {
+      const na = getUserName(a).toLowerCase();
+      const nb = getUserName(b).toLowerCase();
+      return sortDir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+    });
+    return list;
+  }, [users, search, sortDir]);
 
   const refreshList = async (uid) => {
     if (!uid) return;
@@ -134,10 +159,31 @@ function AdminDocuments() {
       <SectionTitle>Documents</SectionTitle>
 
       <SubTitle>All Users</SubTitle>
+      <ControlsRow>
+        <SearchWrapper>
+          <SearchIcon size={16} />
+          <SearchInput
+            type="text"
+            placeholder="Search users by name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search users"
+          />
+        </SearchWrapper>
+      </ControlsRow>
       <Table>
         <thead>
           <tr>
-            <th>User</th>
+            <th>
+              <HeaderSort
+                type="button"
+                onClick={() => setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'))}
+                title={`Sort by name (${sortDir})`}
+                aria-label={`Sort by name (${sortDir})`}
+              >
+                Name {sortDir === 'asc' ? <CaretUp size={12} /> : <CaretDown size={12} />}
+              </HeaderSort>
+            </th>
             <th>Role</th>
             <th>Status</th>
             <th><FileText size={14} /> Category</th>
@@ -146,11 +192,11 @@ function AdminDocuments() {
           </tr>
         </thead>
         <tbody>
-          {users.length ? users.map(u => {
+          {displayUsers.length ? displayUsers.map(u => {
             const st = rowState[u.id] || { category: 'Contract', file: null, uploading: false, error: '' };
             return (
               <tr key={u.id}>
-                <td>{u.displayName || u.email || u.id}</td>
+                <td>{getUserName(u)}</td>
                 <td>{u.role || '-'}</td>
                 <td>{u.status || 'active'}</td>
                 <td style={{ minWidth: 160 }}>
@@ -320,4 +366,47 @@ const Table = styled.table`
 
   th, td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; }
   th { font-weight: 700; font-size: 13px; color: #374151; }
+`;
+
+const ControlsRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+`;
+
+const SearchWrapper = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 360px;
+`;
+
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+`;
+
+const SearchIcon = styled(MagnifyingGlass)`
+  position: absolute;
+  left: 10px;
+  color: #6b7280;
+`;
+
+const HeaderSort = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
 `;

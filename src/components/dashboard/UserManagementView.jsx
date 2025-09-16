@@ -117,7 +117,58 @@ function UserManagementView({ isSuperAdmin }) {
   });
   
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  
+
+  // Date helpers: treat YYYY-MM-DD as date-only (no timezone)
+  const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+  const parseDateLike = (v) => {
+    if (!v) return null;
+    // Date-only string
+    if (typeof v === 'string' && dateOnlyRegex.test(v)) {
+      const [y, m, d] = v.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    // Firestore Timestamp-like object
+    if (typeof v === 'object' && v !== null) {
+      if (typeof v.seconds === 'number') return new Date(v.seconds * 1000);
+      if (typeof v._seconds === 'number') return new Date(v._seconds * 1000);
+      if (typeof v.toDate === 'function') {
+        try { return v.toDate(); } catch {}
+      }
+    }
+    // Number epoch (seconds or ms)
+    if (typeof v === 'number') return new Date(v > 1e12 ? v : v * 1000);
+    // Fallback ISO/string parsing
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const toDateNum = (v) => {
+    const d = parseDateLike(v);
+    return d ? d.getTime() : 0;
+  };
+
+  // Safe string coercion for case-insensitive comparisons
+  const toStringSafe = (v) => {
+    if (v === undefined || v === null) return '';
+    try {
+      return String(v).toLowerCase();
+    } catch {
+      return '';
+    }
+  };
+
+  // Normalize any incoming value to a YYYY-MM-DD string (or empty string)
+  const normalizeDateOnly = (v) => {
+    if (!v) return '';
+    if (typeof v === 'string' && dateOnlyRegex.test(v)) return v;
+    const d = parseDateLike(v);
+    if (!d) return '';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   // Calculate total hours from all shifts
   const calculateTotalHours = (schedules) => {
     if (!schedules || !Array.isArray(schedules) || schedules.length === 0) {
@@ -351,10 +402,10 @@ function UserManagementView({ isSuperAdmin }) {
       position: user.position || '',
       employmentStatus: user.employmentStatus || 'regular',
       role: user.role || 'member',
-      dateOfBirth: user.dateOfBirth || '',
-      dateHired: user.dateHired || '',
-      preemploymentDate: user.preemploymentDate || '',
-      regularDate: user.regularDate || '',
+      dateOfBirth: normalizeDateOnly(user.dateOfBirth),
+      dateHired: normalizeDateOnly(user.dateHired),
+      preemploymentDate: normalizeDateOnly(user.preemploymentDate),
+      regularDate: normalizeDateOnly(user.regularDate),
       phoneNumber: user.phoneNumber || '',
       address: user.address || '',
       emergencyContactName: user.emergencyContactName || '',
@@ -533,10 +584,10 @@ function UserManagementView({ isSuperAdmin }) {
         employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
         timeRegion: editUserData.timeRegion || 'Asia/Manila',
-        dateOfBirth: editUserData.dateOfBirth,
-        dateHired: editUserData.dateHired,
-        preemploymentDate: editUserData.preemploymentDate,
-        regularDate: editUserData.regularDate,
+        dateOfBirth: normalizeDateOnly(editUserData.dateOfBirth),
+        dateHired: normalizeDateOnly(editUserData.dateHired),
+        preemploymentDate: normalizeDateOnly(editUserData.preemploymentDate),
+        regularDate: normalizeDateOnly(editUserData.regularDate),
         phoneNumber: editUserData.phoneNumber,
         address: editUserData.address,
         emergencyContactName: editUserData.emergencyContactName,
@@ -564,10 +615,10 @@ function UserManagementView({ isSuperAdmin }) {
           employmentStatus: editUserData.employmentStatus,
           role: editUserData.role,
           timeRegion: editUserData.timeRegion || 'Asia/Manila',
-          dateOfBirth: editUserData.dateOfBirth,
-          dateHired: editUserData.dateHired,
-          preemploymentDate: editUserData.preemploymentDate,
-          regularDate: editUserData.regularDate,
+          dateOfBirth: normalizeDateOnly(editUserData.dateOfBirth),
+          dateHired: normalizeDateOnly(editUserData.dateHired),
+          preemploymentDate: normalizeDateOnly(editUserData.preemploymentDate),
+          regularDate: normalizeDateOnly(editUserData.regularDate),
           phoneNumber: editUserData.phoneNumber,
           address: editUserData.address,
           emergencyContactName: editUserData.emergencyContactName,
@@ -624,8 +675,8 @@ function UserManagementView({ isSuperAdmin }) {
         role: newUserData.role,
         status: 'active',
         timeRegion: newUserData.timeRegion || 'Asia/Manila',
-        preemploymentDate: newUserData.preemploymentDate || '',
-        regularDate: newUserData.regularDate || '',
+        preemploymentDate: normalizeDateOnly(newUserData.preemploymentDate),
+        regularDate: normalizeDateOnly(newUserData.regularDate),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         departments: newUserData.departments || [],
@@ -884,17 +935,14 @@ function UserManagementView({ isSuperAdmin }) {
             case 'status':
               rowData[column.label] = user.status || '';
               break;
-            case 'departments':
-              if (user.departments && user.departments.length > 0) {
-                const deptNames = user.departments.map(deptId => {
-                  const dept = departments.find(d => d.id === deptId);
-                  return dept ? dept.name : deptId;
-                }).join(', ');
-                rowData[column.label] = deptNames;
-              } else {
-                rowData[column.label] = 'None assigned';
-              }
+            case 'departments': {
+              const codes = (user.departments || [])
+                .map(id => departments.find(d => d.id === id)?.code || '')
+                .filter(Boolean)
+                .sort();
+              rowData[column.label] = codes.join(', ');
               break;
+            }
             case 'shifts':
               if (user.schedule && Array.isArray(user.schedule)) {
                 rowData[column.label] = `${user.schedule.length} shifts (${calculateTotalHours(user.schedule)}h total)`;
@@ -907,14 +955,12 @@ function UserManagementView({ isSuperAdmin }) {
             case 'regularDate':
             case 'dateOfBirth':
               if (user[column.id]) {
-                const date = user[column.id].seconds ? 
-                  new Date(user[column.id].seconds * 1000) : 
-                  new Date(user[column.id]);
-                rowData[column.label] = date.toLocaleDateString('en-US', { 
-                  month: 'long', 
+                const date = parseDateLike(user[column.id]);
+                rowData[column.label] = date ? date.toLocaleDateString('en-US', { 
+                  month: 'numeric', 
                   day: 'numeric', 
                   year: 'numeric' 
-                });
+                }) : 'Not specified';
               } else {
                 rowData[column.label] = 'Not specified';
               }
@@ -1253,31 +1299,21 @@ function UserManagementView({ isSuperAdmin }) {
   const visibleColumns = allColumns.filter(col => col.visible);
   
   const filteredUsers = users.filter(user => {
-    const searchTermLower = searchTerm.toLowerCase();
-    return (
-      (user.name && user.name.toLowerCase().includes(searchTermLower)) ||
-      (user.email && user.email.toLowerCase().includes(searchTermLower)) ||
-      (user.position && user.position.toLowerCase().includes(searchTermLower)) ||
-      (user.role && user.role.toLowerCase().includes(searchTermLower))
-    );
+    const q = (searchTerm || '').trim().toLowerCase();
+    if (!q) return true;
+    const hay = [
+      user.name,
+      user.email,
+      user.position,
+      user.employmentStatus,
+      user.role,
+      user.status,
+      user.phoneNumber,
+      user.contactNumber,
+      user.address
+    ].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
   });
-
-  // Sorting helpers and memoized sorted list
-  const toDateNum = (v) => {
-    if (!v) return 0;
-    if (typeof v === 'number') return v;
-    if (v.seconds) return v.seconds * 1000;
-    const d = new Date(v);
-    const t = d.getTime();
-    return isNaN(t) ? 0 : t;
-  };
-
-  const toStringSafe = (v) => {
-    if (v === null || v === undefined) return '';
-    if (Array.isArray(v)) return v.join(',').toLowerCase();
-    if (typeof v === 'object') return JSON.stringify(v).toLowerCase();
-    return String(v).toLowerCase();
-  };
 
   const getComparableValue = (user, columnId) => {
     switch (columnId) {
@@ -1310,13 +1346,10 @@ function UserManagementView({ isSuperAdmin }) {
       case 'shifts':
         return Array.isArray(user.schedule) ? user.schedule.length : 0;
       case 'preemploymentDate':
-        return toDateNum(user.preemploymentDate);
       case 'dateHired':
-        return toDateNum(user.dateHired);
       case 'regularDate':
-        return toDateNum(user.regularDate);
       case 'dateOfBirth':
-        return toDateNum(user.dateOfBirth);
+        return toDateNum(user[column.id]);
       case 'phoneNumber':
         return toStringSafe(user.phoneNumber || user.contactNumber || '');
       case 'address':
@@ -1656,11 +1689,7 @@ function UserManagementView({ isSuperAdmin }) {
                       if (column.id === 'preemploymentDate') {
                         return (
                           <TableCell key={column.id} className="col-preemploymentDate" style={{ width: `${column.width}px` }}>
-                            {user.preemploymentDate ? (
-                              user.preemploymentDate.seconds ? 
-                                new Date(user.preemploymentDate.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
-                                new Date(user.preemploymentDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-                            ) : 'Not specified'}
+                            {user.preemploymentDate ? (() => { const d = parseDateLike(user.preemploymentDate); return d ? d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : 'Invalid date'; })() : 'Not specified'}
                           </TableCell>
                         );
                       }
@@ -1668,11 +1697,7 @@ function UserManagementView({ isSuperAdmin }) {
                       if (column.id === 'dateHired') {
                         return (
                           <TableCell key={column.id} className="col-dateHired" style={{ width: `${column.width}px` }}>
-                            {user.dateHired ? (
-                              user.dateHired.seconds ? 
-                                new Date(user.dateHired.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
-                                new Date(user.dateHired).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-                            ) : 'Not specified'}
+                            {user.dateHired ? (() => { const d = parseDateLike(user.dateHired); return d ? d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : 'Invalid date'; })() : 'Not specified'}
                           </TableCell>
                         );
                       }
@@ -1680,11 +1705,7 @@ function UserManagementView({ isSuperAdmin }) {
                       if (column.id === 'regularDate') {
                         return (
                           <TableCell key={column.id} className="col-regularDate" style={{ width: `${column.width}px` }}>
-                            {user.regularDate ? (
-                              user.regularDate.seconds ? 
-                                new Date(user.regularDate.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
-                                new Date(user.regularDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-                            ) : 'Not specified'}
+                            {user.regularDate ? (() => { const d = parseDateLike(user.regularDate); return d ? d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : 'Invalid date'; })() : 'Not specified'}
                           </TableCell>
                         );
                       }
@@ -1692,11 +1713,7 @@ function UserManagementView({ isSuperAdmin }) {
                       if (column.id === 'dateOfBirth') {
                         return (
                           <TableCell key={column.id} className="col-dateOfBirth" style={{ width: `${column.width}px` }}>
-                            {user.dateOfBirth ? (
-                              user.dateOfBirth.seconds ? 
-                                new Date(user.dateOfBirth.seconds * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 
-                                new Date(user.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-                            ) : 'Not specified'}
+                            {user.dateOfBirth ? (() => { const d = parseDateLike(user.dateOfBirth); return d ? d.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }) : 'Invalid date'; })() : 'Not specified'}
                           </TableCell>
                         );
                       }

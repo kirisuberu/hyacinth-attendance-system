@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { Calendar, PencilSimple } from 'phosphor-react';
-import { updateDoc, doc, Timestamp } from 'firebase/firestore';
+import { updateDoc, doc } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { toast } from 'react-toastify';
 import { 
@@ -27,6 +27,10 @@ const AdditionalInfoSection = ({ userData, userId, formatTimestamp }) => {
     const ts = userData?.dateOfBirth;
     if (!ts) return '';
     try {
+      // If already stored as a YYYY-MM-DD string, use it directly
+      if (typeof ts === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(ts)) {
+        return ts;
+      }
       let d;
       if (ts?.toDate) d = ts.toDate();
       else if (typeof ts === 'object' && (typeof ts.seconds === 'number' || typeof ts._seconds === 'number')) {
@@ -60,11 +64,11 @@ const AdditionalInfoSection = ({ userData, userId, formatTimestamp }) => {
     }
     setLoading(true);
     try {
-      // Ensure we store DOB as a Firestore Timestamp at midnight local time
-      const d = new Date(dobValue);
-      if (isNaN(d.getTime())) throw new Error('Invalid date');
       const userRef = doc(db, 'users', userId);
-      await updateDoc(userRef, { dateOfBirth: Timestamp.fromDate(d) });
+      // Store DOB as a date-only string (YYYY-MM-DD) to avoid timezone shifts
+      // Validate the pattern
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dobValue)) throw new Error('Invalid date');
+      await updateDoc(userRef, { dateOfBirth: dobValue });
       toast.success('Date of Birth updated successfully!');
       setShowDobModal(false);
     } catch (err) {
