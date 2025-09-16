@@ -45,6 +45,7 @@ function UserManagement() {
     <PageContainer>
       <PageTitle>User Management</PageTitle>
       <Tabs 
+        isSuperAdmin={isSuperAdmin}
         tabs={[
           {
             label: "Dashboard",

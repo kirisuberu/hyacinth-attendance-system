@@ -74,38 +74,58 @@ export const determineTimeInStatus = async (userId) => {
     const userSchedule = userData.schedule || [];
     const userTimeRegion = userData.timeRegion || 'Asia/Manila'; // Get user's time region
     
-    // Get current time in user's time zone
-    const zoneTime = getCurrentTimeInZone(userTimeRegion);
-    const currentDay = zoneTime.dayOfWeek;
+    // Build absolute zoned dates to properly handle near-midnight schedules
+    const nowZoned = timestampToZonedDate(getCurrentTimestamp(), userTimeRegion);
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDay = days[nowZoned.getDay()];
+    const tomorrowDay = days[(nowZoned.getDay() + 1) % 7];
     
-    // Find today's schedule if it exists
+    // Find today's and tomorrow's schedules if they exist
     const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
       userSchedule.find(s => s.dayOfWeek === currentDay) : null;
-    
-    if (!todaySchedule) {
-      return 'No Schedule'; // No status when no schedule found (remove default schedule behavior)
-    }
-    
-    // Parse schedule time
-    const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
-    
-    // Create schedule time object to compare with current time (both in user's timezone)
-    const scheduleTime = {
-      hour: scheduledHour,
-      minute: scheduledMinute
-    };
-    
-    // Calculate time difference in minutes between schedule and current time (both in user's timezone)
-    let diffMinutes = calculateTimeDifferenceInMinutes(scheduleTime, zoneTime);
-    
-    console.log(`Time difference for user ${userId}: ${diffMinutes} minutes`);
-    console.log(`User time region: ${userTimeRegion}, Schedule time: ${scheduledHour}:${scheduledMinute}, Current time in zone: ${zoneTime.hour}:${zoneTime.minute}`);
-
+    const tomorrowSchedule = userSchedule && Array.isArray(userSchedule) ?
+      userSchedule.find(s => s.dayOfWeek === tomorrowDay) : null;
     
     // Get attendance rules from system settings
     const rules = await getAttendanceRules();
     const earlyThreshold = rules.timeIn?.earlyThreshold || 15;
     const onTimeThreshold = rules.timeIn?.onTimeThreshold || 5;
+    const earlyClockInWindowHours = rules.timeIn?.earlyClockInWindowHours ?? 5; // allow early clock-in window from previous day
+    const earlyWindowMinutes = earlyClockInWindowHours * 60;
+    
+    // Compute diffs against today's and tomorrow's schedule using absolute dates
+    let diffToday = null;
+    if (todaySchedule?.timeIn) {
+      const [h, m] = todaySchedule.timeIn.split(':').map(Number);
+      const scheduleDateToday = new Date(nowZoned);
+      scheduleDateToday.setHours(h, m || 0, 0, 0);
+      diffToday = Math.round((nowZoned - scheduleDateToday) / (1000 * 60)); // negative = early, positive = late
+    }
+    
+    let diffTomorrow = null;
+    if (tomorrowSchedule?.timeIn) {
+      const [h2, m2] = tomorrowSchedule.timeIn.split(':').map(Number);
+      const scheduleDateTomorrow = new Date(nowZoned);
+      scheduleDateTomorrow.setDate(scheduleDateTomorrow.getDate() + 1);
+      scheduleDateTomorrow.setHours(h2, m2 || 0, 0, 0);
+      diffTomorrow = Math.round((nowZoned - scheduleDateTomorrow) / (1000 * 60)); // negative = early (previous day)
+    }
+    
+    // Decide which schedule to evaluate against
+    // Prefer tomorrow's schedule if we're within the early window before it
+    let diffMinutes = null;
+    let used = '';
+    if (diffTomorrow !== null && diffTomorrow < 0 && Math.abs(diffTomorrow) <= earlyWindowMinutes) {
+      diffMinutes = diffTomorrow;
+      used = 'tomorrow';
+    } else if (diffToday !== null) {
+      diffMinutes = diffToday;
+      used = 'today';
+    } else {
+      return 'No Schedule';
+    }
+    
+    console.log(`Time-in evaluation for user ${userId} [${userTimeRegion}] using ${used} schedule: diff=${diffMinutes} min, thresholds {early:${earlyThreshold}, onTime:${onTimeThreshold}}, earlyWindowHours=${earlyClockInWindowHours}`);
     
     // Determine status based on time difference
     if (diffMinutes < -earlyThreshold) { // More than earlyThreshold minutes early
@@ -138,29 +158,46 @@ export const calculateTimeDifference = async (userId) => {
     const userSchedule = userData.schedule || [];
     const userTimeRegion = userData.timeRegion || 'Asia/Manila'; // Get user's time region
     
-    // Get current time in user's time zone
-    const zoneTime = getCurrentTimeInZone(userTimeRegion);
-    const currentDay = zoneTime.dayOfWeek;
+    // Build absolute zoned dates
+    const nowZoned = timestampToZonedDate(getCurrentTimestamp(), userTimeRegion);
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDay = days[nowZoned.getDay()];
+    const tomorrowDay = days[(nowZoned.getDay() + 1) % 7];
     
-    // Find today's schedule if it exists
     const todaySchedule = userSchedule && Array.isArray(userSchedule) ?
       userSchedule.find(s => s.dayOfWeek === currentDay) : null;
+    const tomorrowSchedule = userSchedule && Array.isArray(userSchedule) ?
+      userSchedule.find(s => s.dayOfWeek === tomorrowDay) : null;
     
-    if (!todaySchedule) {
-      return null;
+    // Get early window from rules
+    const rules = await getAttendanceRules();
+    const earlyClockInWindowHours = rules.timeIn?.earlyClockInWindowHours ?? 5;
+    const earlyWindowMinutes = earlyClockInWindowHours * 60;
+    
+    let diffToday = null;
+    if (todaySchedule?.timeIn) {
+      const [h, m] = todaySchedule.timeIn.split(':').map(Number);
+      const scheduleDateToday = new Date(nowZoned);
+      scheduleDateToday.setHours(h, m || 0, 0, 0);
+      diffToday = Math.round((nowZoned - scheduleDateToday) / (1000 * 60));
     }
     
-    // Parse schedule time
-    const [scheduledHour, scheduledMinute] = todaySchedule.timeIn.split(':').map(Number);
+    let diffTomorrow = null;
+    if (tomorrowSchedule?.timeIn) {
+      const [h2, m2] = tomorrowSchedule.timeIn.split(':').map(Number);
+      const scheduleDateTomorrow = new Date(nowZoned);
+      scheduleDateTomorrow.setDate(scheduleDateTomorrow.getDate() + 1);
+      scheduleDateTomorrow.setHours(h2, m2 || 0, 0, 0);
+      diffTomorrow = Math.round((nowZoned - scheduleDateTomorrow) / (1000 * 60));
+    }
     
-    // Create schedule time object to compare with current time (both in user's timezone)
-    const scheduleTime = {
-      hour: scheduledHour,
-      minute: scheduledMinute
-    };
+    // Prefer tomorrow's schedule if within early window before it
+    if (diffTomorrow !== null && diffTomorrow < 0 && Math.abs(diffTomorrow) <= earlyWindowMinutes) {
+      return diffTomorrow;
+    }
     
-    // Calculate time difference in minutes between schedule and current time (both in user's timezone)
-    return calculateTimeDifferenceInMinutes(scheduleTime, zoneTime);
+    // Otherwise, use today's schedule if present
+    return diffToday;
   } catch (error) {
     console.error('Error calculating time difference:', error);
     return null;
@@ -352,22 +389,31 @@ export const hasScheduledShiftToday = async (userId) => {
  */
 export const hasTimedInToday = async (userId) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Determine time window in the user's time region, allowing early clock-ins
+    const userDoc = await getDoc(doc(db, 'users', userId));
+    const userData = userDoc.exists() ? userDoc.data() : {};
+    const userTimeRegion = userData.timeRegion || 'Asia/Manila';
+    const rules = await getAttendanceRules();
+    const earlyClockInWindowHours = rules.timeIn?.earlyClockInWindowHours ?? 5;
     
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nowZoned = timestampToZonedDate(getCurrentTimestamp(), userTimeRegion);
+    const startOfDayZoned = new Date(nowZoned);
+    startOfDayZoned.setHours(0, 0, 0, 0);
+    const earlyWindowStart = new Date(startOfDayZoned);
+    earlyWindowStart.setHours(startOfDayZoned.getHours() - earlyClockInWindowHours, startOfDayZoned.getMinutes(), 0, 0);
+    const endOfDayZoned = new Date(startOfDayZoned);
+    endOfDayZoned.setDate(endOfDayZoned.getDate() + 1);
     
-    const startOfDay = Timestamp.fromDate(today);
-    const endOfDay = Timestamp.fromDate(tomorrow);
+    const startBoundary = Timestamp.fromDate(earlyWindowStart);
+    const endBoundary = Timestamp.fromDate(endOfDayZoned);
     
     const attendanceRef = collection(db, 'attendance');
     const q = query(
       attendanceRef,
       where('userId', '==', userId),
       where('type', '==', 'In'),
-      where('timestamp', '>=', startOfDay),
-      where('timestamp', '<', endOfDay)
+      where('timestamp', '>=', startBoundary),
+      where('timestamp', '<', endBoundary)
     );
     
     const querySnapshot = await getDocs(q);

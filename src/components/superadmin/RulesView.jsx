@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Card, CardTitle, CardContent } from '../dashboard/DashboardComponents';
-import { Gear, FloppyDisk, ClockClockwise, ArrowClockwise, GlobeHemisphereWest, LockSimple, LockSimpleOpen } from 'phosphor-react';
+import { Gear, FloppyDisk, ClockClockwise, ArrowClockwise, GlobeHemisphereWest, LockSimple, LockSimpleOpen, Timer } from 'phosphor-react';
 import { getAttendanceRules, updateAttendanceRules } from '../../services/systemSettingsService';
 import { toast } from 'react-toastify';
 
@@ -143,7 +143,8 @@ const RulesView = () => {
   const [rules, setRules] = useState({
     timeIn: {
       earlyThreshold: 15,
-      onTimeThreshold: 5
+      onTimeThreshold: 5,
+      earlyClockInWindowHours: 5
     },
     timeOut: {
       incompleteThreshold: 30,
@@ -176,7 +177,8 @@ const RulesView = () => {
         const normalizedRules = {
           timeIn: {
             earlyThreshold: fetchedRules?.timeIn?.earlyThreshold ?? 15,
-            onTimeThreshold: fetchedRules?.timeIn?.onTimeThreshold ?? 5
+            onTimeThreshold: fetchedRules?.timeIn?.onTimeThreshold ?? 5,
+            earlyClockInWindowHours: fetchedRules?.timeIn?.earlyClockInWindowHours ?? 5
           },
           timeOut: {
             incompleteThreshold: fetchedRules?.timeOut?.incompleteThreshold ?? 30,
@@ -277,6 +279,7 @@ const RulesView = () => {
     return (
       rules.timeIn.earlyThreshold !== originalRules.timeIn.earlyThreshold ||
       rules.timeIn.onTimeThreshold !== originalRules.timeIn.onTimeThreshold ||
+      rules.timeIn.earlyClockInWindowHours !== originalRules.timeIn.earlyClockInWindowHours ||
       rules.timeOut.incompleteThreshold !== originalRules.timeOut.incompleteThreshold ||
       rules.timeOut.overtimeThreshold !== originalRules.timeOut.overtimeThreshold ||
       rules.timeRegion?.lockToDeviceRegion !== originalRules.timeRegion?.lockToDeviceRegion ||
@@ -312,7 +315,7 @@ const RulesView = () => {
               
               <FormRow>
                 <FormGroup>
-                  <FormLabel>Early Threshold (minutes)</FormLabel>
+                  <FormLabel><Timer size={16} /> Early Threshold (minutes)</FormLabel>
                   <FormInput
                     type="number"
                     min="0"
@@ -325,7 +328,7 @@ const RulesView = () => {
                 </FormGroup>
                 
                 <FormGroup>
-                  <FormLabel>On-Time Threshold (minutes)</FormLabel>
+                  <FormLabel><Timer size={16} /> On-Time Threshold (minutes)</FormLabel>
                   <FormInput
                     type="number"
                     min="0"
@@ -334,6 +337,19 @@ const RulesView = () => {
                   />
                   <Description>
                     Users who time in up to {rules.timeIn.onTimeThreshold} minutes after their scheduled time will still be marked as "On Time".
+                  </Description>
+                </FormGroup>
+                
+                <FormGroup>
+                  <FormLabel><Timer size={16} /> Early Clock-In Window (hours)</FormLabel>
+                  <FormInput
+                    type="number"
+                    min="0"
+                    value={rules.timeIn.earlyClockInWindowHours}
+                    onChange={(e) => handleInputChange('timeIn', 'earlyClockInWindowHours', e.target.value)}
+                  />
+                  <Description>
+                    Allows clock-ins up to {rules.timeIn.earlyClockInWindowHours} hour(s) before a next-day schedule (e.g., 10:00 PM for a 12:00 AM shift) to be treated as the same shift.
                   </Description>
                 </FormGroup>
               </FormRow>

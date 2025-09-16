@@ -310,44 +310,49 @@ const DashboardHome = () => {
           // Start of this month
           const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
           
-          // Calculate start and end dates for last 3 months
+          // Build dynamic months list since user registration (max 12 months)
           const currentMonth = now.getMonth();
           const currentYear = now.getFullYear();
           
-          // This month
-          const month0Start = new Date(currentYear, currentMonth, 1, 0, 0, 0);
-          const month0End = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-          const month0Name = format(month0Start, 'MMM');
+          // Determine user registration date; fallback to current month if unavailable
+          const creationTimeStr = auth.currentUser?.metadata?.creationTime;
+          const creationDateRaw = creationTimeStr ? new Date(creationTimeStr) : new Date(currentYear, currentMonth, 1);
+          const startOfUserMonth = new Date(creationDateRaw.getFullYear(), creationDateRaw.getMonth(), 1, 0, 0, 0);
+          const earliestStartAllowed = new Date(currentYear, currentMonth - 11, 1, 0, 0, 0);
+          const startOfRange = startOfUserMonth > earliestStartAllowed ? startOfUserMonth : earliestStartAllowed;
           
-          // Last month
-          const month1Start = new Date(currentYear, currentMonth - 1, 1, 0, 0, 0);
-          const month1End = new Date(currentYear, currentMonth, 0, 23, 59, 59);
-          const month1Name = format(month1Start, 'MMM');
-          
-          // Two months ago
-          const month2Start = new Date(currentYear, currentMonth - 2, 1, 0, 0, 0);
-          const month2End = new Date(currentYear, currentMonth - 1, 0, 23, 59, 59);
-          const month2Name = format(month2Start, 'MMM');
-          
-          // Start date for quarterly data (two months ago)
-          const startOfQuarter = month2Start;
+          // Construct an ordered list of months from startOfRange to current month (inclusive), maximum 12
+          const monthsList = [];
+          {
+            let cursor = new Date(startOfRange);
+            // ceiling end of current month end at 23:59:59
+            const endBoundary = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+            while (cursor <= endBoundary && monthsList.length < 12) {
+              const mStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1, 0, 0, 0);
+              const mEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59);
+              const label = format(mStart, 'MMM yyyy');
+              monthsList.push({ start: mStart, end: mEnd, label });
+              // move to first day of next month
+              cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1, 0, 0, 0);
+            }
+          }
           
           // Start of last 30 days period
           const startOfLast30Days = new Date(now);
           startOfLast30Days.setDate(now.getDate() - 30);
           
-          // Get all attendance and absence records for quarterly data
+          // Get all attendance and absence records for the selected range
           const [attendanceSnapshot, absencesSnapshot] = await Promise.all([
             getDocs(query(
               collection(db, 'attendance'),
               where('userId', '==', auth.currentUser.uid),
-              where('timestamp', '>=', Timestamp.fromDate(startOfQuarter)),
+              where('timestamp', '>=', Timestamp.fromDate(startOfRange)),
               orderBy('timestamp', 'desc')
             )),
             getDocs(query(
               collection(db, 'absences'),
               where('userId', '==', auth.currentUser.uid),
-              where('date', '>=', format(startOfQuarter, 'yyyy-MM-dd'))
+              where('date', '>=', format(startOfRange, 'yyyy-MM-dd'))
             ))
           ]);
           
@@ -395,81 +400,27 @@ const DashboardHome = () => {
           
           const allRecords = processRecords();
           
-          // Separate records by month for quarterly data with validation
-          const month0Records = (allRecords || []).filter(record => 
-            record?.timestamp && record.timestamp >= month0Start && record.timestamp < month0End && record.type === 'In'
-          );
-          const month1Records = (allRecords || []).filter(record => 
-            record?.timestamp && record.timestamp >= month1Start && record.timestamp < month1End && record.type === 'In'
-          );
-          const month2Records = (allRecords || []).filter(record => 
-            record?.timestamp && record.timestamp >= month2Start && record.timestamp < month2End && record.type === 'In'
-          );
-          
-          // Calculate status counts for each month with validation
-          const month0Total = (month0Records || []).length;
-          const month0PTO = (month0Records || []).filter(r => r?.status === 'PTO').length;
-          const month0Absent = (month0Records || []).filter(r => r?.status === 'Absent').length;
-          const month0NCNS = (month0Records || []).filter(r => r?.status === 'NCNS').length;
-          const month0Early = (month0Records || []).filter(r => r?.status === 'Early').length;
-          const month0OnTime = (month0Records || []).filter(r => r?.status === 'On Time').length;
-          const month0Late = (month0Records || []).filter(r => r?.status === 'Late').length;
-          const month0Present = month0Total - month0PTO - month0Absent - month0NCNS;
-          
-          const month1Total = (month1Records || []).length;
-          const month1PTO = (month1Records || []).filter(r => r?.status === 'PTO').length;
-          const month1Absent = (month1Records || []).filter(r => r?.status === 'Absent').length;
-          const month1NCNS = (month1Records || []).filter(r => r?.status === 'NCNS').length;
-          const month1Early = (month1Records || []).filter(r => r?.status === 'Early').length;
-          const month1OnTime = (month1Records || []).filter(r => r?.status === 'On Time').length;
-          const month1Late = (month1Records || []).filter(r => r?.status === 'Late').length;
-          const month1Present = month1Total - month1PTO - month1Absent - month1NCNS;
-          
-          const month2Total = (month2Records || []).length;
-          const month2PTO = (month2Records || []).filter(r => r?.status === 'PTO').length;
-          const month2Absent = (month2Records || []).filter(r => r?.status === 'Absent').length;
-          const month2NCNS = (month2Records || []).filter(r => r?.status === 'NCNS').length;
-          const month2Early = (month2Records || []).filter(r => r?.status === 'Early').length;
-          const month2OnTime = (month2Records || []).filter(r => r?.status === 'On Time').length;
-          const month2Late = (month2Records || []).filter(r => r?.status === 'Late').length;
-          const month2Present = month2Total - month2PTO - month2Absent - month2NCNS;
-          
-          // Create quarterly data for the chart
-          const quarterlyData = [
-            {
-              month: month2Name,
-              total: month2Total,
-              early: month2Early,
-              onTime: month2OnTime,
-              late: month2Late,
-              pto: month2PTO,
-              absent: month2Absent,
-              ncns: month2NCNS,
-              present: month2Present
-            },
-            {
-              month: month1Name,
-              total: month1Total,
-              early: month1Early,
-              onTime: month1OnTime,
-              late: month1Late,
-              pto: month1PTO,
-              absent: month1Absent,
-              ncns: month1NCNS,
-              present: month1Present
-            },
-            {
-              month: month0Name,
-              total: month0Total,
-              early: month0Early,
-              onTime: month0OnTime,
-              late: month0Late,
-              pto: month0PTO,
-              absent: month0Absent,
-              ncns: month0NCNS,
-              present: month0Present
-            }
-          ];
+          // Aggregate records per month for the stacked chart across monthsList
+          const quarterlyData = monthsList.map(({ start, end, label }) => {
+            const monthRecords = (allRecords || []).filter(record =>
+              record?.timestamp && record.timestamp >= start && record.timestamp <= end && record.type === 'In'
+            );
+            const early = (monthRecords || []).filter(r => r?.status === 'Early').length;
+            const onTime = (monthRecords || []).filter(r => r?.status === 'On Time').length;
+            const late = (monthRecords || []).filter(r => r?.status === 'Late').length;
+            const pto = (monthRecords || []).filter(r => r?.status === 'PTO').length;
+            const absent = (monthRecords || []).filter(r => r?.status === 'Absent').length;
+            const ncns = (monthRecords || []).filter(r => r?.status === 'NCNS').length;
+            return {
+              month: label,
+              early,
+              onTime,
+              late,
+              pto,
+              absent,
+              ncns
+            };
+          });
           
           // Calculate overall stats
           const totalRecords = allRecords.length;

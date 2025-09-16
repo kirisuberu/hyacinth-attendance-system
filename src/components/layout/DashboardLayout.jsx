@@ -186,6 +186,32 @@ function DashboardLayout() {
   };
 
 
+  // Reusable SideNavLink to support status badges and disabled behavior
+  const SideNavLink = ({ to, active, status = 'working', children, style }) => {
+    const unclickable = (status === 'coming_soon' || status === 'disabled') && !isSuperAdmin;
+    const hardDisabled = (status === 'disabled') && !isSuperAdmin;
+    const badgeText = status === 'new' ? 'New!' : status === 'coming_soon' ? 'Coming Soon!' : null;
+    const className = active ? 'active' : '';
+    const commonProps = {
+      className,
+      $unclickable: unclickable,
+      $hardDisabled: hardDisabled,
+      style,
+      title: unclickable ? (status === 'coming_soon' ? 'Coming soon' : 'Disabled') : undefined,
+      onClick: unclickable ? (e) => e.preventDefault() : undefined
+    };
+
+    // Use 'as' to render a div when unclickable so it's fully non-interactive
+    return (
+      <NavItem as={unclickable ? 'div' : Link} to={unclickable ? undefined : to} {...commonProps}>
+        <NavContent>
+          {children}
+          {badgeText && <NavBadge $variant={status}>{badgeText}</NavBadge>}
+        </NavContent>
+      </NavItem>
+    );
+  };
+
   return (
     <DashboardContainer>
       <Sidebar>
@@ -196,30 +222,30 @@ function DashboardLayout() {
         
         {/* Main Navigation */}
         <div style={{ flex: 1 }}>
-          <NavItem to="/dashboard" className={isActive('/dashboard') ? 'active' : ''}>
+          <SideNavLink to="/dashboard" active={isActive('/dashboard')}>
             <Icon><House size={16} /></Icon>
             Dashboard
-          </NavItem>
+          </SideNavLink>
           
-          <NavItem to="/dashboard/attendance" className={isActive('/dashboard/attendance') ? 'active' : ''}>
+          <SideNavLink to="/dashboard/attendance" active={isActive('/dashboard/attendance')}>
             <Icon><Clock size={16} /></Icon>
             Attendance Logs
-          </NavItem>
+          </SideNavLink>
           
-          <NavItem to="/dashboard/schedule" className={isActive('/dashboard/schedule') ? 'active' : ''}>
+          <SideNavLink to="/dashboard/schedule" active={isActive('/dashboard/schedule')}>
             <Icon><Calendar size={16} /></Icon>
             Schedule
-          </NavItem>
+          </SideNavLink>
           
-          <NavItem to="/dashboard/profile" className={isActive('/dashboard/profile') ? 'active' : ''}>
+          <SideNavLink to="/dashboard/profile" active={isActive('/dashboard/profile')}>
             <Icon><User size={16} /></Icon>
             Profile
-          </NavItem>
+          </SideNavLink>
 
-          <NavItem to="/dashboard/documents" className={isActive('/dashboard/documents') ? 'active' : ''}>
+          <SideNavLink to="/dashboard/documents" active={isActive('/dashboard/documents')} status="coming_soon">
             <Icon><FileText size={16} /></Icon>
             Documents
-          </NavItem>
+          </SideNavLink>
           
           <NavItem to="/dashboard/tutorials" className={isActive('/dashboard/tutorials') ? 'active' : ''} style={{ display: 'none' }}>
             <Icon><Question size={16} /></Icon>
@@ -256,79 +282,81 @@ function DashboardLayout() {
                 <div style={{ paddingLeft: '0.5rem' }}>
                   {/* Registration Requests - Available to super admins and admins with permission */}
                   {canManageRegistrations && (
-                    <NavItem 
+                    <SideNavLink 
                       to="/dashboard/registration-requests" 
-                      className={isActive('/dashboard/registration-requests') ? 'active' : ''}
+                      active={isActive('/dashboard/registration-requests')}
                     >
                       <Icon><UserPlus size={16} /></Icon>
                       Registration Requests
-                    </NavItem>
+                    </SideNavLink>
                   )}
                   
                   {/* User Management - Available to super admins and admins with permission */}
                   {canManageUsers && (
-                    <NavItem 
+                    <SideNavLink 
                       to="/dashboard/user-management"
-                      className={isActive('/dashboard/user-management') ? 'active' : ''}
+                      active={isActive('/dashboard/user-management')}
                     >
                       <Icon><Users size={16} /></Icon>
                       User Management
-                    </NavItem>
+                    </SideNavLink>
                   )}
 
                   {/* Admin Documents - Available to super admins and admins */}
                   {(isSuperAdmin || isAdmin) && (
-                    <NavItem 
+                    <SideNavLink 
                       to="/dashboard/admin-documents"
-                      className={isActive('/dashboard/admin-documents') ? 'active' : ''}
+                      active={isActive('/dashboard/admin-documents')}
+                      status="coming_soon"
                     >
                       <Icon><FileText size={16} /></Icon>
                       Admin Documents
-                    </NavItem>
+                    </SideNavLink>
                   )}
                   
                   {/* Reports - Available to super admins and admins with permission */}
                   {canViewReports && (
-                    <NavItem 
+                    <SideNavLink 
                       to="/dashboard/reports"
-                      className={isActive('/dashboard/reports') ? 'active' : ''}
+                      active={isActive('/dashboard/reports')}
                     >
                       <Icon><ChartBar size={16} /></Icon>
                       Reports
-                    </NavItem>
+                    </SideNavLink>
                   )}
                   
                   {/* Attendance Requests - Available to super admins and admins with permission */}
                   {canManageAttendanceRequests && (
-                    <NavItem 
+                    <SideNavLink 
                       to="/dashboard/attendance-requests"
-                      className={isActive('/dashboard/attendance-requests') ? 'active' : ''}
+                      active={isActive('/dashboard/attendance-requests')}
                     >
                       <Icon><ListChecks size={16} /></Icon>
                       Attendance Requests
-                    </NavItem>
+                    </SideNavLink>
                   )}
                   
                   {/* Schedule Change Requests - Available to super admins and admins with permission */}
                   {canManageSchedules && (
-                    <NavItem 
+                    <SideNavLink 
                       to="/dashboard/schedule-change-requests"
-                      className={isActive('/dashboard/schedule-change-requests') ? 'active' : ''}
+                      active={isActive('/dashboard/schedule-change-requests')}
                     >
                       <Icon><Calendar size={16} /></Icon>
                       Schedule Change Requests
-                    </NavItem>
+                    </SideNavLink>
                   )}
 
                   {/* Manager Functions - Visible to super admins, or admins with privilege */}
                   {canUseManagerFunctions && (
-                    <NavItem 
+                    <SideNavLink 
                       to="/dashboard/manager-functions"
-                      className={isActive('/dashboard/manager-functions') ? 'active' : ''}
+                      active={isActive('/dashboard/manager-functions')}
+                      status="new"
                     >
                       <Icon><Wrench size={16} /></Icon>
                       Manager Functions
-                    </NavItem>
+                    </SideNavLink>
                   )}
                 </div>
               )}
@@ -363,27 +391,27 @@ function DashboardLayout() {
               
               {superAdminPanelExpanded && (
                 <div style={{ paddingLeft: '0.5rem' }}>
-                  <NavItem 
+                  <SideNavLink 
                     to="/dashboard/admin-privileges"
-                    className={isActive('/dashboard/admin-privileges') ? 'active' : ''}
+                    active={isActive('/dashboard/admin-privileges')}
                   >
                     <Icon><Shield size={16} /></Icon>
                     Admin Privileges
-                  </NavItem>
-                  <NavItem 
+                  </SideNavLink>
+                  <SideNavLink 
                     to="/dashboard/rules"
-                    className={isActive('/dashboard/rules') ? 'active' : ''}
+                    active={isActive('/dashboard/rules')}
                   >
                     <Icon><Ruler size={16} /></Icon>
                     Rules
-                  </NavItem>
-                  <NavItem 
+                  </SideNavLink>
+                  <SideNavLink 
                     to="/dashboard/absent-service"
-                    className={isActive('/dashboard/absent-service') ? 'active' : ''}
+                    active={isActive('/dashboard/absent-service')}
                   >
                     <Icon><CalendarX size={16} /></Icon>
                     Absent Service
-                  </NavItem>
+                  </SideNavLink>
                 </div>
               )}
             </div>
@@ -471,13 +499,16 @@ const NavItem = styled(Link)`
   padding: 0.75rem 1rem;
   border-radius: 8px;
   margin-bottom: 0.5rem;
-  cursor: pointer;
+  cursor: ${props => props.$unclickable ? 'not-allowed' : 'pointer'};
   transition: all 0.2s ease;
   text-decoration: none;
   color: white;
+  position: relative;
+  opacity: ${props => props.$hardDisabled ? 0.65 : 1};
+  filter: ${props => props.$hardDisabled ? 'grayscale(70%)' : 'none'};
   
   &:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: ${props => props.$unclickable ? 'transparent' : 'rgba(255, 255, 255, 0.1)'};
   }
   
   &.active {
@@ -625,4 +656,25 @@ const AppUpdatesButton = styled(Link)`
   &:hover {
     background-color: #e0e0e0;
   }
+`;
+
+const NavContent = styled.span`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+`;
+
+const NavBadge = styled.span`
+  position: absolute;
+  left: 100%;
+  bottom: 100%;
+  background-color: ${props => props.$variant === 'new' ? '#22c55e' : '#9ca3af'};
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  pointer-events: none;
+  z-index: 1;
 `;

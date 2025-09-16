@@ -16,7 +16,7 @@ const QuarterlyAttendanceChart = ({ data }) => {
     <ChartCard>
       <ChartTitle>
         <ChartBar size={20} />
-        Quarterly Attendance Breakdown
+        Attendance Breakdown per Month
       </ChartTitle>
       <div style={{ width: '100%', height: '330px' }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -29,13 +29,12 @@ const QuarterlyAttendanceChart = ({ data }) => {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Bar dataKey="total" name="Total" fill="#8884d8" />
-            <Bar dataKey="early" name="Early" fill="#42a5f5" />
-            <Bar dataKey="onTime" name="On Time" fill="#66bb6a" />
-            <Bar dataKey="late" name="Late" fill="#ff9800" />
-            <Bar dataKey="pto" name="PTO" fill="#9c27b0" />
-            <Bar dataKey="absent" name="Absent" fill="#f44336" />
-            <Bar dataKey="ncns" name="NCNS" fill="#000000" />
+            <Bar dataKey="early" name="Early" stackId="a" fill="#42a5f5" />
+            <Bar dataKey="onTime" name="On Time" stackId="a" fill="#66bb6a" />
+            <Bar dataKey="late" name="Late" stackId="a" fill="#ff9800" />
+            <Bar dataKey="pto" name="PTO" stackId="a" fill="#9c27b0" />
+            <Bar dataKey="absent" name="Absent" stackId="a" fill="#f44336" />
+            <Bar dataKey="ncns" name="NCNS" stackId="a" fill="#000000" />
           </BarChart>
         </ResponsiveContainer>
       </div>

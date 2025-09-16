@@ -5,7 +5,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { addUserDocument, listUserDocuments, deleteUserDocument } from '../../services/documentsService';
 import { presignUpload, uploadToS3 } from '../../services/awsMedia';
-import { Users, CloudArrowUp, Trash, FileText } from 'phosphor-react';
+import { Users, CloudArrowUp, Trash, FileText, FolderOpen } from 'phosphor-react';
 
 function AdminDocuments() {
   const { user, userData } = useOutletContext() || {};
@@ -15,10 +15,7 @@ function AdminDocuments() {
 
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [category, setCategory] = useState('Contract');
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState('');
+  const [rowState, setRowState] = useState({}); // { [uid]: { category, file, uploading, error } }
   const [items, setItems] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
 
@@ -57,34 +54,58 @@ function AdminDocuments() {
     refreshList(selectedUserId);
   }, [selectedUserId]);
 
-  const handleFileChange = (e) => {
-    setError('');
-    const f = e.target.files?.[0];
-    setFile(f || null);
+
+  const ensureRow = (uid) => {
+    setRowState(prev => ({
+      ...prev,
+      [uid]: {
+        category: prev[uid]?.category || 'Contract',
+        file: prev[uid]?.file || null,
+        uploading: false,
+        error: ''
+      }
+    }));
   };
 
-  const handleUpload = async () => {
-    if (!file || !selectedUserId) return;
-    setUploading(true);
-    setError('');
+  const handleCategoryChange = (uid, value) => {
+    setRowState(prev => ({
+      ...prev,
+      [uid]: { ...(prev[uid] || {}), category: value, error: '' }
+    }));
+  };
+
+  const handleFileChange = (uid, e) => {
+    const f = e.target.files?.[0] || null;
+    setRowState(prev => ({
+      ...prev,
+      [uid]: { ...(prev[uid] || {}), file: f, error: '' }
+    }));
+  };
+
+  const handleUpload = async (uid) => {
+    const state = rowState[uid] || {};
+    const f = state.file;
+    const category = state.category || 'Contract';
+    if (!f || !uid) return;
+    setRowState(prev => ({ ...prev, [uid]: { ...(prev[uid] || {}), uploading: true, error: '' } }));
     try {
-      const { url, key } = await presignUpload({ file, prefix: 'admin-docs', targetUserId: selectedUserId });
-      await uploadToS3(url, file, file.type || 'application/octet-stream');
+      const { url, key } = await presignUpload({ file: f, prefix: 'admin-docs', targetUserId: uid });
+      await uploadToS3(url, f, f.type || 'application/octet-stream');
       await addUserDocument({
-        userId: selectedUserId,
-        name: file.name,
+        userId: uid,
+        name: f.name,
         key,
-        contentType: file.type,
-        size: file.size,
+        contentType: f.type,
+        size: f.size,
         category,
         uploadedBy: user?.uid || 'admin'
       });
-      setFile(null);
-      await refreshList(selectedUserId);
+      // Clear file for the row
+      setRowState(prev => ({ ...prev, [uid]: { ...(prev[uid] || {}), file: null, uploading: false, error: '' } }));
+      // If this user is currently selected, refresh the list below
+      if (selectedUserId === uid) await refreshList(uid);
     } catch (e) {
-      setError(e.message || 'Upload failed');
-    } finally {
-      setUploading(false);
+      setRowState(prev => ({ ...prev, [uid]: { ...(prev[uid] || {}), uploading: false, error: e.message || 'Upload failed' } }));
     }
   };
 
@@ -112,81 +133,92 @@ function AdminDocuments() {
     <PageContainer>
       <SectionTitle>Documents</SectionTitle>
 
-      <FormRow>
-        <Label>
-          <Users size={18} weight="bold" />
-          <span>User</span>
-        </Label>
-        <Select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
-          {users.map(u => (
-            <option key={u.id} value={u.id}>{u.displayName || u.email || u.id}</option>
-          ))}
-        </Select>
-      </FormRow>
-
-      <FormRow>
-        <Label>
-          <FileText size={18} weight="bold" />
-          <span>Category</span>
-        </Label>
-        <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-          {categories.map(c => (
-            <option key={c} value={c}>{c}</option>
-          ))}
-        </Select>
-      </FormRow>
-
-      <FormRow>
-        <Label>
-          <CloudArrowUp size={18} weight="bold" />
-          <span>Upload File</span>
-        </Label>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="file" onChange={handleFileChange} />
-          <PrimaryButton disabled={!file || uploading} onClick={handleUpload}>
-            {uploading ? 'Uploading…' : 'Upload'}
-          </PrimaryButton>
-        </div>
-      </FormRow>
-
-      {error && <ErrorText>{error}</ErrorText>}
-
-      <SubTitle>Files for selected user</SubTitle>
+      <SubTitle>All Users</SubTitle>
       <Table>
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Category</th>
-            <th>Type</th>
-            <th>Size</th>
-            <th>Uploaded</th>
+            <th>User</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th><FileText size={14} /> Category</th>
+            <th><CloudArrowUp size={14} /> File</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {loadingList ? (
-            <tr><td colSpan="6">Loading…</td></tr>
-          ) : items.length ? (
-            items.map(item => (
-              <tr key={item.id}>
-                <td>{item.name}</td>
-                <td>{item.category}</td>
-                <td>{item.contentType}</td>
-                <td>{formatSize(item.size)}</td>
-                <td>{formatDate(item.uploadedAt)}</td>
+          {users.length ? users.map(u => {
+            const st = rowState[u.id] || { category: 'Contract', file: null, uploading: false, error: '' };
+            return (
+              <tr key={u.id}>
+                <td>{u.displayName || u.email || u.id}</td>
+                <td>{u.role || '-'}</td>
+                <td>{u.status || 'active'}</td>
+                <td style={{ minWidth: 160 }}>
+                  <Select value={st.category} onChange={(e) => handleCategoryChange(u.id, e.target.value)} onFocus={() => ensureRow(u.id)}>
+                    {categories.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </Select>
+                </td>
                 <td>
-                  <DangerButton onClick={() => handleDelete(item.id)}>
-                    <Trash size={16} />
-                    Delete
-                  </DangerButton>
+                  <input type="file" onChange={(e) => handleFileChange(u.id, e)} onClick={() => ensureRow(u.id)} />
+                </td>
+                <td style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <PrimaryButton disabled={!st.file || st.uploading} onClick={() => handleUpload(u.id)}>
+                    {st.uploading ? 'Uploading…' : 'Upload'}
+                  </PrimaryButton>
+                  <PrimaryButton onClick={() => { setSelectedUserId(u.id); }} title="Manage documents">
+                    <FolderOpen size={16} /> Manage
+                  </PrimaryButton>
                 </td>
               </tr>
-            ))
-          ) : (
-            <tr><td colSpan="6">No documents.</td></tr>
+            );
+          }) : (
+            <tr><td colSpan="6">No users found.</td></tr>
           )}
         </tbody>
       </Table>
+
+      {selectedUserId && (
+        <>
+          <SubTitle>Files for selected user</SubTitle>
+          <Table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loadingList ? (
+                <tr><td colSpan="6">Loading…</td></tr>
+              ) : items.length ? (
+                items.map(item => (
+                  <tr key={item.id}>
+                    <td>{item.name}</td>
+                    <td>{item.category}</td>
+                    <td>{item.contentType}</td>
+                    <td>{formatSize(item.size)}</td>
+                    <td>{formatDate(item.uploadedAt)}</td>
+                    <td>
+                      <DangerButton onClick={() => handleDelete(item.id)}>
+                        <Trash size={16} />
+                        Delete
+                      </DangerButton>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="6">No documents.</td></tr>
+              )}
+            </tbody>
+          </Table>
+        </>
+      )}
     </PageContainer>
   );
 }

@@ -12,7 +12,8 @@ async function callApi(path, options = {}) {
   const token = await getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    credentials: 'include',
+    // We rely on Bearer tokens, not cookies; omit credentials to simplify CORS
+    credentials: 'omit',
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -26,13 +27,15 @@ async function callApi(path, options = {}) {
   return res.json();
 }
 
-export async function presignUpload({ file, prefix = '' }) {
+export async function presignUpload({ file, prefix = '', targetUserId }) {
   if (!API_BASE) throw new Error('VITE_AWS_API_BASE_URL is not set');
   const body = {
     fileName: file.name,
     contentType: file.type || 'application/octet-stream',
     fileSize: file.size,
-    prefix
+    prefix,
+    // Forward selected user for admin uploads so backend can write under that namespace
+    ...(targetUserId ? { targetUserId } : {})
   };
   return callApi('/presign-upload', {
     method: 'POST',

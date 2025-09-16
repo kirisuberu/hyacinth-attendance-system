@@ -11,7 +11,10 @@ const ok = (origin, body) => ({
   headers: {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Credentials': 'true'
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': 'authorization,content-type,x-requested-with',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Vary': 'Origin'
   },
   body: JSON.stringify(body)
 });
@@ -21,7 +24,10 @@ const err = (origin, code, message) => ({
   headers: {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Credentials': 'true'
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': 'authorization,content-type,x-requested-with',
+    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Vary': 'Origin'
   },
   body: JSON.stringify({ error: message })
 });
@@ -58,7 +64,17 @@ async function verifyFirebaseToken(idToken, projectId) {
 exports.handler = async (event) => {
   const origin = event.headers?.origin || event.headers?.Origin || '*';
   if (event.requestContext?.http?.method === 'OPTIONS') {
-    return ok(origin, { ok: true });
+    // Preflight response aligned with upload lambda
+    return {
+      statusCode: 204,
+      headers: {
+        'Access-Control-Allow-Origin': origin || '*',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'authorization,content-type,x-requested-with',
+        'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+        'Vary': 'Origin'
+      }
+    };
   }
 
   try {

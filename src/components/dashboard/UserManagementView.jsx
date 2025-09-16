@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-toastify';
-import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
 import { Users, User, UserCircle, Pencil, Trash, X, Check, Calendar, CalendarBlank, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings, BookmarkSimple, EnvelopeSimple, Briefcase, GlobeHemisphereEast, Phone, MapPin, IdentificationCard, Shield } from 'phosphor-react';
@@ -40,6 +40,9 @@ function UserManagementView({ isSuperAdmin }) {
   const [showPresetModal, setShowPresetModal] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [savedPresets, setSavedPresets] = useState([]);
+  // Sorting state
+  const [sort, setSort] = useState({ columnId: null, direction: 'asc' });
+  const [sortLoaded, setSortLoaded] = useState(false);
   
   // Ref for detecting outside clicks on Column Control dropdown
   const columnControlRef = useRef(null);
@@ -998,18 +1001,37 @@ function UserManagementView({ isSuperAdmin }) {
   const getStorageKey = () => {
     return `userManagement_columns_${currentUser?.uid || 'default'}`;
   };
+
+  const getSortStorageKey = () => {
+    return `userManagement_sort_${currentUser?.uid || 'default'}`;
+  };
   
   const loadColumnConfiguration = () => {
     try {
       const savedConfig = localStorage.getItem(getStorageKey());
       if (savedConfig) {
-        const parsedConfig = JSON.parse(savedConfig);
-        // Ensure all default columns exist in saved config
-        const mergedColumns = defaultColumns.map(defaultCol => {
-          const savedCol = parsedConfig.find(col => col.id === defaultCol.id);
-          return savedCol ? { ...defaultCol, ...savedCol } : defaultCol;
-        });
-        setAllColumns(mergedColumns);
+        const savedColumns = JSON.parse(savedConfig);
+        // Rebuild columns using the saved order, merge with defaults, and append any new defaults
+        const defaultById = Object.fromEntries(defaultColumns.map(c => [c.id, c]));
+        const seen = new Set();
+        const ordered = [];
+        for (const saved of savedColumns) {
+          const base = defaultById[saved.id];
+          if (base) {
+            const merged = { ...base, ...saved };
+            // Enforce visibility for required columns
+            if (base.required) merged.visible = true;
+            ordered.push(merged);
+            seen.add(saved.id);
+          }
+        }
+        // Append new default columns not present in the saved config
+        for (const base of defaultColumns) {
+          if (!seen.has(base.id)) {
+            ordered.push(base);
+          }
+        }
+        setAllColumns(ordered);
       }
       
       // Load saved presets
@@ -1170,6 +1192,63 @@ function UserManagementView({ isSuperAdmin }) {
     };
   }, []);
   
+  // Load sort preference: localStorage first, then Firestore override
+  useEffect(() => {
+    let cancelled = false;
+    const loadSort = async () => {
+      try {
+        const local = localStorage.getItem(getSortStorageKey());
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (!cancelled && parsed && typeof parsed === 'object') {
+            setSort(parsed);
+          }
+        }
+      } catch (e) {
+        console.error('Error reading sort from localStorage:', e);
+      }
+      try {
+        if (currentUser?.uid) {
+          const prefRef = doc(db, 'userPreferences', currentUser.uid, 'views', 'userManagement');
+          const snap = await getDoc(prefRef);
+          if (!cancelled && snap.exists()) {
+            const data = snap.data();
+            if (data?.sort && typeof data.sort === 'object') {
+              setSort(data.sort);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error loading sort from Firestore:', e);
+      }
+      if (!cancelled) setSortLoaded(true);
+    };
+    loadSort();
+    return () => { cancelled = true; };
+  }, [currentUser?.uid]);
+
+  // Save sort preference helper
+  const saveSortPreference = async (value) => {
+    try {
+      if (!currentUser?.uid) return;
+      const prefRef = doc(db, 'userPreferences', currentUser.uid, 'views', 'userManagement');
+      await setDoc(prefRef, { sort: value, updatedAt: serverTimestamp() }, { merge: true });
+    } catch (e) {
+      console.error('Error saving sort to Firestore:', e);
+    }
+  };
+
+  // Persist sort to localStorage and Firestore whenever it changes (after initial load)
+  useEffect(() => {
+    if (!sortLoaded) return;
+    try {
+      localStorage.setItem(getSortStorageKey(), JSON.stringify(sort));
+    } catch (e) {
+      console.error('Error saving sort to localStorage:', e);
+    }
+    saveSortPreference(sort);
+  }, [sort, sortLoaded, currentUser?.uid]);
+  
   // Get visible columns
   const visibleColumns = allColumns.filter(col => col.visible);
   
@@ -1182,6 +1261,100 @@ function UserManagementView({ isSuperAdmin }) {
       (user.role && user.role.toLowerCase().includes(searchTermLower))
     );
   });
+
+  // Sorting helpers and memoized sorted list
+  const toDateNum = (v) => {
+    if (!v) return 0;
+    if (typeof v === 'number') return v;
+    if (v.seconds) return v.seconds * 1000;
+    const d = new Date(v);
+    const t = d.getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  const toStringSafe = (v) => {
+    if (v === null || v === undefined) return '';
+    if (Array.isArray(v)) return v.join(',').toLowerCase();
+    if (typeof v === 'object') return JSON.stringify(v).toLowerCase();
+    return String(v).toLowerCase();
+  };
+
+  const getComparableValue = (user, columnId) => {
+    switch (columnId) {
+      case 'name':
+        return toStringSafe(user.name || '');
+      case 'email':
+        return toStringSafe(user.email || '');
+      case 'employmentStatus':
+        return toStringSafe(user.employmentStatus || '');
+      case 'position':
+        return toStringSafe(user.position || '');
+      case 'departments': {
+        const codes = (user.departments || [])
+          .map(id => departments.find(d => d.id === id)?.code || '')
+          .filter(Boolean)
+          .sort();
+        return toStringSafe(codes.join(','));
+      }
+      case 'role':
+        return toStringSafe(user.role || '');
+      case 'status':
+        return toStringSafe(user.status || '');
+      case 'company': {
+        const names = (user.companies || (user.company ? [user.company] : []))
+          .map(id => companies.find(c => c.id === id)?.name || id)
+          .filter(Boolean)
+          .sort();
+        return toStringSafe(names.join(','));
+      }
+      case 'shifts':
+        return Array.isArray(user.schedule) ? user.schedule.length : 0;
+      case 'preemploymentDate':
+        return toDateNum(user.preemploymentDate);
+      case 'dateHired':
+        return toDateNum(user.dateHired);
+      case 'regularDate':
+        return toDateNum(user.regularDate);
+      case 'dateOfBirth':
+        return toDateNum(user.dateOfBirth);
+      case 'phoneNumber':
+        return toStringSafe(user.phoneNumber || user.contactNumber || '');
+      case 'address':
+        return toStringSafe(user.address || '');
+      case 'emergencyContactName':
+        return toStringSafe(user.emergencyContactName || '');
+      case 'emergencyContactPhone':
+        return toStringSafe(user.emergencyContactPhone || '');
+      case 'emergencyContactRelationship':
+        return toStringSafe(user.emergencyContactRelationship || '');
+      default:
+        return toStringSafe(user[columnId]);
+    }
+  };
+
+  const sortedUsers = useMemo(() => {
+    if (!sort.columnId || sort.columnId === 'actions') return filteredUsers;
+    const dir = sort.direction === 'asc' ? 1 : -1;
+    const list = [...filteredUsers];
+    list.sort((a, b) => {
+      const va = getComparableValue(a, sort.columnId);
+      const vb = getComparableValue(b, sort.columnId);
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+    return list;
+  }, [filteredUsers, sort, departments, companies]);
+
+  const toggleSort = (columnId) => {
+    if (columnId === 'actions') return;
+    setSort(prev => {
+      if (prev.columnId === columnId) {
+        return { columnId, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
+      }
+      return { columnId, direction: 'asc' };
+    });
+  };
 
   // Summary statistics and distributions
   const totalUsers = users.length;
@@ -1342,7 +1515,21 @@ function UserManagementView({ isSuperAdmin }) {
                     className={`col-${column.id} ${column.id === 'name' ? 'sticky-left' : column.id === 'actions' ? 'sticky-right' : ''} ${resizingColumnId === column.id ? 'resizing' : ''}`}
                     style={{ width: `${column.width}px` }}
                   >
-                    {column.label}
+                    <div style={{ position: 'relative', paddingRight: '24px' }}>
+                      {column.label}
+                      {column.id !== 'actions' && (
+                        <SortButton
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleSort(column.id); }}
+                          active={sort.columnId === column.id}
+                          direction={sort.direction}
+                          aria-label={`Sort by ${column.label}`}
+                          title={`Sort ${sort.columnId === column.id ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'ascending'}`}
+                        >
+                          <CaretDown size={14} weight="bold" />
+                        </SortButton>
+                      )}
+                    </div>
                     {column.id !== 'actions' && (
                       <div 
                         className="resizer" 
@@ -1354,8 +1541,8 @@ function UserManagementView({ isSuperAdmin }) {
               </TableRow>
             </TableHead>
             <tbody>
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map(user => (
+              {sortedUsers.length > 0 ? (
+                sortedUsers.map(user => (
                   <TableRow key={user.id}>
                     {visibleColumns.map(column => {
                       if (column.id === 'name') {
@@ -2559,6 +2746,21 @@ const TableHeader = styled.th`
       background: rgba(128, 0, 0, 0.4);
     }
   }
+`;
+
+// Sort caret button in headers
+const SortButton = styled.button`
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%) rotate(${props => (props.active && props.direction === 'desc' ? '180deg' : '0deg')});
+  border: none;
+  background: transparent;
+  padding: 2px;
+  cursor: pointer;
+  color: ${props => (props.active ? 'var(--primary)' : '#9CA3AF')};
+  display: inline-flex;
+  align-items: center;
 `;
 
 const TableCell = styled.td`

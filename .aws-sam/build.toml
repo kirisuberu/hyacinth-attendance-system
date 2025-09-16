@@ -5,7 +5,7 @@ codeuri = "C:\\Users\\User's\\Desktop\\Projects\\HyacinthAttendance\\aws\\functi
 runtime = "nodejs20.x"
 architecture = "x86_64"
 handler = "index.handler"
-manifest_hash = ""
+manifest_hash = "78df0adbc1e3be58929cce22fd56ed4c"
 packagetype = "Zip"
 functions = ["PresignUploadFunction"]
 
@@ -14,7 +14,7 @@ codeuri = "C:\\Users\\User's\\Desktop\\Projects\\HyacinthAttendance\\aws\\functi
 runtime = "nodejs20.x"
 architecture = "x86_64"
 handler = "index.handler"
-manifest_hash = ""
+manifest_hash = "2bff60fc0f5db853e852b9c9a34b18c9"
 packagetype = "Zip"
 functions = ["PresignDownloadFunction"]
 

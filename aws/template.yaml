@@ -42,6 +42,7 @@ Resources:
         AllowOrigins: !Split
           - ','
           - !Ref AllowedOrigins
+        MaxAge: 600
 
   PresignUploadFunction:
     Type: AWS::Serverless::Function
@@ -54,6 +55,12 @@ Resources:
           Properties:
             Path: /presign-upload
             Method: POST
+            ApiId: !Ref HttpApi
+        Preflight:
+          Type: HttpApi
+          Properties:
+            Path: /presign-upload
+            Method: OPTIONS
             ApiId: !Ref HttpApi
       Policies:
         - Version: '2012-10-17'
@@ -77,6 +84,12 @@ Resources:
           Properties:
             Path: /presign-download
             Method: POST
+            ApiId: !Ref HttpApi
+        Preflight:
+          Type: HttpApi
+          Properties:
+            Path: /presign-download
+            Method: OPTIONS
             ApiId: !Ref HttpApi
       Policies:
         - Version: '2012-10-17'

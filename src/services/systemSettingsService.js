@@ -13,13 +13,37 @@ export const getAttendanceRules = async () => {
     const settingsDoc = await getDoc(doc(db, 'systemSettings', SYSTEM_SETTINGS_DOC_ID));
     
     if (settingsDoc.exists()) {
-      return settingsDoc.data();
+      // Merge with defaults to ensure new keys exist
+      const data = settingsDoc.data();
+      return {
+        timeIn: {
+          earlyThreshold: data?.timeIn?.earlyThreshold ?? 15,
+          onTimeThreshold: data?.timeIn?.onTimeThreshold ?? 5,
+          earlyClockInWindowHours: data?.timeIn?.earlyClockInWindowHours ?? 5
+        },
+        timeOut: {
+          incompleteThreshold: data?.timeOut?.incompleteThreshold ?? 30,
+          overtimeThreshold: data?.timeOut?.overtimeThreshold ?? 30
+        },
+        timeRegion: {
+          lockToDeviceRegion: data?.timeRegion?.lockToDeviceRegion ?? false
+        },
+        absent: {
+          threshold: data?.absent?.threshold ?? 300
+        },
+        mobileAccess: {
+          allowSuperAdmin: data?.mobileAccess?.allowSuperAdmin ?? false,
+          allowAdmin: data?.mobileAccess?.allowAdmin ?? false,
+          allowMember: data?.mobileAccess?.allowMember ?? false
+        }
+      };
     } else {
       // Return default settings if no document exists
       return {
         timeIn: {
           earlyThreshold: 15,   // Minutes before schedule to be considered "Early"
-          onTimeThreshold: 5    // Minutes after schedule to still be considered "On Time"
+          onTimeThreshold: 5,   // Minutes after schedule to still be considered "On Time"
+          earlyClockInWindowHours: 5 // Hours before next day's schedule to treat as same shift
         },
         timeOut: {
           incompleteThreshold: 30,  // Minutes before scheduled end time to be considered "Incomplete"
