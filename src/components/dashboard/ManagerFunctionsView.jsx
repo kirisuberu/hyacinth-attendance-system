@@ -356,10 +356,12 @@ function ManagerFunctionsView() {
           };
         });
         
-        // Filter out the current admin and exclude inactive users from the list
-        const filteredUsers = users.filter(user => 
-          user.id !== userData?.uid && ((user.status || 'active') === 'active')
-        );
+        // Filter out the current admin and exclude resigned/terminated (include suspended)
+        const filteredUsers = users.filter(user => {
+          if (user.id === userData?.uid) return false;
+          const s = String(user.status || 'active').toLowerCase();
+          return !['resigned', 'terminated'].includes(s);
+        });
         setDepartmentUsers(filteredUsers);
         
         // Fetch schedules for all users (schedules are stored in users collection)

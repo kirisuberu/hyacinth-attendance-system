@@ -115,8 +115,11 @@ function UserDashboard({ isSuperAdmin, user }) {
     };
   }, [user?.uid]);
 
-  // Filter out inactive users for statistics
-  const activeUsers = users.filter(user => user.status !== 'inactive');
+  // Filter out resigned/terminated users for statistics (include suspended)
+  const activeUsers = users.filter(u => {
+    const s = String(u.status || '').toLowerCase();
+    return !['resigned', 'terminated'].includes(s);
+  });
   
   // Calculate statistics (excluding inactive users)
   const totalUsers = activeUsers.length;
@@ -130,26 +133,28 @@ function UserDashboard({ isSuperAdmin, user }) {
 
   // Calculate users by role (not used in charts)
 
-  // Status counts (active/inactive/pending)
+  // Status counts (active/suspended/resigned/terminated/pending)
   const statusCounts = useMemo(() => {
-    const counts = { active: 0, inactive: 0, pending: 0 };
+    const counts = { active: 0, suspended: 0, resigned: 0, terminated: 0, pending: 0 };
     users.forEach(u => {
       const s = (u.status || '').toLowerCase();
       if (s === 'active') counts.active += 1;
-      else if (s === 'inactive') counts.inactive += 1;
+      else if (s === 'suspended') counts.suspended += 1;
+      else if (s === 'resigned') counts.resigned += 1;
+      else if (s === 'terminated') counts.terminated += 1;
       else if (s === 'pending') counts.pending += 1;
     });
     return counts;
   }, [users]);
 
-  // Calculate users by employment status (excluding inactive users)
+  // Calculate users by employment status (excluding resigned/terminated)
   const usersByEmploymentStatus = activeUsers.reduce((acc, user) => {
     const status = user.employmentStatus || 'unknown';
     acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {});
 
-  // Calculate users by department (excluding inactive users)
+  // Calculate users by department (excluding resigned/terminated)
   const usersByDepartment = activeUsers.reduce((acc, user) => {
     if (user.departments && user.departments.length > 0) {
       user.departments.forEach(deptId => {
@@ -161,7 +166,7 @@ function UserDashboard({ isSuperAdmin, user }) {
     return acc;
   }, {});
 
-  // Calculate users by company (supports multiple companies per user, excluding inactive users)
+  // Calculate users by company (supports multiple companies per user, excluding resigned/terminated)
   const usersByCompany = activeUsers.reduce((acc, user) => {
     const assigned = Array.isArray(user.companies)
       ? user.companies

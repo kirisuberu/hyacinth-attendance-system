@@ -80,12 +80,12 @@ function DashboardLayout() {
     return location.pathname === path;
   };
 
-  // Force inactive users out of the dashboard
+  // Force blocked users out of the dashboard
   useEffect(() => {
     const checkUserActiveStatus = async () => {
       if (user?.uid) {
         try {
-          // Check if user is inactive in Firestore
+          // Check if user has a blocked status in Firestore
           const userDocRef = doc(db, 'users', user.uid);
           const userDoc = await getDoc(userDocRef);
           
@@ -95,12 +95,18 @@ function DashboardLayout() {
           
           if (userDoc.exists()) {
             const userData = userDoc.data();
-            console.log('User status from Firestore:', userData.status || 'not set');
-            
-            if (userData.status === 'inactive') {
-              console.log('Detected inactive user in dashboard, forcing logout:', user.uid);
+            const raw = userData.status || 'active';
+            const status = String(raw).toLowerCase();
+            console.log('User status from Firestore:', status);
+            const blocked = ['suspended', 'resigned', 'terminated'];
+            if (blocked.includes(status)) {
+              console.log('Detected blocked user in dashboard, forcing logout:', user.uid, status);
               await signOut(auth);
-              toast.error('Your account has been deactivated. Please contact an administrator.');
+              let msg = 'Your account is not allowed to access the dashboard.';
+              if (status === 'suspended') msg = 'Your account has been suspended. Please contact an administrator.';
+              if (status === 'resigned') msg = 'Your employment has ended (resigned).';
+              if (status === 'terminated') msg = 'Your employment has ended (terminated).';
+              toast.error(msg);
               navigate('/', { replace: true });
               return;
             }

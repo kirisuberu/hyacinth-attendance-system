@@ -325,7 +325,7 @@ function Login() {
           return;
         }
 
-        // Check if the user's account is inactive in Firestore
+        // Check the user's status in Firestore and enforce restrictions
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         
@@ -335,15 +335,27 @@ function Login() {
         if (userDoc.exists()) {
           const userData = userDoc.data();
           console.log('Login check - User data:', userData);
-          console.log('Login check - User status:', userData.status || 'not set');
-          
-          // Only block if explicitly set to inactive
-          if (userData.status === 'inactive') {
-            // User account is inactive, sign them out and show error
-            console.log('Blocking login attempt by inactive user:', user.uid);
+          const rawStatus = (userData.status || 'active');
+          const status = String(rawStatus).toLowerCase();
+          console.log('Login check - User status:', status);
+
+          // Block login for suspended, resigned, and terminated accounts
+          if (['suspended', 'resigned', 'terminated'].includes(status)) {
             await signOut(auth);
-            setError('Your account has been deactivated. Please contact an administrator.');
-            toast.error('Access denied: Account deactivated');
+            let msg = 'Your account is not allowed to sign in.';
+            let toastMsg = 'Access denied';
+            if (status === 'suspended') {
+              msg = 'Your account has been suspended. Please contact an administrator.';
+              toastMsg = 'Access denied: Account suspended';
+            } else if (status === 'resigned') {
+              msg = 'Your employment has ended (resigned). You can no longer sign in.';
+              toastMsg = 'Access denied: Employment ended (resigned)';
+            } else if (status === 'terminated') {
+              msg = 'Your employment has ended (terminated). You can no longer sign in.';
+              toastMsg = 'Access denied: Employment ended (terminated)';
+            }
+            setError(msg);
+            toast.error(toastMsg);
             setLoading(false);
             return;
           }

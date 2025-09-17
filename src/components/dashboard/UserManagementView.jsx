@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { doc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, serverTimestamp, query, orderBy, getDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
-import { Users, User, UserCircle, Pencil, Trash, X, Check, Calendar, CalendarBlank, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings, BookmarkSimple, EnvelopeSimple, Briefcase, GlobeHemisphereEast, Phone, MapPin, IdentificationCard, Shield } from 'phosphor-react';
+import { Users, User, UserCircle, Pencil, Trash, Calendar, CalendarBlank, Plus, ArrowRight, ArrowLeft, DownloadSimple, FloppyDisk, PencilSimple, Funnel, CaretDown, List, Buildings, BookmarkSimple, EnvelopeSimple, Briefcase, GlobeHemisphereEast, Phone, MapPin, IdentificationCard, Shield } from 'phosphor-react';
 import * as XLSX from 'xlsx';
 import styled from 'styled-components';
 import { Card, CardTitle, CardContent, Grid } from './DashboardComponents';
@@ -60,13 +59,17 @@ function UserManagementView({ isSuperAdmin }) {
     { id: 'role', label: 'Role', visible: true, width: 120 },
     { id: 'status', label: 'Status', visible: true, width: 120 },
     { id: 'shifts', label: 'Shifts', visible: true, width: 150 },
+    { id: 'sex', label: 'Sex', visible: true, width: 120 },
+    { id: 'sssNumber', label: 'SSS No.', visible: true, width: 160 },
+    { id: 'pagibigNumber', label: 'PAG-IBIG No.', visible: true, width: 180 },
+    { id: 'philhealthNumber', label: 'Philhealth No.', visible: true, width: 180 },
     { id: 'dateOfBirth', label: 'Date of Birth', visible: false, width: 180 },
     { id: 'phoneNumber', label: 'Phone Number', visible: false, width: 180 },
     { id: 'address', label: 'Address', visible: false, width: 250 },
     { id: 'emergencyContactName', label: 'Emergency Contact Name', visible: false, width: 220 },
     { id: 'emergencyContactPhone', label: 'Emergency Contact Phone', visible: false, width: 220 },
     { id: 'emergencyContactRelationship', label: 'Emergency Contact Relationship', visible: false, width: 220 },
-    { id: 'actions', label: 'Actions', visible: true, required: true, width: 180 }
+    { id: 'actions', label: 'Actions', visible: true, required: true, width: 320 }
   ];
   
   const [allColumns, setAllColumns] = useState(defaultColumns);
@@ -84,10 +87,12 @@ function UserManagementView({ isSuperAdmin }) {
     position: '',
     employmentStatus: 'regular',
     role: 'member',
+    status: 'active',
     dateOfBirth: '',
     dateHired: '',
     preemploymentDate: '',
     regularDate: '',
+    employmentEndDate: '',
     phoneNumber: '',
     address: '',
     emergencyContactName: '',
@@ -95,7 +100,11 @@ function UserManagementView({ isSuperAdmin }) {
     emergencyContactRelationship: '',
     timeRegion: 'Asia/Manila',
     departments: [],
-    companies: []
+    companies: [],
+    sex: '',
+    sssNumber: '',
+    pagibigNumber: '',
+    philhealthNumber: ''
   });
   const [editUserPage, setEditUserPage] = useState(1); // Track the current page of the edit user modal
   const [newUserData, setNewUserData] = useState({
@@ -107,6 +116,7 @@ function UserManagementView({ isSuperAdmin }) {
     employmentStatus: 'regular',
     role: 'member',
     status: 'active',
+    employmentEndDate: '',
     address: '',
     contactNumber: '',
     preemploymentDate: '',
@@ -402,15 +412,21 @@ function UserManagementView({ isSuperAdmin }) {
       position: user.position || '',
       employmentStatus: user.employmentStatus || 'regular',
       role: user.role || 'member',
+      status: user.status || 'active',
       dateOfBirth: normalizeDateOnly(user.dateOfBirth),
       dateHired: normalizeDateOnly(user.dateHired),
       preemploymentDate: normalizeDateOnly(user.preemploymentDate),
       regularDate: normalizeDateOnly(user.regularDate),
+      employmentEndDate: normalizeDateOnly(user.employmentEndDate),
       phoneNumber: user.phoneNumber || '',
       address: user.address || '',
       emergencyContactName: user.emergencyContactName || '',
       emergencyContactPhone: user.emergencyContactPhone || '',
       emergencyContactRelationship: user.emergencyContactRelationship || '',
+      sex: (user.sex || '').toLowerCase(),
+      sssNumber: user.sssNumber || '',
+      pagibigNumber: user.pagibigNumber || '',
+      philhealthNumber: user.philhealthNumber || '',
       departments: user.departments || [],
       companies: user.companies || (user.company ? [user.company] : []),
       timeRegion: user.timeRegion || 'Asia/Manila'
@@ -451,75 +467,58 @@ function UserManagementView({ isSuperAdmin }) {
   };
 
   const toggleUserStatus = async (user, currentStatus) => {
-    const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-    let firebaseAuthUpdateSuccessful = true;
-    
+    // Toggle between active and suspended
+    const newStatus = currentStatus === 'active' ? 'suspended' : 'active';
     try {
-      // Use the userId field if available, otherwise fall back to id
       const documentId = user.userId || user.id;
-      
-      // Update user status in Firestore
       const userRef = doc(db, 'users', documentId);
-      await updateDoc(userRef, {
-        status: newStatus
-      });
-      
-      // If deactivating user (status changing to 'inactive'), disable the user in Firebase Auth
-      if (newStatus === 'inactive') {
-        try {
-          const functions = getFunctions();
-          const toggleUserEnabled = httpsCallable(functions, 'toggleUserEnabled');
-          
-          // Call the Cloud Function to disable the user in Firebase Auth
-          const result = await toggleUserEnabled({
-            userId: documentId,
-            disabled: true // disable the user
-          });
-          
-          console.log('Firebase Auth user disabled:', result.data);
-          // Success! No need for warning toast
-        } catch (authError) {
-          console.error('Error disabling user in Firebase Auth:', authError);
-          firebaseAuthUpdateSuccessful = false;
-        }
-      } else if (newStatus === 'active') {
-        // If activating user, enable them in Firebase Auth
-        try {
-          const functions = getFunctions();
-          const toggleUserEnabled = httpsCallable(functions, 'toggleUserEnabled');
-          
-          // Call the Cloud Function to enable the user in Firebase Auth
-          const result = await toggleUserEnabled({
-            userId: documentId,
-            disabled: false // enable the user
-          });
-          
-          console.log('Firebase Auth user enabled:', result.data);
-          // Success! No need for warning toast
-        } catch (authError) {
-          console.error('Error enabling user in Firebase Auth:', authError);
-          firebaseAuthUpdateSuccessful = false;
-        }
-      }
-      
-      // Update the local state
+      await updateDoc(userRef, { status: newStatus, updatedAt: serverTimestamp() });
       setUsers(users.map(u => {
-        // Match by both potential IDs to ensure we update the correct user
-        const isMatch = (u.userId && u.userId === user.userId) || 
-                       (u.id === user.id);
+        const isMatch = (u.userId && u.userId === user.userId) || (u.id === user.id);
         return isMatch ? { ...u, status: newStatus } : u;
       }));
-      
-      // Show appropriate success message, with warning if Firebase Auth update failed
-      if (firebaseAuthUpdateSuccessful) {
-        toast.success(`User status updated to ${newStatus}`);
-      } else {
-        // Only show this if Firestore was updated but Firebase Auth failed
-        toast.warning(`User status updated to ${newStatus} in database, but there was an issue updating login access.`);
-      }
+      toast.success(`User status updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating user status:', error);
       toast.error(`Failed to update user status: ${error.message}`);
+    }
+  };
+
+  const handleChangeUserStatus = async (user, newStatus) => {
+    try {
+      const documentId = user.userId || user.id;
+      const current = String(user.status || '').toLowerCase();
+      const target = String(newStatus || '').toLowerCase();
+      if (["resigned","terminated"].includes(target)) {
+        const proceed = window.confirm(`Change status to "${target}"? This will mark employment as ended and restrict access.`);
+        if (!proceed) return;
+      }
+      const ended = ['resigned', 'terminated'].includes(String(newStatus || '').toLowerCase());
+      const updates = { status: newStatus, updatedAt: serverTimestamp() };
+      // Auto-set Employment End Date when moving to an ended status if not already set
+      if (ended && !user.employmentEndDate) {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        updates.employmentEndDate = `${yyyy}-${mm}-${dd}`;
+      }
+
+      await updateDoc(doc(db, 'users', documentId), updates);
+
+      setUsers(prev => prev.map(u => {
+        const isMatch = (u.userId && u.userId === user.userId) || (u.id === user.id);
+        return isMatch ? { ...u, status: newStatus, employmentEndDate: updates.employmentEndDate ?? u.employmentEndDate } : u;
+      }));
+
+      if (selectedUser && ((selectedUser.userId && selectedUser.userId === user.userId) || (selectedUser.id === user.id))) {
+        setSelectedUser(prev => prev ? { ...prev, status: newStatus, employmentEndDate: updates.employmentEndDate ?? prev.employmentEndDate } : prev);
+      }
+
+      toast.success(`Status set to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating user status:', error);
+      toast.error(`Failed to update status: ${error.message}`);
     }
   };
 
@@ -571,6 +570,13 @@ function UserManagementView({ isSuperAdmin }) {
       
       console.log('Updating user with document ID:', documentId);
       
+      // Determine status and employment end date
+      const desiredStatus = (editUserData.status || 'active').toLowerCase();
+      let endDateToSave = normalizeDateOnly(editUserData.employmentEndDate);
+      if ((desiredStatus === 'resigned' || desiredStatus === 'terminated') && !endDateToSave) {
+        endDateToSave = normalizeDateOnly(new Date());
+      }
+
       // Update the user document
       const userRef = doc(db, 'users', documentId);
       await updateDoc(userRef, {
@@ -583,6 +589,8 @@ function UserManagementView({ isSuperAdmin }) {
         position: editUserData.position.trim(),
         employmentStatus: editUserData.employmentStatus,
         role: editUserData.role,
+        status: desiredStatus,
+        employmentEndDate: endDateToSave || '',
         timeRegion: editUserData.timeRegion || 'Asia/Manila',
         dateOfBirth: normalizeDateOnly(editUserData.dateOfBirth),
         dateHired: normalizeDateOnly(editUserData.dateHired),
@@ -593,6 +601,10 @@ function UserManagementView({ isSuperAdmin }) {
         emergencyContactName: editUserData.emergencyContactName,
         emergencyContactPhone: editUserData.emergencyContactPhone,
         emergencyContactRelationship: editUserData.emergencyContactRelationship,
+        sex: (editUserData.sex || '').toLowerCase(),
+        sssNumber: editUserData.sssNumber || '',
+        pagibigNumber: editUserData.pagibigNumber || '',
+        philhealthNumber: editUserData.philhealthNumber || '',
         departments: editUserData.departments || [],
         companies: editUserData.companies || [],
         updatedAt: serverTimestamp(),
@@ -614,6 +626,8 @@ function UserManagementView({ isSuperAdmin }) {
           position: editUserData.position.trim(),
           employmentStatus: editUserData.employmentStatus,
           role: editUserData.role,
+          status: desiredStatus,
+          employmentEndDate: endDateToSave || '',
           timeRegion: editUserData.timeRegion || 'Asia/Manila',
           dateOfBirth: normalizeDateOnly(editUserData.dateOfBirth),
           dateHired: normalizeDateOnly(editUserData.dateHired),
@@ -624,6 +638,10 @@ function UserManagementView({ isSuperAdmin }) {
           emergencyContactName: editUserData.emergencyContactName,
           emergencyContactPhone: editUserData.emergencyContactPhone,
           emergencyContactRelationship: editUserData.emergencyContactRelationship,
+          sex: (editUserData.sex || '').toLowerCase(),
+          sssNumber: editUserData.sssNumber || '',
+          pagibigNumber: editUserData.pagibigNumber || '',
+          philhealthNumber: editUserData.philhealthNumber || '',
           departments: editUserData.departments || [],
           companies: editUserData.companies || [],
           updatedAt: new Date(),
@@ -673,10 +691,15 @@ function UserManagementView({ isSuperAdmin }) {
         position: newUserData.position.trim(),
         employmentStatus: newUserData.employmentStatus,
         role: newUserData.role,
-        status: 'active',
+        status: (newUserData.status || 'active'),
         timeRegion: newUserData.timeRegion || 'Asia/Manila',
         preemploymentDate: normalizeDateOnly(newUserData.preemploymentDate),
         regularDate: normalizeDateOnly(newUserData.regularDate),
+        employmentEndDate: (() => {
+          const s = String(newUserData.status || 'active').toLowerCase();
+          if (s === 'resigned' || s === 'terminated') return normalizeDateOnly(new Date());
+          return '';
+        })(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         departments: newUserData.departments || [],
@@ -717,6 +740,7 @@ function UserManagementView({ isSuperAdmin }) {
         employmentStatus: 'regular',
         role: 'member',
         status: 'active',
+        employmentEndDate: '',
         address: '',
         contactNumber: '',
         preemploymentDate: '',
@@ -1297,6 +1321,13 @@ function UserManagementView({ isSuperAdmin }) {
   
   // Get visible columns
   const visibleColumns = allColumns.filter(col => col.visible);
+  // Ensure Actions column is always rendered at the rightmost
+  const displayColumns = useMemo(() => {
+    const cols = visibleColumns.filter(c => c.id !== 'actions');
+    const actionsCol = visibleColumns.find(c => c.id === 'actions');
+    if (actionsCol) cols.push(actionsCol);
+    return cols;
+  }, [visibleColumns]);
   
   const filteredUsers = users.filter(user => {
     const q = (searchTerm || '').trim().toLowerCase();
@@ -1392,11 +1423,13 @@ function UserManagementView({ isSuperAdmin }) {
   // Summary statistics and distributions
   const totalUsers = users.length;
   const statusCounts = useMemo(() => {
-    const counts = { active: 0, inactive: 0, pending: 0 };
+    const counts = { active: 0, suspended: 0, resigned: 0, terminated: 0, pending: 0 };
     users.forEach(u => {
       const s = (u.status || '').toLowerCase();
       if (s === 'active') counts.active += 1;
-      else if (s === 'inactive') counts.inactive += 1;
+      else if (s === 'suspended') counts.suspended += 1;
+      else if (s === 'resigned') counts.resigned += 1;
+      else if (s === 'terminated') counts.terminated += 1;
       else if (s === 'pending') counts.pending += 1;
     });
     return counts;
@@ -1418,8 +1451,10 @@ function UserManagementView({ isSuperAdmin }) {
 
   const statusData = [
     { key: 'Active', value: statusCounts.active, color: '#4caf50' },
-    { key: 'Inactive', value: statusCounts.inactive, color: '#f44336' },
-    { key: 'Pending', value: statusCounts.pending, color: '#ff9800' },
+    { key: 'Suspended', value: statusCounts.suspended, color: '#ff9800' },
+    { key: 'Resigned', value: statusCounts.resigned, color: '#9e9e9e' },
+    { key: 'Terminated', value: statusCounts.terminated, color: '#f44336' },
+    { key: 'Pending', value: statusCounts.pending, color: '#03a9f4' },
   ];
 
   const roleData = [
@@ -1542,7 +1577,7 @@ function UserManagementView({ isSuperAdmin }) {
           <UserTable>
             <TableHead>
               <TableRow>
-                {visibleColumns.map(column => (
+                {displayColumns.map(column => (
                   <TableHeader 
                     key={column.id}
                     className={`col-${column.id} ${column.id === 'name' ? 'sticky-left' : column.id === 'actions' ? 'sticky-right' : ''} ${resizingColumnId === column.id ? 'resizing' : ''}`}
@@ -1577,7 +1612,7 @@ function UserManagementView({ isSuperAdmin }) {
               {sortedUsers.length > 0 ? (
                 sortedUsers.map(user => (
                   <TableRow key={user.id}>
-                    {visibleColumns.map(column => {
+                    {displayColumns.map(column => {
                       if (column.id === 'name') {
                         return (
                           <TableCell key={column.id} className="col-name sticky-left" style={{ width: `${column.width}px` }}>
@@ -1738,30 +1773,56 @@ function UserManagementView({ isSuperAdmin }) {
                         return <TableCell key={column.id} className="col-emergencyContactRelationship" style={{ width: `${column.width}px` }}>{user.emergencyContactRelationship || 'Not specified'}</TableCell>;
                       }
                       
+                      if (column.id === 'sex') {
+                        const label = user.sex ? (String(user.sex).charAt(0).toUpperCase() + String(user.sex).slice(1)) : 'Not specified';
+                        return <TableCell key={column.id} className="col-sex" style={{ width: `${column.width}px` }}>{label}</TableCell>;
+                      }
+                      
+                      if (column.id === 'sssNumber') {
+                        return <TableCell key={column.id} className="col-sssNumber" style={{ width: `${column.width}px` }}>{user.sssNumber || 'Not specified'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'pagibigNumber') {
+                        return <TableCell key={column.id} className="col-pagibigNumber" style={{ width: `${column.width}px` }}>{user.pagibigNumber || 'Not specified'}</TableCell>;
+                      }
+                      
+                      if (column.id === 'philhealthNumber') {
+                        return <TableCell key={column.id} className="col-philhealthNumber" style={{ width: `${column.width}px` }}>{user.philhealthNumber || 'Not specified'}</TableCell>;
+                      }
+                      
                       if (column.id === 'actions') {
                         return (
                           <TableCell key={column.id} className="col-actions sticky-right" style={{ width: `${column.width}px` }}>
+                            {(() => { const status = (user.status || 'active').toLowerCase(); const isEnded = status === 'resigned' || status === 'terminated'; return (
                             <ActionButton 
                               color="#000000"
                               onClick={() => handleScheduleClick(user)}
-                              title="Manage Schedule"
+                              title={isEnded ? 'Employment ended' : 'Manage Schedule'}
+                              disabled={isEnded}
                             >
                               <Calendar size={20} />
-                            </ActionButton>
+                            </ActionButton> ); })()}
+                            {(() => { const status = (user.status || 'active').toLowerCase(); const isEnded = status === 'resigned' || status === 'terminated'; return (
                             <ActionButton 
                               color="#1a73e8"
                               onClick={() => handleEditClick(user)}
-                              title="Edit User"
+                              title={isEnded ? 'Employment ended' : 'Edit User'}
+                              disabled={isEnded}
                             >
                               <Pencil size={20} />
-                            </ActionButton>
-                            <ActionButton 
-                              color={user.status === 'active' ? '#f44336' : '#4caf50'}
-                              onClick={() => toggleUserStatus(user, user.status || 'active')}
-                              title={user.status === 'active' ? 'Deactivate user' : 'Activate user'}
-                            >
-                              {user.status === 'active' ? <X size={20} /> : <Check size={20} />}
-                            </ActionButton>
+                            </ActionButton> ); })()}
+                            <div style={{ width: 120, display: 'inline-block', marginRight: 8 }}>
+                              <Select
+                                value={(user.status || 'active')}
+                                onChange={(e) => handleChangeUserStatus(user, e.target.value)}
+                                style={{ padding: '6px 8px', fontSize: '12px' }}
+                              >
+                                <option value="active">Active</option>
+                                <option value="suspended">Suspended</option>
+                                <option value="resigned">Resigned</option>
+                                <option value="terminated">Terminated</option>
+                              </Select>
+                            </div>
                             <ActionButton 
                               color="#f44336" 
                               onClick={() => handleDeleteClick(user)}
@@ -1952,6 +2013,31 @@ function UserManagementView({ isSuperAdmin }) {
                       <HelperText>Only Super Admins can change user roles</HelperText>
                     )}
                   </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><UserCircle size={16} /></LabelIcon>Account Status</Label>
+                    <Select
+                      value={editUserData.status || 'active'}
+                      onChange={(e) => setEditUserData({ ...editUserData, status: e.target.value })}
+                    >
+                      <option value="active">Active</option>
+                      <option value="suspended">Suspended</option>
+                      <option value="resigned">Resigned</option>
+                      <option value="terminated">Terminated</option>
+                      <option value="pending">Pending</option>
+                    </Select>
+                  </FormGroup>
+                  <FormGroup>
+                    <Label><LabelIcon><CalendarBlank size={16} /></LabelIcon>Employment End Date</Label>
+                    <Input
+                      type="date"
+                      value={editUserData.employmentEndDate || ''}
+                      onChange={(e) => setEditUserData({ ...editUserData, employmentEndDate: e.target.value })}
+                      disabled={!(['resigned','terminated'].includes(String(editUserData.status || '').toLowerCase()))}
+                    />
+                    <HelperText>
+                      Auto-set when status is Resigned or Terminated.
+                    </HelperText>
+                  </FormGroup>
                 </GridFour>
                 <GridThree>
                   <FormGroup>
@@ -2013,6 +2099,49 @@ function UserManagementView({ isSuperAdmin }) {
                       />
                     </FormGroup>
                   </GridThree>
+                </FormSection>
+                <FormSection>
+                  <FormSectionTitle>Government IDs</FormSectionTitle>
+                  <GridTwo>
+                    <FormGroup>
+                      <Label><LabelIcon><User size={16} /></LabelIcon>Sex</Label>
+                      <Select
+                        value={editUserData.sex || ''}
+                        onChange={(e) => setEditUserData({ ...editUserData, sex: e.target.value })}
+                      >
+                        <option value="">Select sex</option>
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </Select>
+                    </FormGroup>
+                    <FormGroup>
+                      <Label><LabelIcon><IdentificationCard size={16} /></LabelIcon>SSS No.</Label>
+                      <Input
+                        type="text"
+                        value={editUserData.sssNumber}
+                        onChange={(e) => setEditUserData({ ...editUserData, sssNumber: e.target.value })}
+                        placeholder="e.g., 34-1234567-8"
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label><LabelIcon><IdentificationCard size={16} /></LabelIcon>PAG-IBIG No.</Label>
+                      <Input
+                        type="text"
+                        value={editUserData.pagibigNumber}
+                        onChange={(e) => setEditUserData({ ...editUserData, pagibigNumber: e.target.value })}
+                        placeholder="e.g., 1234-5678-9012"
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label><LabelIcon><IdentificationCard size={16} /></LabelIcon>Philhealth No.</Label>
+                      <Input
+                        type="text"
+                        value={editUserData.philhealthNumber}
+                        onChange={(e) => setEditUserData({ ...editUserData, philhealthNumber: e.target.value })}
+                        placeholder="e.g., 12-345678901-2"
+                      />
+                    </FormGroup>
+                  </GridTwo>
                 </FormSection>
               </ColumnRoleAddressEmergency>
 
@@ -2230,9 +2359,7 @@ function UserManagementView({ isSuperAdmin }) {
                     <option value="super_admin">Super Admin</option>
                   </Select>
                   {!isSuperAdmin && (
-                    <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: '#666' }}>
-                      Only Super Admins can change user roles
-                    </div>
+                    <HelperText>Only Super Admins can change user roles</HelperText>
                   )}
                 </FormGroup>
                 
@@ -2243,7 +2370,9 @@ function UserManagementView({ isSuperAdmin }) {
                     onChange={(e) => setNewUserData({...newUserData, status: e.target.value})}
                   >
                     <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="suspended">Suspended</option>
+                    <option value="resigned">Resigned</option>
+                    <option value="terminated">Terminated</option>
                     <option value="pending">Pending</option>
                   </Select>
                 </FormGroup>
@@ -2711,6 +2840,10 @@ const TableHeader = styled.th`
   &.col-role { min-width: 120px; }
   &.col-status { min-width: 120px; }
   &.col-shifts { min-width: 150px; }
+  &.col-sex { min-width: 120px; }
+  &.col-sssNumber { min-width: 160px; }
+  &.col-pagibigNumber { min-width: 180px; }
+  &.col-philhealthNumber { min-width: 180px; }
   &.col-dateHired { min-width: 180px; }
   &.col-dateOfBirth { min-width: 180px; }
   &.col-phoneNumber { min-width: 180px; }
@@ -2718,7 +2851,7 @@ const TableHeader = styled.th`
   &.col-emergencyContactName { min-width: 220px; }
   &.col-emergencyContactPhone { min-width: 220px; }
   &.col-emergencyContactRelationship { min-width: 220px; }
-  &.col-actions { min-width: 180px; }
+  &.col-actions { min-width: 320px; }
   
   &.sticky-left {
     position: sticky;
@@ -2794,6 +2927,10 @@ const TableCell = styled.td`
   &.col-role { min-width: 120px; }
   &.col-status { min-width: 120px; }
   &.col-shifts { min-width: 150px; }
+  &.col-sex { min-width: 120px; }
+  &.col-sssNumber { min-width: 160px; }
+  &.col-pagibigNumber { min-width: 180px; }
+  &.col-philhealthNumber { min-width: 180px; }
   &.col-dateHired { min-width: 180px; }
   &.col-dateOfBirth { min-width: 180px; }
   &.col-phoneNumber { min-width: 180px; }
@@ -2806,7 +2943,7 @@ const TableCell = styled.td`
   &.col-emergencyContactName { min-width: 220px; }
   &.col-emergencyContactPhone { min-width: 220px; }
   &.col-emergencyContactRelationship { min-width: 220px; }
-  &.col-actions { min-width: 180px; }
+  &.col-actions { min-width: 320px; }
   
   &.sticky-left {
     position: sticky;
@@ -2845,6 +2982,11 @@ const ActionButton = styled.button`
     outline: 2px solid var(--primary);
     outline-offset: 2px;
     border-radius: 6px;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
@@ -2924,13 +3066,18 @@ const StatusTag = styled.span`
   font-size: 0.75rem;
   font-weight: 500;
   background-color: ${props => {
-    switch(props.status) {
+    const s = String(props.status || '').toLowerCase();
+    switch(s) {
       case 'active':
         return '#4caf50';
-      case 'inactive':
+      case 'suspended':
+        return '#ff9800';
+      case 'resigned':
+        return '#9e9e9e';
+      case 'terminated':
         return '#f44336';
       case 'pending':
-        return '#ff9800';
+        return '#03a9f4';
       default:
         return '#9e9e9e';
     }

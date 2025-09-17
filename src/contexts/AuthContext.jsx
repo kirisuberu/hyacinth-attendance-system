@@ -39,29 +39,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Check if user is active or inactive in Firestore
+  // Retrieve normalized user status from Firestore
   const checkUserStatus = async (user) => {
     if (!user) return null;
-    
     try {
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
-      
       console.log('Auth check - User doc exists:', userDoc.exists());
-      
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        const raw = userData.status || 'active';
+        const status = String(raw).toLowerCase();
         console.log('Auth check - User data:', userData);
-        console.log('Auth check - User status:', userData.status || 'not set (defaulting to active)');
-        
-        // Only return 'inactive' if explicitly set, otherwise default to 'active'
-        return userData.status === 'inactive' ? 'inactive' : 'active';
+        console.log('Auth check - User status:', status);
+        return status;
       }
       console.log('Auth check - No user document, defaulting to active');
-      return 'active'; // Default to active if no document
+      return 'active';
     } catch (error) {
       console.error('Error checking user status:', error);
-      return 'active'; // Default to allowing access on error
+      return 'active';
     }
   };
   
@@ -87,12 +84,16 @@ export const AuthProvider = ({ children }) => {
         // Store the current email for future comparison
         setPreviousEmail(user.email);
         
-        // Only proceed if user is active
+        // Only proceed if user is active; otherwise, sign out with tailored message
         if (status === 'active') {
           setCurrentUser(user);
         } else {
-          console.log('User account is inactive, signing out');
-          toast.error('Your account has been deactivated. Please contact an administrator.');
+          let msg = 'Your account is not allowed to sign in.';
+          if (status === 'suspended') msg = 'Your account has been suspended. Please contact an administrator.';
+          if (status === 'resigned') msg = 'Your employment has ended (resigned). You can no longer sign in.';
+          if (status === 'terminated') msg = 'Your employment has ended (terminated). You can no longer sign in.';
+          console.log('Blocking session due to user status:', status);
+          toast.error(msg);
           await signOut(auth);
           setCurrentUser(null);
         }
@@ -108,14 +109,21 @@ export const AuthProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Add a second useEffect to handle inactive users after the status is set
+  // Add a second useEffect to handle blocked users after the status is set
   useEffect(() => {
     const handleInactiveUser = async () => {
-      if (userStatus === 'inactive' && auth.currentUser) {
-        console.log('Detected inactive user status, enforcing sign out');
-        await signOut(auth);
-        setCurrentUser(null);
-        toast.error('Your account has been deactivated. Please contact an administrator.');
+      if (auth.currentUser) {
+        const blocked = ['suspended', 'resigned', 'terminated'];
+        if (blocked.includes(String(userStatus).toLowerCase())) {
+          console.log('Detected blocked user status, enforcing sign out:', userStatus);
+          await signOut(auth);
+          setCurrentUser(null);
+          let msg = 'Your account is not allowed to sign in.';
+          if (userStatus === 'suspended') msg = 'Your account has been suspended. Please contact an administrator.';
+          if (userStatus === 'resigned') msg = 'Your employment has ended (resigned). You can no longer sign in.';
+          if (userStatus === 'terminated') msg = 'Your employment has ended (terminated). You can no longer sign in.';
+          toast.error(msg);
+        }
       }
     };
     

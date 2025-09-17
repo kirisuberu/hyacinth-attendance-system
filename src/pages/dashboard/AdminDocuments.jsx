@@ -29,7 +29,10 @@ function AdminDocuments() {
         const snap = await getDocs(collection(db, 'users'));
         const list = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .filter(u => u.status !== 'inactive');
+          .filter(u => {
+            const s = String(u.status || '').toLowerCase();
+            return !['resigned', 'terminated'].includes(s);
+          });
         setUsers(list);
         if (!selectedUserId && list.length) setSelectedUserId(list[0].id);
       } catch (e) {

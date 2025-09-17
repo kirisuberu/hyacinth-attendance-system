@@ -47,8 +47,9 @@ const ProtectedRoute = ({ children }) => {
     return <LoadingContainer>Loading...</LoadingContainer>;
   }
 
-  // Redirect to login if user is not logged in or is inactive
-  if (!currentUser || userStatus === 'inactive') {
+  // Redirect to login if user is not logged in or has a blocked status
+  const blocked = ['suspended', 'resigned', 'terminated'];
+  if (!currentUser || blocked.includes(String(userStatus || '').toLowerCase())) {
     return <Navigate to="/" replace />;
   }
 

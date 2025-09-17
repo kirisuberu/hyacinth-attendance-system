@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import styled from 'styled-components';
-import { User, Phone, MapPin, EnvelopeSimple, PencilSimple, FloppyDisk, Calendar, UsersThree } from 'phosphor-react';
+import { User, Phone, MapPin, EnvelopeSimple, PencilSimple, FloppyDisk, Calendar, UsersThree, IdentificationCard } from 'phosphor-react';
 import { updateDoc, doc } from 'firebase/firestore';
 import { db, auth } from '../../../firebase';
 import { toast } from 'react-toastify';
@@ -66,7 +66,10 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
     dateOfBirth: initialDob || '',
     emergencyContactName: userData?.emergencyContactName || '',
     emergencyContactRelationship: userData?.emergencyContactRelationship || '',
-    emergencyContactPhone: userData?.emergencyContactPhone || ''
+    emergencyContactPhone: userData?.emergencyContactPhone || '',
+    sssNumber: userData?.sssNumber || '',
+    pagibigNumber: userData?.pagibigNumber || '',
+    philhealthNumber: userData?.philhealthNumber || ''
   });
 
   // Helper: Compute a robust full name/display name with fallbacks
@@ -100,7 +103,10 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
       dateOfBirth: initialDob || '',
       emergencyContactName: userData?.emergencyContactName || '',
       emergencyContactRelationship: userData?.emergencyContactRelationship || '',
-      emergencyContactPhone: userData?.emergencyContactPhone || ''
+      emergencyContactPhone: userData?.emergencyContactPhone || '',
+      sssNumber: userData?.sssNumber || '',
+      pagibigNumber: userData?.pagibigNumber || '',
+      philhealthNumber: userData?.philhealthNumber || ''
     });
     setCurrentPassword('');
     setReauthRequired(false);
@@ -205,7 +211,10 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
         address: formData.address,
         emergencyContactName: formData.emergencyContactName,
         emergencyContactRelationship: formData.emergencyContactRelationship,
-        emergencyContactPhone: formData.emergencyContactPhone
+        emergencyContactPhone: formData.emergencyContactPhone,
+        sssNumber: (formData.sssNumber || '').trim(),
+        pagibigNumber: (formData.pagibigNumber || '').trim(),
+        philhealthNumber: (formData.philhealthNumber || '').trim()
       };
 
       // Only update email in Firestore if it wasn't changed here; it will be synced automatically after verification
@@ -464,6 +473,49 @@ const PersonalInfoSection = ({ userData, userId, formatTimestamp }) => {
                   </FormGroup>
                 </ModalSection>
               </TwoColumnMainGrid>
+
+              <ModalSection>
+                <ModalSectionTitle>
+                  <IdentificationCard size={16} />
+                  Government IDs
+                </ModalSectionTitle>
+                
+                <FormGroup>
+                  <Label htmlFor="sssNumber">SSS No.</Label>
+                  <Input
+                    type="text"
+                    id="sssNumber"
+                    name="sssNumber"
+                    value={formData.sssNumber}
+                    onChange={handleChange}
+                    placeholder="e.g., 34-1234567-8"
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <Label htmlFor="pagibigNumber">PAG-IBIG No.</Label>
+                  <Input
+                    type="text"
+                    id="pagibigNumber"
+                    name="pagibigNumber"
+                    value={formData.pagibigNumber}
+                    onChange={handleChange}
+                    placeholder="e.g., 1234-5678-9012"
+                  />
+                </FormGroup>
+
+                <FormGroup>
+                  <Label htmlFor="philhealthNumber">Philhealth No.</Label>
+                  <Input
+                    type="text"
+                    id="philhealthNumber"
+                    name="philhealthNumber"
+                    value={formData.philhealthNumber}
+                    onChange={handleChange}
+                    placeholder="e.g., 12-345678901-2"
+                  />
+                </FormGroup>
+              </ModalSection>
             </ModalScrollArea>
             
             <ModalFooter>

@@ -216,9 +216,12 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
       snapArray.docs.forEach(d => byId.set(d.id, { id: d.id, ...d.data() }));
       snapLegacy.docs.forEach(d => byId.set(d.id, { id: d.id, ...d.data() }));
       
-      // Filter out inactive users from department members
+      // Filter out resigned/terminated users from department members (include suspended)
       const allMembers = Array.from(byId.values());
-      const activeMembers = allMembers.filter(user => user.status !== 'inactive');
+      const activeMembers = allMembers.filter(u => {
+        const s = String(u.status || '').toLowerCase();
+        return !['resigned', 'terminated'].includes(s);
+      });
       console.log('Department members loaded:', activeMembers.length, 'active members (', allMembers.length, 'total) for department', departmentId);
       setDepartmentMembers(activeMembers);
       setLoadingMembers(false);
@@ -238,16 +241,22 @@ function DepartmentManagementView({ isSuperAdmin, isAdmin, canEdit = false }) {
         const q = query(usersRef, orderBy('firstName'));
         const querySnapshot = await getDocs(q);
         const allUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Filter out inactive users from the available users list
-        const activeUsers = allUsers.filter(user => user.status !== 'inactive');
+        // Filter out resigned/terminated users from the available users list (include suspended)
+        const activeUsers = allUsers.filter(u => {
+          const s = String(u.status || '').toLowerCase();
+          return !['resigned', 'terminated'].includes(s);
+        });
         console.log('All users loaded (ordered):', activeUsers.length, 'active users (', allUsers.length, 'total)');
         setAllUsers(activeUsers);
       } catch (errOrdered) {
         console.warn('OrderBy(firstName) failed; falling back to unsorted fetch:', errOrdered);
         const querySnapshot = await getDocs(usersRef);
         const allUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Filter out inactive users from the available users list
-        const activeUsers = allUsers.filter(user => user.status !== 'inactive');
+        // Filter out resigned/terminated users from the available users list (include suspended)
+        const activeUsers = allUsers.filter(u => {
+          const s = String(u.status || '').toLowerCase();
+          return !['resigned', 'terminated'].includes(s);
+        });
         setAllUsers(activeUsers);
       }
     } catch (error) {
