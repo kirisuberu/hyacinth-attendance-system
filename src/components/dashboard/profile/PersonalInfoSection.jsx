@@ -546,11 +546,8 @@ const PersonalSectionWrapper = styled.div`
   flex-direction: column;
   gap: 16px;
   position: relative;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  padding: 24px;
-  margin-bottom: 24px;
+  height: 100%;
+  min-height: 400px;
 `;
 
 const InfoHeader = styled.div`

@@ -9,7 +9,8 @@ Parameters:
     Description: Name of the S3 bucket to store media files
   AllowedOrigins:
     Type: String
-    Default: '*'
+    # Include common local dev origins by default; override in production deploys
+    Default: 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173'
     Description: Comma-separated list of allowed origins for CORS on API Gateway
   FirebaseProjectId:
     Type: String
@@ -37,8 +38,12 @@ Resources:
           - POST
           - OPTIONS
         AllowHeaders:
+          - authorization
+          - content-type
+          - x-requested-with
           - '*'
-        AllowCredentials: true
+        # We use Bearer tokens (no cookies). Set to false so wildcard or broad origins work in dev.
+        AllowCredentials: false
         AllowOrigins: !Split
           - ','
           - !Ref AllowedOrigins

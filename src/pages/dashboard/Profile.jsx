@@ -21,6 +21,7 @@ function Profile() {
   const user = context?.user || null;
   const userData = context?.userData || null;
   const loadingUserData = context?.loadingUserData || false;
+  const setUserData = context?.setUserData;
 
   return (
     <PageContainer>
@@ -28,7 +29,8 @@ function Profile() {
       <ProfileView 
         user={user} 
         userData={userData} 
-        loadingUserData={loadingUserData} 
+        loadingUserData={loadingUserData}
+        setUserData={setUserData}
       />
     </PageContainer>
   );

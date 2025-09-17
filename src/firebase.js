@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { connectFirestoreEmulator, initializeFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, connectAuthEmulator, GoogleAuthProvider } from "firebase/auth";
 import { getStorage } from "firebase/storage";
@@ -21,7 +21,13 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = initializeFirestore(app, {
+  // Helps avoid ad blockers (e.g., uBlock/Brave) blocking the WebChannel Listen endpoint
+  // by falling back to long polling when needed.
+  experimentalAutoDetectLongPolling: true,
+  // Disable fetch-based streams for broader compatibility (older browsers/ad-blockers)
+  useFetchStreams: false,
+});
 export const storage = getStorage(app);
 
 // Connect to emulators in development mode

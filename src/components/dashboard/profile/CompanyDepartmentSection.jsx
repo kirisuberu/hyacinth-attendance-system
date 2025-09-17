@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Buildings, Briefcase, CalendarCheck } from 'phosphor-react';
+import { Buildings, Briefcase, CalendarCheck, IdentificationCard, Shield } from 'phosphor-react';
 
 const CompanyDepartmentSection = ({ 
   userData,
@@ -65,11 +65,54 @@ const CompanyDepartmentSection = ({
       <InfoGrid>
         <InfoTile>
           <IconBubble>
-            <Buildings size={18} />
+            <Briefcase size={18} />
           </IconBubble>
           <TileBody>
-            <TileLabel>Company</TileLabel>
-            <TileValue>{renderCompanies()}</TileValue>
+            <TileLabel>Employment Details</TileLabel>
+            <TileValue>
+              <IdsGroup>
+                <IdRow>
+                  <IdLabel>
+                    <Buildings size={16} />
+                    Company
+                  </IdLabel>
+                  <IdValue>{renderCompanies()}</IdValue>
+                </IdRow>
+                <IdRow>
+                  <IdLabel>
+                    <Briefcase size={16} />
+                    Position
+                  </IdLabel>
+                  <IdValue>{userData?.position || <EmptyText>Not specified</EmptyText>}</IdValue>
+                </IdRow>
+                <IdRow>
+                  <IdLabel>
+                    <CalendarCheck size={16} />
+                    Date Hired
+                  </IdLabel>
+                  <IdValue>
+                    {userData?.dateHired
+                      ? (typeof formatTimestamp === 'function'
+                          ? formatTimestamp(userData.dateHired)
+                          : (() => {
+                              try {
+                                // Fallback formatting if formatter not provided
+                                if (userData.dateHired?.toDate) return userData.dateHired.toDate().toLocaleDateString();
+                                if (typeof userData.dateHired === 'object' && (userData.dateHired.seconds || userData.dateHired._seconds)) {
+                                  const secs = userData.dateHired.seconds || userData.dateHired._seconds;
+                                  return new Date(secs * 1000).toLocaleDateString();
+                                }
+                                const d = new Date(userData.dateHired);
+                                return isNaN(d.getTime()) ? 'Invalid date' : d.toLocaleDateString();
+                              } catch {
+                                return 'Invalid date';
+                              }
+                            })())
+                      : <EmptyText>Not specified</EmptyText>}
+                  </IdValue>
+                </IdRow>
+              </IdsGroup>
+            </TileValue>
           </TileBody>
         </InfoTile>
 
@@ -83,41 +126,38 @@ const CompanyDepartmentSection = ({
           </TileBody>
         </InfoTile>
 
-        <InfoTile>
-          <IconBubble>
-            <Briefcase size={18} />
-          </IconBubble>
-          <TileBody>
-            <TileLabel>Position</TileLabel>
-            <TileValue>{userData?.position || <EmptyText>Not specified</EmptyText>}</TileValue>
-          </TileBody>
-        </InfoTile>
 
+        {/* Government ID Numbers (Grouped) */}
         <InfoTile>
           <IconBubble>
-            <CalendarCheck size={18} />
+            <IdentificationCard size={18} />
           </IconBubble>
           <TileBody>
-            <TileLabel>Date Hired</TileLabel>
+            <TileLabel>Government IDs</TileLabel>
             <TileValue>
-              {userData?.dateHired
-                ? (typeof formatTimestamp === 'function'
-                    ? formatTimestamp(userData.dateHired)
-                    : (() => {
-                        try {
-                          // Fallback formatting if formatter not provided
-                          if (userData.dateHired?.toDate) return userData.dateHired.toDate().toLocaleDateString();
-                          if (typeof userData.dateHired === 'object' && (userData.dateHired.seconds || userData.dateHired._seconds)) {
-                            const secs = userData.dateHired.seconds || userData.dateHired._seconds;
-                            return new Date(secs * 1000).toLocaleDateString();
-                          }
-                          const d = new Date(userData.dateHired);
-                          return isNaN(d.getTime()) ? 'Invalid date' : d.toLocaleDateString();
-                        } catch {
-                          return 'Invalid date';
-                        }
-                      })())
-                : <EmptyText>Not specified</EmptyText>}
+              <IdsGroup>
+                <IdRow>
+                  <IdLabel>
+                    <IdentificationCard size={16} />
+                    SSS Number
+                  </IdLabel>
+                  <IdValue>{userData?.sssNumber ? userData.sssNumber : <EmptyText>Not specified</EmptyText>}</IdValue>
+                </IdRow>
+                <IdRow>
+                  <IdLabel>
+                    <IdentificationCard size={16} />
+                    PAG-IBIG Number
+                  </IdLabel>
+                  <IdValue>{userData?.pagibigNumber ? userData.pagibigNumber : <EmptyText>Not specified</EmptyText>}</IdValue>
+                </IdRow>
+                <IdRow>
+                  <IdLabel>
+                    <Shield size={16} />
+                    Philhealth Number
+                  </IdLabel>
+                  <IdValue>{userData?.philhealthNumber ? userData.philhealthNumber : <EmptyText>Not specified</EmptyText>}</IdValue>
+                </IdRow>
+              </IdsGroup>
             </TileValue>
           </TileBody>
         </InfoTile>
@@ -224,6 +264,34 @@ const Chip = styled.span`
 
 const EmptyText = styled.span`
   color: #9e9e9e;
+`;
+
+const IdsGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const IdRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+
+const IdLabel = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #616161;
+  min-width: 180px;
+`;
+
+const IdValue = styled.div`
+  font-size: 1rem;
+  color: #333;
 `;
 
 export default CompanyDepartmentSection;

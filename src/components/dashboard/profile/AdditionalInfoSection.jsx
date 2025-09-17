@@ -150,6 +150,8 @@ const DatesSectionWrapper = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
+  height: 100%;
+  min-height: 400px;
 `;
 
 const InfoHeader = styled.div`

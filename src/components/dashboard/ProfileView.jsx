@@ -36,8 +36,9 @@ import PersonalInfoSection from './profile/PersonalInfoSection';
 import CompanyDepartmentSection from './profile/CompanyDepartmentSection';
 import AdditionalInfoSection from './profile/AdditionalInfoSection';
 import EmergencyContactSection from './profile/EmergencyContactSection';
+import ProfileAvatarUploader from './profile/ProfileAvatarUploader';
 
-const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadingUserData }) => {
+const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadingUserData, setUserData }) => {
   const navigate = useNavigate();
   // Use props values instead of fetching data separately
   const [companies, setCompanies] = useState([]);
@@ -176,24 +177,27 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
       
       {/* Profile Banner with Avatar and Basic Info */}
       <ProfileBanner>
-        <Avatar>
-          {propUserData?.photoURL ? (
-            <img src={propUserData.photoURL} alt="User avatar" />
-          ) : (
-            <UserIcon size={40} weight="fill" />
-          )}
-        </Avatar>
-        <UserInfoHeader>
-          <UserName>
-            {getDisplayName()}
-            {getPreferredName() && <span className="preferred-name"> ({getPreferredName()})</span>}
-          </UserName>
-          <UserTitle>{getUserPosition()}</UserTitle>
-          <UserStatus>
-            <StatusIndicator status={getUserStatus()} />
-            {getUserStatus().charAt(0).toUpperCase() + getUserStatus().slice(1)}
-          </UserStatus>
-        </UserInfoHeader>
+        <div className="profile-left">
+          <ProfileAvatarUploader user={user} userData={propUserData} setUserData={setUserData} />
+          <UserInfoHeader>
+            <UserName>
+              {getDisplayName()}
+              {getPreferredName() && <span className="preferred-name"> ({getPreferredName()})</span>}
+            </UserName>
+            <UserTitle>{getUserPosition()}</UserTitle>
+            <UserStatus>
+              <StatusIndicator status={getUserStatus()} />
+              {getUserStatus().charAt(0).toUpperCase() + getUserStatus().slice(1)}
+            </UserStatus>
+          </UserInfoHeader>
+        </div>
+        <BannerEditButton onClick={() => {
+          // Find the PersonalInfoSection component and call its handleOpenModal method
+          document.querySelector('[data-edit-profile]').click();
+        }}>
+          <PencilSimple size={18} weight="bold" />
+          Edit Profile
+        </BannerEditButton>
       </ProfileBanner>
       
       {/* Navigation Tabs */}
@@ -226,16 +230,6 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
       <Card>
         {activeTab === 'personal' && (
           <>
-            <CardTitleWrapper>
-              <CardTitle>Personal Information</CardTitle>
-              <EditProfileButton onClick={() => {
-                // Find the PersonalInfoSection component and call its handleOpenModal method
-                document.querySelector('[data-edit-profile]').click();
-              }}>
-                <PencilSimple size={18} />
-                Edit Profile
-              </EditProfileButton>
-            </CardTitleWrapper>
             <CardContent>
               <ThreeColumnGrid>
                 {/* First Column - Personal Info */}
@@ -263,7 +257,6 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
         
         {activeTab === 'work' && (
           <>
-            <CardTitle>Work Information</CardTitle>
             <CardContent>
               <CompanyDepartmentSection 
                 userData={propUserData} 
@@ -279,7 +272,6 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
         
         {activeTab === 'settings' && (
           <>
-            <CardTitle>User Settings</CardTitle>
             <CardContent>
               {/* Time Format Setting */}
               <div style={{ marginTop: '16px' }}>
@@ -306,39 +298,33 @@ const ProfileView = ({ user, userData: propUserData, loadingUserData: propLoadin
 };
 
 // Styled components for the Edit Profile button
-const CardTitleWrapper = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid #eaeaea;
-`;
 
-const EditProfileButton = styled.button`
+const BannerEditButton = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   padding: 10px 20px;
-  border: 1px solid #ffe1e1;
+  border: none;
   border-radius: 8px;
-  background: linear-gradient(to bottom, #fff6f6, #ffe1e1);
-  color: #800000;
+  background-color: #800000;
+  color: white;
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 600;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 4px rgba(128,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(128,0,0,0.2);
   
   &:hover {
-    background: linear-gradient(to bottom, #ffe1e1, #ffd6d6);
-    box-shadow: 0 3px 6px rgba(128,0,0,0.15);
+    background-color: #9a0000;
+    box-shadow: 0 3px 6px rgba(128,0,0,0.3);
     transform: translateY(-1px);
   }
   
   &:active {
+    background-color: #700000;
     transform: translateY(0);
-    box-shadow: 0 1px 2px rgba(128,0,0,0.1);
+    box-shadow: 0 1px 2px rgba(128,0,0,0.2);
   }
 `;
 

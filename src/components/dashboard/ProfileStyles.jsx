@@ -254,8 +254,21 @@ export const ProfileGridLayout = styled.div`
 export const ThreeColumnGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  gap: 24px;
   width: 100%;
+  align-items: start;
+  
+  /* Ensure all columns have consistent styling */
+  > div {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 24px;
+    border: 1px solid #f0f0f0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
   
   @media (max-width: 1200px) {
     grid-template-columns: repeat(2, 1fr);
@@ -310,11 +323,17 @@ export const TabButton = styled.button`
 export const ProfileBanner = styled.div`
   display: flex;
   align-items: center;
-  gap: 20px;
+  justify-content: space-between;
   background-color: white;
   padding: 16px 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  
+  .profile-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
 `;
 
 export const Avatar = styled.div`

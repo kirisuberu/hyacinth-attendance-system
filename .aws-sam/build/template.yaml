@@ -8,7 +8,7 @@ Parameters:
     Description: Name of the S3 bucket to store media files
   AllowedOrigins:
     Type: String
-    Default: '*'
+    Default: http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173
     Description: Comma-separated list of allowed origins for CORS on API Gateway
   FirebaseProjectId:
     Type: String
@@ -36,8 +36,11 @@ Resources:
         - POST
         - OPTIONS
         AllowHeaders:
+        - authorization
+        - content-type
+        - x-requested-with
         - '*'
-        AllowCredentials: true
+        AllowCredentials: false
         AllowOrigins:
           Fn::Split:
           - ','
